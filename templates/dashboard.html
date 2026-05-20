@@ -1,0 +1,511 @@
+{% extends "base.html" %}
+{% block title %}Overview{% endblock %}
+
+{% block content %}
+
+<!-- Page Header -->
+<div class="page-header" data-aos="fade-down">
+    <div>
+        <h1 class="page-title">Executive Overview</h1>
+        <p class="page-subtitle">Live business intelligence and localized demand patterns</p>
+    </div>
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+
+        <!-- Time Filter — options populated dynamically from DB -->
+        <select id="timeFilter" class="form-control-custom"
+                style="width:auto;min-width:175px;" onchange="applyFilters()">
+            <option value="all">All Time</option>
+            <option value="current_week">Current 7 Days</option>
+            <optgroup label="── By Year ──"  id="optYears"></optgroup>
+            <optgroup label="── By Month ──" id="optMonths"></optgroup>
+        </select>
+
+        <!-- Branch Filter -->
+        <select id="branchFilter" class="form-control-custom"
+                style="width:auto;min-width:160px;" onchange="applyFilters()">
+            <option value="all">All Branches</option>
+            <option value="Putrajaya">Putrajaya</option>
+            <option value="Puncak Alam">Puncak Alam</option>
+        </select>
+
+        <button class="btn-outline-custom" onclick="window.print()">
+            <i class="fa-solid fa-download"></i> Export
+        </button>
+    </div>
+</div>
+
+<!-- ============================================================
+     KPI CARDS
+============================================================ -->
+<div class="row g-3 mb-4">
+
+    <div class="col-12 col-md-6 col-xl-3" data-aos="fade-up" data-aos-delay="0">
+        <div class="kpi-card kpi-blue">
+            <div class="kpi-icon-wrap"><i class="fa-solid fa-wallet"></i></div>
+            <div class="kpi-body">
+                <div class="kpi-label">Total Revenue</div>
+                <div class="kpi-value">RM&nbsp;<span id="kpiRevenue">—</span></div>
+                <span class="kpi-trend neutral" id="kpiRevTrend">
+                    <i class="fa-solid fa-filter"></i> Filter applied
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-md-6 col-xl-3" data-aos="fade-up" data-aos-delay="80">
+        <div class="kpi-card kpi-amber">
+            <div class="kpi-icon-wrap"><i class="fa-solid fa-mug-hot"></i></div>
+            <div class="kpi-body">
+                <div class="kpi-label">Volume Sold</div>
+                <div class="kpi-value">
+                    <span id="kpiVolume">—</span>
+                    <span style="font-size:.95rem;color:var(--text-muted);"> units</span>
+                </div>
+                <span class="kpi-trend neutral">
+                    <i class="fa-solid fa-boxes-stacked"></i> Total product count
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-md-6 col-xl-3" data-aos="fade-up" data-aos-delay="160">
+        <div class="kpi-card kpi-teal">
+            <div class="kpi-icon-wrap"><i class="fa-solid fa-receipt"></i></div>
+            <div class="kpi-body">
+                <div class="kpi-label">Transactions</div>
+                <div class="kpi-value"><span id="kpiTransactions">—</span></div>
+                <!-- Sparkline lives here -->
+                <div style="height:34px;margin-top:6px;">
+                    <canvas id="sparklineChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-md-6 col-xl-3" data-aos="fade-up" data-aos-delay="240">
+        <div class="kpi-card kpi-purple">
+            <div class="kpi-icon-wrap"><i class="fa-solid fa-store"></i></div>
+            <div class="kpi-body">
+                <div class="kpi-label">Top Branch (Last Month)</div>
+                <div class="kpi-value" style="font-size:1.1rem;margin-top:4px;">
+                    <span id="kpiBranch">—</span>
+                </div>
+                <span class="kpi-trend neutral" style="color:var(--slate-accent);">
+                    <i class="fa-solid fa-calendar-check"></i>
+                    <span id="kpiPrevMonth">—</span>
+                </span>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ============================================================
+     ROW 2 — Historical Sales Trend + Product Mix
+============================================================ -->
+<div class="row g-3 mb-4">
+
+    <div class="col-12 col-xl-8" data-aos="fade-up" data-aos-delay="0">
+        <div class="dashboard-card h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <p class="card-title mb-0">Historical Sales Trend</p>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge-custom badge-blue" id="trendAxisBadge">Monthly</span>
+                    <button class="btn-outline-custom"
+                            style="padding:.3rem .7rem;font-size:.75rem;"
+                            onclick="Plotly.downloadImage('trendChart',{format:'png',filename:'sales_trend',width:900,height:400})">
+                        <i class="fa-solid fa-image"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="chart-container" style="min-height:280px;">
+                <div class="chart-loading" id="loadingTrend"><div class="spinner"></div></div>
+                <div id="trendChart" style="width:100%;height:280px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-xl-4" data-aos="fade-up" data-aos-delay="100">
+        <div class="dashboard-card h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <p class="card-title mb-0">Product Mix</p>
+                <button class="btn-outline-custom"
+                        style="padding:.3rem .7rem;font-size:.75rem;"
+                        onclick="Plotly.downloadImage('categoryChart',{format:'png',filename:'product_mix',width:600,height:400})">
+                    <i class="fa-solid fa-image"></i>
+                </button>
+            </div>
+            <div class="chart-container" style="min-height:280px;">
+                <div class="chart-loading" id="loadingCategory"><div class="spinner"></div></div>
+                <div id="categoryChart" style="width:100%;height:280px;"></div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ============================================================
+     ROW 3 — Top Selling + Weak Performance
+============================================================ -->
+<div class="row g-3 mb-4">
+
+    <div class="col-12 col-md-6" data-aos="fade-up" data-aos-delay="0">
+        <div class="dashboard-card h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <p class="card-title mb-0">Top Selling Items</p>
+                <span class="badge-custom badge-teal">Best 3 Product</span>
+            </div>
+            <div class="chart-container" style="min-height:240px;">
+                <div class="chart-loading" id="loadingTop"><div class="spinner"></div></div>
+                <div id="topChart" style="width:100%;height:240px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-md-6" data-aos="fade-up" data-aos-delay="80">
+        <div class="dashboard-card h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <p class="card-title mb-0">Weak Performance Items</p>
+                <span class="badge-custom badge-red">Needs Attention</span>
+            </div>
+            <div class="chart-container" style="min-height:240px;">
+                <div class="chart-loading" id="loadingWeak"><div class="spinner"></div></div>
+                <div id="weakChart" style="width:100%;height:240px;"></div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ============================================================
+     ROW 4 — Payment Breakdown + Peak Hours Heatmap
+============================================================ -->
+<div class="row g-3 mb-2">
+
+    <div class="col-12 col-md-5" data-aos="fade-up" data-aos-delay="0">
+        <div class="dashboard-card h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <p class="card-title mb-0">Payment Method Breakdown</p>
+            </div>
+            <div class="chart-container" style="min-height:220px;">
+                <div class="chart-loading" id="loadingPayment"><div class="spinner"></div></div>
+                <div id="paymentChart" style="width:100%;height:220px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-md-7" data-aos="fade-up" data-aos-delay="80">
+        <div class="dashboard-card h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <p class="card-title mb-0">Peak Traffic Heatmap — Day × Hour</p>
+                <span class="text-muted-sm">Darker = more transactions</span>
+            </div>
+            <div class="chart-container" style="min-height:220px;">
+                <div class="chart-loading" id="loadingHeatmap"><div class="spinner"></div></div>
+                <div id="heatmapChart" style="width:100%;height:220px;"></div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+{% endblock %}
+
+
+{% block scripts %}
+<!-- Chart.js for sparkline -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<!-- Plotly for all main charts -->
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+
+<script>
+/* ============================================================
+   PALETTE & LAYOUT
+============================================================ */
+const COLORS = {
+    blue:   '#3B82F6',
+    amber:  '#F59E0B',
+    teal:   '#10B981',
+    purple: '#8B5CF6',
+    red:    '#EF4444',
+    slate:  ['#3B82F6','#10B981','#F59E0B','#8B5CF6','#EF4444',
+             '#06B6D4','#F97316','#84CC16','#EC4899','#6366F1']
+};
+
+const LAYOUT_BASE = {
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor:  'rgba(0,0,0,0)',
+    font:   { family:"'DM Sans', sans-serif", color:'#334155', size:12 },
+    margin: { t:10, r:16, b:40, l:50 },
+    hoverlabel: { bgcolor:'#1E2A3A', font:{ color:'white', size:12 } }
+};
+const CONFIG = { responsive:true, displayModeBar:false };
+
+/* ============================================================
+   UTILITIES
+============================================================ */
+function hideLoader(id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+}
+
+function showLoader(id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'flex';
+}
+
+function animateCount(id, end, isCurrency=false) {
+    const el = document.getElementById(id);
+    if (!el || end === undefined || end === null) return;
+    const dur = 800, step = 16;
+    const inc = end / (dur / step);
+    let cur = 0;
+    const timer = setInterval(() => {
+        cur += inc;
+        if (cur >= end) { cur = end; clearInterval(timer); }
+        el.textContent = isCurrency
+            ? cur.toLocaleString('en-MY', {minimumFractionDigits:2, maximumFractionDigits:2})
+            : Math.floor(cur).toLocaleString('en-MY');
+    }, step);
+}
+
+let sparklineInstance = null;
+
+/* ============================================================
+   STEP 1 — LOAD FILTER OPTIONS (only months/years that exist)
+============================================================ */
+function loadFilterOptions() {
+    fetch('/api/dashboard_filters')
+        .then(r => r.json())
+        .then(d => {
+            if (d.status !== 'success') return;
+
+            const yrGrp = document.getElementById('optYears');
+            const moGrp = document.getElementById('optMonths');
+
+            // Years
+            d.years.forEach(y => {
+                const opt = document.createElement('option');
+                opt.value       = 'year_' + y;
+                opt.textContent = y;
+                yrGrp.appendChild(opt);
+            });
+
+            // Months — formatted as "March 2026"
+            d.months.forEach(m => {
+                const opt  = document.createElement('option');
+                opt.value  = 'month_' + m;
+                try {
+                    const dt = new Date(m + '-01');
+                    opt.textContent = dt.toLocaleString('default', {month:'long', year:'numeric'});
+                } catch(e) {
+                    opt.textContent = m;
+                }
+                moGrp.appendChild(opt);
+            });
+        })
+        .catch(err => console.error('Filter load error:', err));
+}
+
+/* ============================================================
+   STEP 2 — APPLY FILTERS (called on change + initial load)
+============================================================ */
+function applyFilters() {
+    const branch = document.getElementById('branchFilter').value;
+    const time   = document.getElementById('timeFilter').value;
+
+    // Show all loaders
+    ['loadingTrend','loadingCategory','loadingTop',
+     'loadingWeak','loadingPayment','loadingHeatmap'].forEach(showLoader);
+
+    // ── KPIs ──────────────────────────────────────────────────
+    fetch(`/api/kpis?branch=${encodeURIComponent(branch)}&time=${encodeURIComponent(time)}`)
+        .then(r => r.json())
+        .then(d => {
+            if (d.status !== 'success') return;
+
+            animateCount('kpiRevenue',      d.total_revenue,      true);
+            animateCount('kpiVolume',       d.volume_sold,        false);
+            animateCount('kpiTransactions', d.total_transactions, false);
+
+            document.getElementById('kpiBranch').textContent    = d.top_branch;
+            document.getElementById('kpiPrevMonth').textContent = d.prev_month_label;
+
+            // Sparkline
+            const ctx = document.getElementById('sparklineChart').getContext('2d');
+            if (sparklineInstance) sparklineInstance.destroy();
+            const sparkData = d.sparkline?.data || [];
+            sparklineInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: d.sparkline?.labels || [],
+                    datasets: [{
+                        data: sparkData,
+                        borderColor: COLORS.teal,
+                        borderWidth: 2,
+                        tension: 0.45,
+                        pointRadius: 0,
+                        fill: true,
+                        backgroundColor: 'rgba(16,185,129,.12)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend:{display:false}, tooltip:{enabled:false} },
+                    scales: {
+                        x: { display:false },
+                        y: { display:false,
+                             min: sparkData.length ? Math.min(...sparkData) * 0.88 : 0 }
+                    },
+                    layout: { padding:0 }
+                }
+            });
+        })
+        .catch(err => console.error('KPI error:', err));
+
+    // ── Charts ────────────────────────────────────────────────
+    fetch(`/api/charts?branch=${encodeURIComponent(branch)}&time=${encodeURIComponent(time)}`)
+        .then(r => r.json())
+        .then(d => {
+            if (d.status !== 'success') return;
+
+            // Update axis badge
+            const badge = document.getElementById('trendAxisBadge');
+            if (badge) badge.textContent = d.trend.is_monthly ? 'Monthly' : 'Daily';
+
+            // 1. Historical Sales Trend (line chart)
+            Plotly.newPlot('trendChart', [{
+                x: d.trend.labels,
+                y: d.trend.data,
+                type: 'scatter',
+                mode: 'lines+markers',
+                line: { color: COLORS.blue, width: 2.5, shape:'spline' },
+                marker: { size: 5, color: COLORS.blue },
+                fill: 'tozeroy',
+                fillcolor: 'rgba(59,130,246,0.08)',
+                hovertemplate: '<b>%{x}</b><br>RM %{y:,.2f}<extra></extra>'
+            }], {
+                ...LAYOUT_BASE,
+                hovermode: 'x unified',
+                xaxis: { gridcolor:'#E2E8F0', tickangle:-30, showgrid:false },
+                yaxis: { tickprefix:'RM ', gridcolor:'#E2E8F0', gridwidth:1 }
+            }, CONFIG);
+            hideLoader('loadingTrend');
+
+            // 2. Product Mix Doughnut
+            Plotly.newPlot('categoryChart', [{
+                labels: d.category.labels,
+                values: d.category.data,
+                type:   'pie',
+                hole:   .52,
+                marker: { colors: COLORS.slate },
+                textinfo: 'percent',
+                hovertemplate: '<b>%{label}</b><br>RM %{value:,.2f}<br>%{percent}<extra></extra>',
+                textfont: { size:11 }
+            }], {
+                ...LAYOUT_BASE,
+                showlegend: true,
+                legend: { orientation:'h', y:-0.12, font:{size:10} },
+                margin: { t:10, r:10, b:30, l:10 }
+            }, CONFIG);
+            hideLoader('loadingCategory');
+
+            // 3. Top 5 Products (horizontal bar — teal, reversed so #1 is top)
+            Plotly.newPlot('topChart', [{
+                x: d.top_products.data,
+                y: d.top_products.labels,
+                type: 'bar',
+                orientation: 'h',
+                marker: { color: COLORS.teal, opacity:.88 },
+                hovertemplate: '<b>%{y}</b><br>Qty: %{x:,}<extra></extra>',
+                text: d.top_products.data.map(v => v.toLocaleString('en-MY')),
+                textposition: 'outside',
+                textfont: { size:11 }
+            }], {
+                ...LAYOUT_BASE,
+                margin: { t:10, r:50, b:40, l:140 },
+                xaxis: { showgrid:false },
+                yaxis: { automargin:true, autorange:'reversed' }
+            }, CONFIG);
+            hideLoader('loadingTop');
+
+            // 4. Weak 5 Products (horizontal bar — red)
+            Plotly.newPlot('weakChart', [{
+                x: d.weak_products.data,
+                y: d.weak_products.labels,
+                type: 'bar',
+                orientation: 'h',
+                marker: { color: COLORS.red, opacity:.75 },
+                hovertemplate: '<b>%{y}</b><br>Qty: %{x:,}<extra></extra>',
+                text: d.weak_products.data.map(v => v.toLocaleString('en-MY')),
+                textposition: 'outside',
+                textfont: { size:11 }
+            }], {
+                ...LAYOUT_BASE,
+                margin: { t:10, r:50, b:40, l:140 },
+                xaxis: { showgrid:false },
+                yaxis: { automargin:true, autorange:'reversed' }
+            }, CONFIG);
+            hideLoader('loadingWeak');
+
+            // 5. Payment Method Bar
+            Plotly.newPlot('paymentChart', [{
+                x: d.payment.labels,
+                y: d.payment.data,
+                type: 'bar',
+                marker: { color: COLORS.slate, opacity:.88 },
+                hovertemplate: '<b>%{x}</b><br>%{y:,} transactions<extra></extra>',
+                text: d.payment.data.map(v => v.toLocaleString('en-MY')),
+                textposition: 'outside',
+                textfont: { size:11 }
+            }], {
+                ...LAYOUT_BASE,
+                xaxis: { showgrid:false },
+                yaxis: { gridcolor:'#E2E8F0', gridwidth:1 }
+            }, CONFIG);
+            hideLoader('loadingPayment');
+
+            // 6. Peak Hours Heatmap
+            const days  = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+            const hours = Array.from({length:24}, (_,i) =>
+                `${String(i).padStart(2,'0')}:00`
+            );
+            const z = days.map(day =>
+                hours.map((_,h) => {
+                    const match = d.heatmap.find(r => r.day === day && r.hour === h);
+                    return match ? match.value : 0;
+                })
+            );
+            Plotly.newPlot('heatmapChart', [{
+                z, x: hours, y: days,
+                type: 'heatmap',
+                colorscale: [
+                    [0,   '#EFF6FF'],
+                    [0.3, '#BFDBFE'],
+                    [0.6, '#3B82F6'],
+                    [1,   '#1E2A3A']
+                ],
+                hovertemplate: '<b>%{y} %{x}</b><br>Transactions: %{z}<extra></extra>',
+                showscale: true,
+                colorbar: { thickness:10, len:.8, title:{text:'Txns',side:'right'} }
+            }], {
+                ...LAYOUT_BASE,
+                margin: { t:10, r:60, b:50, l:50 },
+                xaxis: { tickangle:-45, tickfont:{size:9} },
+                yaxis: { automargin:true }
+            }, CONFIG);
+            hideLoader('loadingHeatmap');
+        })
+        .catch(err => console.error('Chart error:', err));
+}
+
+/* ============================================================
+   INIT
+============================================================ */
+document.addEventListener('DOMContentLoaded', () => {
+    loadFilterOptions();   // Populate time dropdown with real DB months/years
+    applyFilters();        // Load initial charts + KPIs
+});
+</script>
+{% endblock %}

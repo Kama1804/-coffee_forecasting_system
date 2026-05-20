@@ -1,0 +1,939 @@
+{% extends "base.html" %}
+{% block title %}AI Forecast{% endblock %}
+
+{% block styles %}
+<style>
+.accuracy-ring-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+}
+.accuracy-ring {
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    background: conic-gradient(var(--teal-success) var(--pct), var(--grey-border) 0);
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+}
+.accuracy-ring::before {
+    content: '';
+    position: absolute;
+    width: 50px; height: 50px;
+    background: var(--white-card);
+    border-radius: 50%;
+}
+.accuracy-ring-val {
+    position: relative;
+    font-size: .75rem;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    color: var(--text-main);
+}
+.promo-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: .68rem;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: var(--radius-full);
+    background: var(--amber-light);
+    color: #92400E;
+    white-space: nowrap;
+}
+.holiday-badge {
+    background: var(--red-light);
+    color: #991B1B;
+}
+.persona-card {
+    background: linear-gradient(135deg, var(--navy-sidebar), #2A3B52);
+    color: white;
+    border-radius: var(--radius-lg);
+    padding: var(--space-md) var(--space-lg);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: var(--space-lg);
+}
+.persona-icon {
+    width: 42px; height: 42px;
+    background: rgba(255,255,255,.12);
+    border-radius: var(--radius-md);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+}
+.trend-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 12px;
+    border-radius: var(--radius-full);
+    font-size: .78rem;
+    font-weight: 600;
+}
+.trend-up   { background: var(--teal-light);  color: var(--teal-success); }
+.trend-down { background: var(--red-light);   color: var(--red-danger); }
+.trend-flat { background: var(--slate-light); color: var(--slate-accent); }
+
+.fva-tab-btn {
+    border: none;
+    border-radius: var(--radius-full);
+    padding: 4px 12px;
+    font-size: .78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .2s;
+}
+.fva-tab-btn.active {
+    background: var(--white-card);
+    color: var(--slate-accent);
+}
+.fva-tab-btn.inactive {
+    background: transparent;
+    color: var(--text-muted);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header" data-aos="fade-down">
+    <div>
+        <h1 class="page-title">AI Sales Forecast</h1>
+        <p class="page-subtitle">
+            7-day revenue prediction · Prophet + Malaysian holidays + live weather · Branch-specific demand patterns
+        </p>
+    </div>
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+        <select id="branchSelect" class="form-control-custom" style="width:auto;min-width:180px;" onchange="onBranchChange()">
+            <option value="1" data-name="Putrajaya">🏢 Putrajaya (Workers)</option>
+            <option value="2" data-name="Puncak Alam">🎓 Puncak Alam (Students)</option>
+        </select>
+        <button class="btn-primary-custom" id="generateBtn" onclick="generateForecast()">
+            <i class="fa-solid fa-wand-magic-sparkles"></i> Generate Forecast
+        </button>
+    </div>
+</div>
+
+<!-- Status Banner -->
+<div id="statusBanner" style="display:none;" class="mb-4">
+    <div class="dashboard-card" style="border-left:4px solid var(--slate-accent);">
+        <div class="d-flex align-items-center gap-3">
+            <div class="spinner" style="flex-shrink:0;"></div>
+            <div>
+                <div class="fw-600" style="font-size:.9rem;" id="statusTitle">Initialising forecast…</div>
+                <div class="text-muted-sm" id="statusText">
+                    Training Prophet with Malaysian holidays, promotions and weather regressors.
+                </div>
+            </div>
+        </div>
+        <div class="d-flex gap-2 mt-3 flex-wrap">
+            <span class="badge-custom badge-blue" id="step1"><i class="fa-solid fa-database me-1"></i>Loading data</span>
+            <span class="badge-custom" id="step2" style="background:var(--grey-canvas);color:var(--text-muted);"><i class="fa-solid fa-calendar me-1"></i>Adding holidays</span>
+            <span class="badge-custom" id="step3" style="background:var(--grey-canvas);color:var(--text-muted);"><i class="fa-solid fa-brain me-1"></i>Training Prophet</span>
+            <span class="badge-custom" id="step4" style="background:var(--grey-canvas);color:var(--text-muted);"><i class="fa-solid fa-cloud me-1"></i>Live weather</span>
+            <span class="badge-custom" id="step5" style="background:var(--grey-canvas);color:var(--text-muted);"><i class="fa-solid fa-chart-line me-1"></i>Predicting</span>
+        </div>
+    </div>
+</div>
+
+<!-- Empty State -->
+<div id="emptyState" data-aos="fade-up">
+    <div class="dashboard-card text-center" style="padding:var(--space-2xl);">
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <i class="fa-solid fa-wand-magic-sparkles" style="font-size:3rem;opacity:.25;"></i>
+            </div>
+            <div class="empty-state-title">No forecast generated yet</div>
+            <p class="empty-state-text">
+                Select a branch and click <strong>Generate Forecast</strong>. The model incorporates
+                Malaysian public holidays, weekly seasonality, branch-specific demand patterns,
+                live weather, and active promotions.
+            </p>
+            <div class="mt-4 d-flex gap-2 justify-content-center flex-wrap">
+                <span class="badge-custom badge-blue"><i class="fa-solid fa-calendar me-1"></i>MY Public Holidays</span>
+                <span class="badge-custom badge-teal"><i class="fa-solid fa-cloud-sun me-1"></i>Live Weather</span>
+                <span class="badge-custom badge-purple"><i class="fa-solid fa-brain me-1"></i>Prophet AI</span>
+                <span class="badge-custom badge-amber"><i class="fa-solid fa-tag me-1"></i>Promotions</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Results Section -->
+<div id="resultsSection" style="display:none;">
+
+    <!-- Persona Card -->
+    <div class="persona-card" id="personaCard" data-aos="fade-down">
+        <div class="persona-icon" id="personaIcon">🏢</div>
+        <div>
+            <div style="font-size:.7rem;opacity:.6;text-transform:uppercase;letter-spacing:.5px;">Branch Demand Persona</div>
+            <div style="font-size:1rem;font-weight:600;" id="personaName">—</div>
+            <div style="font-size:.8rem;opacity:.75;" id="personaDesc">—</div>
+        </div>
+        <div class="ms-auto d-flex align-items-center gap-3">
+            <span class="trend-badge trend-flat" id="trendBadge">
+                <i class="fa-solid fa-minus"></i> Calculating…
+            </span>
+            <button class="btn-outline-custom"
+                    style="background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.3);color:white;font-size:.78rem;padding:.4rem .9rem;"
+                    onclick="downloadChart('forecastChart','forecast_chart')">
+                <i class="fa-solid fa-image"></i> Export
+            </button>
+        </div>
+    </div>
+
+    <!-- KPI Row -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3" data-aos="fade-up" data-aos-delay="0">
+            <div class="kpi-card kpi-blue">
+                <div class="kpi-icon-wrap"><i class="fa-solid fa-bullseye"></i></div>
+                <div class="kpi-body">
+                    <div class="kpi-label">MAPE</div>
+                    <div class="kpi-value"><span id="metricMape">—</span><span style="font-size:1rem;">%</span></div>
+                    <span class="kpi-trend neutral"><i class="fa-solid fa-info-circle"></i> Mean Abs % Error</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3" data-aos="fade-up" data-aos-delay="60">
+            <div class="kpi-card kpi-amber">
+                <div class="kpi-icon-wrap"><i class="fa-solid fa-ruler"></i></div>
+                <div class="kpi-body">
+                    <div class="kpi-label">RMSE</div>
+                    <div class="kpi-value">RM <span id="metricRmse">—</span></div>
+                    <span class="kpi-trend neutral"><i class="fa-solid fa-info-circle"></i> Root Mean Sq Error</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3" data-aos="fade-up" data-aos-delay="120">
+            <div class="kpi-card kpi-teal">
+                <div class="kpi-icon-wrap">
+                    <div class="accuracy-ring-wrap">
+                        <div class="accuracy-ring" id="accuracyRing" style="--pct:0deg;">
+                            <span class="accuracy-ring-val" id="accuracyVal">—%</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="kpi-body">
+                    <div class="kpi-label">Overall Accuracy</div>
+                    <div class="kpi-value" style="font-size:1.4rem;">
+                        <span id="metricAccuracy">—</span><span style="font-size:.9rem;">%</span>
+                    </div>
+                    <span class="kpi-trend up"><i class="fa-solid fa-circle-check"></i> Higher = better</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3" data-aos="fade-up" data-aos-delay="180">
+            <div class="kpi-card kpi-purple">
+                <div class="kpi-icon-wrap"><i class="fa-solid fa-calendar-week"></i></div>
+                <div class="kpi-body">
+                    <div class="kpi-label">7-Day Forecast Total</div>
+                    <div class="kpi-value">RM <span id="metric7Day">—</span></div>
+                    <span class="kpi-trend up"><i class="fa-solid fa-arrow-trend-up"></i> Predicted revenue</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Forecast Chart -->
+    <div class="row g-3 mb-4">
+        <div class="col-12" data-aos="fade-up">
+            <div class="dashboard-card">
+                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <p class="card-title mb-0">7-Day Projected Revenue — Historical vs Predicted</p>
+                    <div class="d-flex gap-3 align-items-center" style="font-size:.75rem;color:var(--text-muted);">
+                        <span><span style="display:inline-block;width:20px;height:2px;background:var(--slate-accent);vertical-align:middle;margin-right:4px;"></span>Actual</span>
+                        <span><span style="display:inline-block;width:20px;height:2px;background:var(--amber-kpi);border-top:2px dashed var(--amber-kpi);vertical-align:middle;margin-right:4px;"></span>Forecast</span>
+                        <span><span style="display:inline-block;width:20px;height:8px;background:rgba(245,158,11,.15);vertical-align:middle;margin-right:4px;border-radius:2px;"></span>95% Confidence</span>
+                        <span><span style="display:inline-block;width:10px;height:10px;background:var(--red-light);border-radius:2px;vertical-align:middle;margin-right:4px;"></span>Holiday</span>
+                    </div>
+                </div>
+                <div class="chart-container" style="min-height:380px;">
+                    <div class="chart-loading" id="loadingForecast"><div class="spinner"></div></div>
+                    <div id="forecastChart" style="width:100%;height:380px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Predicted vs Actual Sales Chart -->
+    <div class="row g-3 mb-4">
+        <div class="col-12" data-aos="fade-up">
+            <div class="dashboard-card">
+                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <div>
+                        <p class="card-title mb-0">Predicted vs Actual Sales</p>
+                        <div class="text-muted-sm" style="font-size:.76rem;margin-top:2px;">
+                            <i class="fa-solid fa-circle-info me-1" style="color:var(--slate-accent);"></i>
+                            <span id="fvaSubtitleText">Prophet in-sample fitted values vs recorded actual revenue</span>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <!-- Period toggle buttons -->
+                        <div class="d-flex" style="background:var(--grey-canvas);border-radius:var(--radius-full);padding:3px;gap:2px;">
+                            <button id="fvaBtnWeek" class="fva-tab-btn active" onclick="setFVAPeriod('week', this)">
+                                Past Week
+                            </button>
+                            <button id="fvaBtnMonth" class="fva-tab-btn inactive" onclick="setFVAPeriod('month', this)">
+                                By Month
+                            </button>
+                        </div>
+                        <!-- Month dropdown — only shown in By Month mode -->
+                        <select id="fvaMonthFilter" class="form-control-custom"
+                            style="padding:.2rem .5rem;font-size:.85rem;width:170px;display:none;"
+                            onchange="applyFVAFilter()">
+                        </select>
+                    </div>
+                </div>
+                <div class="chart-container" style="min-height:300px;">
+                    <div class="chart-loading" id="loadingFVA"><div class="spinner"></div></div>
+                    <div id="fvaChart" style="width:100%;height:300px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hourly + Weather by Shift -->
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-xl-6" data-aos="fade-up">
+            <div class="dashboard-card h-100">
+                <p class="card-title">Hourly Revenue Pattern</p>
+                <div class="chart-container" style="min-height:260px;">
+                    <div class="chart-loading" id="loadingHourly"><div class="spinner"></div></div>
+                    <div id="hourlyChart" style="width:100%;height:260px;"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-xl-6" data-aos="fade-up" data-aos-delay="80">
+            <div class="dashboard-card h-100">
+                <p class="card-title">Past Weather by Shift</p>
+                <div class="chart-container" style="min-height:260px;">
+                    <div class="chart-loading" id="loadingWBT"><div class="spinner"></div></div>
+                    <div id="wbtChart" style="width:100%;height:260px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 7-Day Table + Model Summary -->
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-xl-7" data-aos="fade-up">
+            <div class="dashboard-card h-100">
+                <p class="card-title">7-Day Prediction Breakdown</p>
+                <div style="overflow-x:auto;">
+                    <table class="table-custom">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Day</th>
+                                <th>Weather</th>
+                                <th>Flags & Promotions</th>
+                                <th style="text-align:right;">Predicted (RM)</th>
+                                <th style="text-align:right;">Lower</th>
+                                <th style="text-align:right;">Upper</th>
+                            </tr>
+                        </thead>
+                        <tbody id="forecastTableBody">
+                            <tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:2rem;">No data yet</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-xl-5" data-aos="fade-up" data-aos-delay="80">
+            <div class="dashboard-card h-100">
+                <p class="card-title">Model Feature Summary</p>
+                <div class="mb-3">
+                    <div class="text-muted-sm fw-600 mb-2">☁️ Weather Regressor</div>
+                    <div class="mb-2">
+                        <div class="d-flex justify-content-between mb-1" style="font-size:.8rem;">
+                            <span>☀️ Sunny / ⛅ Cloudy (score=1)</span>
+                            <span class="fw-600 text-success" id="goodWeatherCont">RM —</span>
+                        </div>
+                        <div class="progress-wrap">
+                            <div class="progress-bar" style="width:80%;background:linear-gradient(90deg,var(--teal-success),#34D399);"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="d-flex justify-content-between mb-1" style="font-size:.8rem;">
+                            <span>🌧️ Raining (score=0)</span>
+                            <span class="fw-600 text-danger" id="rainingCont">RM —</span>
+                        </div>
+                        <div class="progress-wrap">
+                            <div class="progress-bar" style="width:30%;background:linear-gradient(90deg,var(--red-danger),#FCA5A5);"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="divider"></div>
+                <div class="mb-3">
+                    <div class="text-muted-sm fw-600 mb-2">🎉 Active Promotions</div>
+                    <div style="font-size:.8rem;line-height:1.8;">
+                        <div><span class="promo-badge">Every Friday</span> 20% off all Latte variants</div>
+                        <div class="mt-1"><span class="promo-badge">School Holidays</span> Buy 2 Free 1 on all drinks</div>
+                        <div class="mt-1"><span class="promo-badge">Raya Season</span> Buy 2 Free 1 on all drinks</div>
+                        <div class="mt-1"><span class="promo-badge">CNY Season</span> Buy 2 Free 1 on all drinks</div>
+                    </div>
+                </div>
+                <div class="divider"></div>
+                <div>
+                    <div class="text-muted-sm fw-600 mb-2">🏖️ Holiday Impact by Branch</div>
+                    <div style="font-size:.78rem;line-height:1.8;">
+                        <div>🏢 <strong>Putrajaya</strong> — Workers stay home → <span class="text-danger">−35% revenue on PH</span></div>
+                        <div>🎓 <strong>Puncak Alam</strong> — Students hang out → <span class="text-success">+15% revenue on PH</span></div>
+                    </div>
+                </div>
+                <div class="divider"></div>
+                <div class="text-muted-sm">
+                    <i class="fa-solid fa-circle-info me-1" style="color:var(--slate-accent);"></i>
+                    Prophet trained with 95% confidence interval, Malaysian public holidays 2025–2026,
+                    weekly seasonality, and multiplicative seasonal mode.
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div><!-- end #resultsSection -->
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+
+<script>
+/* ============================================================
+   CONSTANTS & STATE
+============================================================ */
+const DAYS         = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const WEATHER_ICON = { 'Sunny':'☀️', 'Cloudy':'⛅', 'Raining':'🌧️' };
+const LAYOUT_BASE  = {
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor:  'rgba(0,0,0,0)',
+    font:          { family:"'DM Sans',sans-serif", color:'#334155', size:12 },
+    hoverlabel:    { bgcolor:'#1E2A3A', font:{ color:'white', size:12 } }
+};
+const CONFIG = { responsive:true, displayModeBar:false };
+
+// FVA state — single source of truth
+let globalFVA     = [];   // in-sample predicted vs actual (last 90 days, always populated)
+let fvaPeriodMode = 'week'; // 'week' | 'month'
+
+/* ============================================================
+   UTILITIES
+============================================================ */
+function fmt(n, d=2) {
+    return Number(n || 0).toLocaleString('en-MY', {
+        minimumFractionDigits: d, maximumFractionDigits: d
+    });
+}
+
+function hideLoader(id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+}
+
+function downloadChart(id, name) {
+    Plotly.downloadImage(id, { format:'png', filename:name, width:1200, height:500 });
+}
+
+function setStep(n) {
+    for (let i = 1; i <= 5; i++) {
+        const el = document.getElementById('step' + i);
+        if (!el) continue;
+        if (i < n) {
+            el.className = 'badge-custom badge-teal';
+            el.removeAttribute('style');
+        } else if (i === n) {
+            el.className = 'badge-custom badge-blue';
+            el.removeAttribute('style');
+        } else {
+            el.className = 'badge-custom';
+            el.style.cssText = 'background:var(--grey-canvas);color:var(--text-muted);';
+        }
+    }
+}
+
+/* ============================================================
+   BRANCH CHANGE
+============================================================ */
+function onBranchChange() {
+    const sel  = document.getElementById('branchSelect');
+    const name = sel.options[sel.selectedIndex].dataset.name;
+    const icon = document.getElementById('personaIcon');
+    if (icon) icon.textContent = name === 'Putrajaya' ? '🏢' : '🎓';
+}
+
+/* ============================================================
+   GENERATE FORECAST
+============================================================ */
+function generateForecast() {
+    const sel        = document.getElementById('branchSelect');
+    const branchId   = sel.value;
+    const branchName = sel.options[sel.selectedIndex].dataset.name;
+    const btn        = document.getElementById('generateBtn');
+
+    document.getElementById('emptyState').style.display     = 'none';
+    document.getElementById('resultsSection').style.display = 'none';
+    document.getElementById('statusBanner').style.display   = 'block';
+    btn.disabled  = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Running…';
+
+    setStep(1);
+
+    const titles = [
+        'Loading historical sales data…',
+        'Adding Malaysian holidays & seasonal effects…',
+        'Training Prophet with all regressors…',
+        'Fetching live OpenWeatherMap data…',
+        'Executing 7-day prediction…'
+    ];
+    const texts = [
+        'Reading SQLite sales_transaction for this branch.',
+        'Injecting public holidays 2025–2026 + school holidays + Ramadan.',
+        'Fitting multiplicative model with weather, friday_promo, seasonal_promo.',
+        'Getting live 5-day forecast for branch coordinates.',
+        'Calculating yhat, yhat_lower (95%), yhat_upper, and holiday adjustments.'
+    ];
+
+    let si = 0;
+    const timer = setInterval(() => {
+        si++;
+        if (si <= 4) {
+            setStep(si + 1);
+            document.getElementById('statusTitle').textContent = titles[si];
+            document.getElementById('statusText').textContent  = texts[si];
+        }
+    }, 7000);
+
+    fetch(`/api/forecast?branch_id=${branchId}&branch_name=${encodeURIComponent(branchName)}`)
+        .then(r => r.json())
+        .then(data => {
+            clearInterval(timer);
+            btn.disabled  = false;
+            btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Generate Forecast';
+            document.getElementById('statusBanner').style.display = 'none';
+
+            if (data.status !== 'success') {
+                alert('Forecast failed: ' + (data.message || 'Unknown error'));
+                document.getElementById('emptyState').style.display = 'block';
+                return;
+            }
+            renderAll(data, branchName);
+        })
+        .catch(err => {
+            clearInterval(timer);
+            btn.disabled  = false;
+            btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Generate Forecast';
+            document.getElementById('statusBanner').style.display = 'none';
+            document.getElementById('emptyState').style.display   = 'block';
+            alert('Connection error: ' + err.message);
+        });
+}
+
+/* ============================================================
+   RENDER ALL
+============================================================ */
+function renderAll(data, branchName) {
+    document.getElementById('resultsSection').style.display  = 'block';
+    document.getElementById('loadingForecast').style.display = 'flex';
+    document.getElementById('loadingFVA').style.display      = 'flex';
+    document.getElementById('loadingHourly').style.display   = 'flex';
+    document.getElementById('loadingWBT').style.display      = 'flex';
+
+    // Persona card
+    const isPA = branchName === 'Puncak Alam';
+    document.getElementById('personaIcon').textContent = isPA ? '🎓' : '🏢';
+    document.getElementById('personaName').textContent = branchName;
+    document.getElementById('personaDesc').textContent = data.persona;
+
+    // Metrics
+    document.getElementById('metricMape').textContent     = data.mape;
+    document.getElementById('metricRmse').textContent     = fmt(data.rmse);
+    document.getElementById('metricAccuracy').textContent = data.accuracy;
+
+    // Accuracy ring
+    const ring = document.getElementById('accuracyRing');
+    const val  = document.getElementById('accuracyVal');
+    if (ring) {
+        const deg = ((data.accuracy || 0) / 100) * 360;
+        ring.style.background = `conic-gradient(var(--teal-success) ${deg}deg, var(--grey-border) 0)`;
+    }
+    if (val) val.textContent = (data.accuracy || 0) + '%';
+
+    // 7-day total
+    const total7 = (data.forecast || []).reduce((s, r) => s + (r.yhat || 0), 0);
+    document.getElementById('metric7Day').textContent = fmt(total7);
+
+    // Trend badge
+    const fore  = data.forecast || [];
+    const first = fore[0]?.yhat || 0;
+    const last  = fore[fore.length - 1]?.yhat || 0;
+    const diff  = last - first;
+    const badge = document.getElementById('trendBadge');
+    if (badge) {
+        if (diff > 50) {
+            badge.className = 'trend-badge trend-up';
+            badge.innerHTML = '<i class="fa-solid fa-arrow-trend-up"></i> Upward trend';
+        } else if (diff < -50) {
+            badge.className = 'trend-badge trend-down';
+            badge.innerHTML = '<i class="fa-solid fa-arrow-trend-down"></i> Downward trend';
+        } else {
+            badge.className = 'trend-badge trend-flat';
+            badge.innerHTML = '<i class="fa-solid fa-minus"></i> Stable trend';
+        }
+    }
+
+    // Weather influence estimates
+    const avgY = total7 / 7 || 0;
+    document.getElementById('goodWeatherCont').textContent = 'RM ' + fmt(avgY * 1.12);
+    document.getElementById('rainingCont').textContent     = 'RM ' + fmt(avgY * 0.88);
+
+    // Render main forecast chart
+    renderForecastChart(data);
+
+    // FVA — store data and reset to "Past Week" view
+    globalFVA     = data.forecast_vs_actual || [];
+    fvaPeriodMode = 'week';
+
+    // Reset period button styles
+    document.getElementById('fvaBtnWeek').className  = 'fva-tab-btn active';
+    document.getElementById('fvaBtnMonth').className = 'fva-tab-btn inactive';
+    document.getElementById('fvaMonthFilter').style.display = 'none';
+    document.getElementById('fvaSubtitleText').textContent  =
+        'Prophet in-sample fitted values vs recorded actual revenue — last 7 days shown';
+
+    // Populate month dropdown and render
+    populateFVADropdown(globalFVA);
+    applyFVAFilter();
+
+    // Other charts
+    renderHourlyChart(data.hourly || []);
+    renderWeatherByTime(data.weather_by_time || []);
+    renderTable(data.forecast || []);
+}
+
+/* ============================================================
+   MAIN FORECAST CHART
+============================================================ */
+function renderForecastChart(data) {
+    const hist = data.historical || [];
+    const fore = data.forecast   || [];
+
+    const traceActual = {
+        x: hist.map(r => r.ds),
+        y: hist.map(r => r.y),
+        name: 'Actual Revenue',
+        type: 'scatter', mode: 'lines',
+        line: { color:'#3B82F6', width:2.5 },
+        hovertemplate: '<b>%{x}</b><br>Actual: RM %{y:,.2f}<extra></extra>'
+    };
+
+    const traceFore = {
+        x: fore.map(r => r.ds),
+        y: fore.map(r => r.yhat),
+        name: 'Forecast',
+        type: 'scatter', mode: 'lines+markers',
+        line: { color:'#F59E0B', width:2.5, dash:'dash' },
+        marker: { size:7, color:'#F59E0B' },
+        hovertemplate: '<b>%{x}</b><br>Forecast: RM %{y:,.2f}<extra></extra>'
+    };
+
+    const traceUp = {
+        x: fore.map(r => r.ds),
+        y: fore.map(r => r.yhat_upper),
+        name: 'Upper 95%',
+        type: 'scatter', mode: 'lines',
+        line: { width:0, color:'transparent' },
+        showlegend: false, hoverinfo: 'skip'
+    };
+
+    const traceLo = {
+        x: fore.map(r => r.ds),
+        y: fore.map(r => r.yhat_lower),
+        name: '95% Confidence Interval',
+        type: 'scatter', mode: 'lines',
+        fill: 'tonexty', fillcolor: 'rgba(245,158,11,0.10)',
+        line: { width:0, color:'transparent' },
+        hovertemplate: 'Lower: RM %{y:,.2f}<extra>95% CI</extra>'
+    };
+
+    const shapes      = [];
+    const annotations = [];
+    const lastHistDs  = hist[hist.length - 1]?.ds;
+
+    if (lastHistDs) {
+        shapes.push({
+            type:'line', x0:lastHistDs, x1:lastHistDs,
+            y0:0, y1:1, yref:'paper',
+            line:{ color:'#CBD5E1', width:1.5, dash:'dot' }
+        });
+        annotations.push({
+            x:lastHistDs, y:1, yref:'paper',
+            text:'Forecast →', showarrow:false,
+            font:{ size:11, color:'#64748B' },
+            xanchor:'left', yanchor:'top', xshift:8
+        });
+    }
+
+    fore.forEach(r => {
+        if (r.is_holiday) {
+            shapes.push({
+                type:'rect', x0:r.ds, x1:r.ds,
+                y0:0, y1:1, yref:'paper',
+                fillcolor:'rgba(239,68,68,0.08)',
+                line:{ width:0 }, xref:'x'
+            });
+            annotations.push({
+                x:r.ds, y:0.98, yref:'paper',
+                text:'🏖️', showarrow:false,
+                font:{ size:14 }, xanchor:'center'
+            });
+        }
+        if (r.is_friday) {
+            annotations.push({
+                x:r.ds, y:0.88, yref:'paper',
+                text:'🎉', showarrow:false,
+                font:{ size:12 }, xanchor:'center'
+            });
+        }
+    });
+
+    Plotly.newPlot('forecastChart',
+        [traceActual, traceUp, traceLo, traceFore],
+        {
+            ...LAYOUT_BASE,
+            margin:  { t:20, r:20, b:55, l:70 },
+            legend:  { orientation:'h', y:-0.18, x:0, font:{ size:11 } },
+            xaxis:   { gridcolor:'#E2E8F0', tickformat:'%d %b %Y', tickangle:-30, showgrid:true },
+            yaxis:   { tickprefix:'RM ', gridcolor:'#E2E8F0', gridwidth:1, rangemode:'tozero' },
+            hovermode: 'x unified',
+            shapes, annotations
+        },
+        CONFIG
+    );
+    hideLoader('loadingForecast');
+}
+
+/* ============================================================
+   FVA — PERIOD TOGGLE + MONTH FILTER
+============================================================ */
+function setFVAPeriod(period, btn) {
+    fvaPeriodMode = period;
+
+    // Update button styles
+    document.querySelectorAll('.fva-tab-btn').forEach(b => {
+        b.className = 'fva-tab-btn inactive';
+    });
+    btn.className = 'fva-tab-btn active';
+
+    const moSel    = document.getElementById('fvaMonthFilter');
+    const subtitle = document.getElementById('fvaSubtitleText');
+
+    if (period === 'week') {
+        moSel.style.display = 'none';
+        subtitle.textContent = 'Prophet in-sample fitted values vs recorded actual revenue — last 7 days shown';
+    } else {
+        moSel.style.display = 'block';
+        subtitle.textContent = 'Prophet in-sample fitted values vs recorded actual revenue — filtered by month';
+    }
+
+    applyFVAFilter();
+}
+
+function populateFVADropdown(fva) {
+    const sel = document.getElementById('fvaMonthFilter');
+    sel.innerHTML = '';
+    if (!fva || fva.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = 'No data';
+        sel.appendChild(opt);
+        return;
+    }
+    const months = [...new Set(fva.map(r => r.ds.substring(0, 7)))].sort().reverse();
+    months.forEach(m => {
+        const d   = new Date(m + '-01');
+        const opt = document.createElement('option');
+        opt.value       = m;
+        opt.textContent = d.toLocaleString('en-MY', { month:'long', year:'numeric' });
+        sel.appendChild(opt);
+    });
+}
+
+function applyFVAFilter() {
+    if (!globalFVA || globalFVA.length === 0) {
+        renderFVAChart([]);
+        return;
+    }
+
+    // Sort ascending by date first
+    const sorted = [...globalFVA].sort((a, b) => a.ds.localeCompare(b.ds));
+
+    let filtered;
+    if (fvaPeriodMode === 'week') {
+        // Last 7 data points
+        filtered = sorted.slice(-7);
+    } else {
+        // Filter by selected month
+        const m = document.getElementById('fvaMonthFilter').value;
+        filtered = m ? sorted.filter(r => r.ds.startsWith(m)) : sorted;
+    }
+
+    renderFVAChart(filtered);
+}
+
+function renderFVAChart(data) {
+    const container = document.getElementById('fvaChart');
+
+    if (!data || data.length === 0) {
+        container.innerHTML =
+            '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:220px;gap:8px;">' +
+            '<i class="fa-solid fa-chart-bar" style="font-size:2rem;opacity:.18;color:var(--text-muted);"></i>' +
+            '<div style="font-size:.85rem;font-weight:600;color:var(--text-main);">No data available</div>' +
+            '<p style="font-size:.78rem;color:var(--text-muted);text-align:center;max-width:320px;margin:0;">' +
+            'Generate a forecast to populate this chart.</p>' +
+            '</div>';
+        hideLoader('loadingFVA');
+        return;
+    }
+
+    Plotly.newPlot('fvaChart', [
+        {
+            x: data.map(r => r.ds),
+            y: data.map(r => r.predicted),
+            name: 'Prophet Fitted',
+            type: 'scatter', mode: 'lines+markers',
+            line:   { color:'#F59E0B', width:2.5, dash:'dash' },
+            marker: { size:5, color:'#F59E0B', symbol:'diamond' },
+            hovertemplate: '<b>%{x}</b><br>Predicted: RM %{y:,.2f}<extra></extra>'
+        },
+        {
+            x: data.map(r => r.ds),
+            y: data.map(r => r.actual),
+            name: 'Actual Revenue',
+            type: 'scatter', mode: 'lines+markers',
+            line:   { color:'#10B981', width:2.5 },
+            marker: { size:5, color:'#10B981', symbol:'circle' },
+            fill: 'tozeroy',
+            fillcolor: 'rgba(16,185,129,0.06)',
+            hovertemplate: '<b>%{x}</b><br>Actual: RM %{y:,.2f}<extra></extra>'
+        }
+    ], {
+        ...LAYOUT_BASE,
+        margin:    { t:10, r:20, b:55, l:70 },
+        hovermode: 'x unified',
+        xaxis: { tickangle:-30, showgrid:false, type:'category' },
+        yaxis: { tickprefix:'RM ', gridcolor:'#E2E8F0', gridwidth:1, rangemode:'tozero' },
+        legend: { orientation:'h', y:-0.28, font:{ size:11 } }
+    }, CONFIG);
+
+    hideLoader('loadingFVA');
+}
+
+/* ============================================================
+   HOURLY CHART
+============================================================ */
+function renderHourlyChart(hourly) {
+    if (!hourly.length) { hideLoader('loadingHourly'); return; }
+
+    Plotly.newPlot('hourlyChart', [{
+        x: hourly.map(r => `${String(r.hour).padStart(2, '0')}:00`),
+        y: hourly.map(r => r.revenue),
+        type: 'bar',
+        marker: {
+            color: hourly.map(r => r.revenue),
+            colorscale: [[0,'#EFF6FF'], [0.5,'#3B82F6'], [1,'#1E2A3A']],
+            showscale: false
+        },
+        hovertemplate: '<b>%{x}</b><br>RM %{y:,.2f}<extra></extra>'
+    }], {
+        ...LAYOUT_BASE,
+        margin: { t:10, r:16, b:45, l:65 },
+        xaxis:  { tickangle:-45, tickfont:{ size:10 }, showgrid:false, type:'category' },
+        yaxis:  { tickprefix:'RM ', gridcolor:'#E2E8F0', gridwidth:1 }
+    }, CONFIG);
+    hideLoader('loadingHourly');
+}
+
+/* ============================================================
+   WEATHER BY SHIFT CHART
+============================================================ */
+function renderWeatherByTime(wbt) {
+    if (!wbt || wbt.length === 0) { hideLoader('loadingWBT'); return; }
+
+    const shifts     = ['Morning', 'Afternoon', 'Evening'];
+    const conditions = ['Sunny', 'Cloudy', 'Raining'];
+    const colors     = { 'Sunny':'#F59E0B', 'Cloudy':'#3B82F6', 'Raining':'#64748B' };
+
+    const traces = conditions.map(cond => ({
+        name: cond,
+        x: shifts,
+        y: shifts.map(s => {
+            const match = wbt.find(r => r.shift === s && r.weather === cond);
+            return match ? match.count : 0;
+        }),
+        type: 'bar',
+        marker: { color: colors[cond] }
+    }));
+
+    Plotly.newPlot('wbtChart', traces, {
+        ...LAYOUT_BASE,
+        barmode: 'stack',
+        margin:  { t:10, r:16, b:30, l:45 },
+        legend:  { orientation:'h', y:-0.2, font:{ size:10 } },
+        xaxis:   { showgrid:false },
+        yaxis:   { title:'Transactions', titlefont:{ size:10 }, gridcolor:'#E2E8F0' }
+    }, CONFIG);
+    hideLoader('loadingWBT');
+}
+
+/* ============================================================
+   7-DAY TABLE
+============================================================ */
+function renderTable(forecast) {
+    const tbody = document.getElementById('forecastTableBody');
+    if (!forecast || !forecast.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:2rem;">No data</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = forecast.map(row => {
+        const dt      = new Date(row.ds + 'T00:00:00');
+        const dayName = DAYS[dt.getDay()];
+        const icon    = WEATHER_ICON[row.weather] || '⛅';
+        const isWknd  = dt.getDay() === 0 || dt.getDay() === 6;
+        const isFri   = dt.getDay() === 5;
+        const bgStyle = row.is_holiday ? 'background:var(--red-light);'
+                      : isWknd         ? 'background:var(--amber-light);' : '';
+
+        const flags = [];
+        if (row.is_holiday) flags.push('<span class="promo-badge holiday-badge">🏖️ Public Holiday</span>');
+        if (row.is_friday)  flags.push('<span class="promo-badge">🎉 Friday Promo</span>');
+        if (row.season)     flags.push(`<span class="promo-badge">🎁 ${row.season}</span>`);
+
+        return `
+        <tr style="${bgStyle}">
+            <td class="text-mono" style="font-size:.82rem;">${row.ds}</td>
+            <td>
+                <span class="badge-custom ${row.is_holiday ? 'badge-red' : isFri ? 'badge-teal' : isWknd ? 'badge-amber' : 'badge-blue'}"
+                      style="font-size:.68rem;">${dayName}</span>
+            </td>
+            <td>${icon} ${row.weather}</td>
+            <td style="font-size:.75rem;">${flags.join(' ') || '<span style="color:var(--text-muted);">—</span>'}</td>
+            <td style="text-align:right;font-weight:700;font-family:var(--font-mono);color:var(--slate-accent);">
+                ${fmt(row.yhat)}
+            </td>
+            <td style="text-align:right;font-family:var(--font-mono);color:var(--text-muted);font-size:.78rem;">
+                ${fmt(row.yhat_lower)}
+            </td>
+            <td style="text-align:right;font-family:var(--font-mono);color:var(--text-muted);font-size:.78rem;">
+                ${fmt(row.yhat_upper)}
+            </td>
+        </tr>`;
+    }).join('');
+}
+</script>
+{% endblock %}

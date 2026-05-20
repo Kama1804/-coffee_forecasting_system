@@ -1,0 +1,886 @@
+{% extends "base.html" %}
+
+{% block title %}DSS Chatbot{% endblock %}
+
+{% block styles %}
+<style>
+/* ============================================================
+   CHATBOT — Premium Intelligence Terminal Aesthetic
+   Dark glass-morphism header + clean message canvas
+   ============================================================ */
+
+.chat-page-wrap {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: var(--space-lg);
+    height: calc(100vh - 160px);
+    min-height: 600px;
+}
+
+/* ── MAIN CHAT PANEL ── */
+.chat-panel {
+    display: flex;
+    flex-direction: column;
+    background: var(--white-card);
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--grey-border);
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+}
+
+/* Header */
+.chat-header {
+    padding: 1.1rem var(--space-lg);
+    background: var(--navy-sidebar);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Subtle animated background pattern on header */
+.chat-header::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(circle at 10% 50%, rgba(59,130,246,.18) 0%, transparent 50%),
+        radial-gradient(circle at 90% 20%, rgba(245,158,11,.10) 0%, transparent 40%);
+    pointer-events: none;
+}
+
+.chat-header-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    position: relative;
+}
+
+.ai-avatar {
+    width: 42px;
+    height: 42px;
+    background: linear-gradient(135deg, #3B82F6, #8B5CF6);
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.15rem;
+    color: white;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(59,130,246,.4);
+    position: relative;
+}
+
+/* Pulse ring on avatar */
+.ai-avatar::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: calc(var(--radius-md) + 3px);
+    border: 1.5px solid rgba(59,130,246,.4);
+    animation: pulse-ring 2.5s ease-in-out infinite;
+}
+
+@keyframes pulse-ring {
+    0%, 100% { opacity: .5; transform: scale(1); }
+    50%       { opacity: 1;  transform: scale(1.06); }
+}
+
+.chat-header-info h3 {
+    font-size: .95rem;
+    font-weight: 600;
+    color: white;
+    margin: 0 0 2px;
+}
+
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: .7rem;
+    color: rgba(255,255,255,.65);
+    font-weight: 400;
+}
+
+.status-dot {
+    width: 7px; height: 7px;
+    background: var(--teal-success);
+    border-radius: 50%;
+    box-shadow: 0 0 6px var(--teal-success);
+    animation: blink 2s ease-in-out infinite;
+}
+
+@keyframes blink {
+    0%,100% { opacity: 1; }
+    50%      { opacity: .4; }
+}
+
+.chat-header-actions {
+    display: flex;
+    gap: 8px;
+    position: relative;
+}
+
+.header-btn {
+    width: 34px; height: 34px;
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: var(--radius-md);
+    color: rgba(255,255,255,.7);
+    display: flex; align-items: center; justify-content: center;
+    font-size: .8rem;
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+.header-btn:hover {
+    background: rgba(255,255,255,.15);
+    color: white;
+}
+
+/* Messages Canvas */
+.chat-messages {
+    flex-grow: 1;
+    padding: var(--space-xl);
+    overflow-y: auto;
+    background: var(--grey-canvas);
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    scroll-behavior: smooth;
+}
+
+/* Date separator */
+.date-sep {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    color: var(--text-light);
+    font-size: .7rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    margin: 4px 0;
+}
+.date-sep::before, .date-sep::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--grey-border);
+}
+
+/* Message wrapper */
+.msg-wrap {
+    display: flex;
+    gap: 10px;
+    animation: msgIn .3s cubic-bezier(.16,1,.3,1);
+}
+@keyframes msgIn {
+    from { opacity:0; transform:translateY(12px); }
+    to   { opacity:1; transform:translateY(0); }
+}
+
+.msg-wrap.user {
+    flex-direction: row-reverse;
+}
+
+/* Bot avatar */
+.msg-avatar {
+    width: 30px; height: 30px;
+    border-radius: var(--radius-md);
+    display: flex; align-items: center; justify-content: center;
+    font-size: .75rem;
+    flex-shrink: 0;
+    align-self: flex-end;
+    margin-bottom: 2px;
+}
+.msg-avatar.bot-av {
+    background: linear-gradient(135deg, var(--slate-accent), var(--purple-accent));
+    color: white;
+}
+.msg-avatar.user-av {
+    background: linear-gradient(135deg, var(--navy-sidebar), #2A3B52);
+    color: rgba(255,255,255,.85);
+}
+
+/* Bubble */
+.bubble {
+    max-width: 72%;
+    padding: .9rem 1.1rem;
+    font-size: .9rem;
+    line-height: 1.65;
+    border-radius: 16px;
+    position: relative;
+}
+
+.msg-wrap.bot .bubble {
+    background: var(--white-card);
+    color: var(--text-secondary);
+    border: 1px solid var(--grey-border);
+    border-bottom-left-radius: 4px;
+    box-shadow: var(--shadow-sm);
+}
+
+.msg-wrap.user .bubble {
+    background: linear-gradient(135deg, var(--slate-accent), #2563EB);
+    color: white;
+    border-bottom-right-radius: 4px;
+    box-shadow: 0 4px 14px rgba(59,130,246,.25);
+}
+
+/* Timestamp */
+.bubble-meta {
+    font-size: .68rem;
+    color: var(--text-light);
+    margin-top: 4px;
+    padding: 0 4px;
+}
+.msg-wrap.user .bubble-meta {
+    text-align: right;
+}
+
+/* Typing indicator */
+.typing-wrap {
+    display: flex;
+    gap: 10px;
+    animation: msgIn .3s cubic-bezier(.16,1,.3,1);
+}
+.typing-bubble {
+    background: var(--white-card);
+    border: 1px solid var(--grey-border);
+    border-radius: 16px;
+    border-bottom-left-radius: 4px;
+    padding: .9rem 1.1rem;
+    display: flex;
+    gap: 5px;
+    align-items: center;
+    box-shadow: var(--shadow-sm);
+}
+.t-dot {
+    width: 7px; height: 7px;
+    background: var(--text-light);
+    border-radius: 50%;
+    animation: tdot 1.3s infinite ease-in-out both;
+}
+.t-dot:nth-child(1) { animation-delay: -.32s; }
+.t-dot:nth-child(2) { animation-delay: -.16s; }
+.t-dot:nth-child(3) { animation-delay: 0s; }
+@keyframes tdot {
+    0%,80%,100% { transform:scale(.7); opacity:.4; }
+    40%          { transform:scale(1);  opacity:1; }
+}
+
+/* Input Area */
+.chat-footer {
+    padding: var(--space-md) var(--space-lg);
+    background: var(--white-card);
+    border-top: 1px solid var(--grey-border);
+    flex-shrink: 0;
+}
+
+.input-row {
+    display: flex;
+    gap: var(--space-sm);
+    align-items: flex-end;
+}
+
+.chat-input-wrap {
+    flex-grow: 1;
+    position: relative;
+}
+
+.chat-input {
+    width: 100%;
+    padding: .8rem 3rem .8rem 1.1rem;
+    border: 2px solid var(--grey-border);
+    border-radius: var(--radius-lg);
+    font-family: var(--font-main);
+    font-size: .9rem;
+    color: var(--text-main);
+    background: var(--grey-canvas);
+    resize: none;
+    outline: none;
+    transition: var(--transition-base);
+    line-height: 1.5;
+    max-height: 120px;
+    overflow-y: auto;
+}
+
+.chat-input:focus {
+    border-color: var(--slate-accent);
+    background: white;
+    box-shadow: 0 0 0 3px rgba(59,130,246,.1);
+}
+
+.input-hint {
+    position: absolute;
+    right: 12px; bottom: 10px;
+    font-size: .68rem;
+    color: var(--text-light);
+    pointer-events: none;
+}
+
+.btn-send {
+    width: 44px; height: 44px;
+    border-radius: var(--radius-lg);
+    background: linear-gradient(135deg, var(--slate-accent), #2563EB);
+    color: white;
+    border: none;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: var(--transition-fast);
+    flex-shrink: 0;
+    box-shadow: 0 2px 10px rgba(59,130,246,.35);
+}
+.btn-send:hover   { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(59,130,246,.45); }
+.btn-send:active  { transform: translateY(0); }
+.btn-send:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+.footer-hints {
+    display: flex;
+    gap: var(--space-md);
+    margin-top: 8px;
+    font-size: .72rem;
+    color: var(--text-light);
+    align-items: center;
+}
+
+/* ── SIDE PANEL ── */
+.side-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+}
+
+.side-card {
+    background: var(--white-card);
+    border: 1px solid var(--grey-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: var(--space-md) var(--space-lg);
+}
+
+.side-card-title {
+    font-size: .72rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    margin-bottom: var(--space-md);
+}
+
+/* Quick prompt chips */
+.prompt-chip {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: var(--grey-canvas);
+    border: 1px solid var(--grey-border);
+    border-radius: var(--radius-md);
+    padding: .6rem .85rem;
+    font-size: .8rem;
+    font-family: var(--font-main);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: var(--transition-fast);
+    margin-bottom: 6px;
+    line-height: 1.4;
+}
+.prompt-chip:hover {
+    background: var(--slate-light);
+    border-color: var(--slate-accent);
+    color: var(--slate-accent);
+}
+.prompt-chip i {
+    margin-right: 6px;
+    font-size: .75rem;
+    opacity: .7;
+}
+.prompt-chip:last-child { margin-bottom: 0; }
+
+/* Stat mini cards */
+.stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: .5rem 0;
+    border-bottom: 1px solid var(--grey-border);
+    font-size: .82rem;
+}
+.stat-row:last-child { border-bottom: none; }
+.stat-label { color: var(--text-muted); }
+.stat-val   { font-weight: 600; font-family: var(--font-mono); color: var(--text-main); font-size: .82rem; }
+
+/* Session stats */
+.session-stat {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: .4rem 0;
+    font-size: .8rem;
+    color: var(--text-secondary);
+}
+.session-stat i { color: var(--slate-accent); width: 14px; font-size: .75rem; }
+
+/* Responsive */
+@media (max-width: 992px) {
+    .chat-page-wrap {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+    .chat-panel { height: calc(100vh - 200px); min-height: 500px; }
+    .side-panel { display: none; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header" data-aos="fade-down">
+    <div>
+        <h1 class="page-title">Decision Support System</h1>
+        <p class="page-subtitle">AI-powered business advisor — ask about forecasts, staffing, inventory, and trends</p>
+    </div>
+</div>
+
+<div class="chat-page-wrap" data-aos="fade-up" data-aos-delay="80">
+
+    <!-- ======================================================
+         MAIN CHAT PANEL
+    ====================================================== -->
+    <div class="chat-panel">
+
+        <!-- Header -->
+        <div class="chat-header">
+            <div class="chat-header-left">
+                <div class="ai-avatar">
+                    <i class="fa-solid fa-robot"></i>
+                </div>
+                <div class="chat-header-info">
+                    <h3>Gemini AI Advisor</h3>
+                    <div class="status-pill">
+                        <span class="status-dot"></span>
+                        Online · Powered by Google Gemini 2.5 Flash
+                    </div>
+                </div>
+            </div>
+            <div class="chat-header-actions">
+                <button class="header-btn" onclick="clearChat()" title="Clear conversation">
+                    <i class="fa-solid fa-trash-can"></i>
+                </button>
+                <button class="header-btn" onclick="exportChat()" title="Export conversation">
+                    <i class="fa-solid fa-download"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Messages -->
+        <div class="chat-messages" id="chatCanvas">
+
+            <div class="date-sep">Today</div>
+
+            <!-- Welcome message -->
+            <div class="msg-wrap bot" id="welcomeMsg">
+                <div class="msg-avatar bot-av"><i class="fa-solid fa-robot"></i></div>
+                <div>
+                    <div class="bubble">
+                        👋 Hello! I'm your <strong>AI Operations Advisor</strong> for Mini Coffee Shop.<br><br>
+                        I have live access to your sales database and can help you with:<br>
+                        <span style="color:var(--slate-accent);">▸</span> Revenue analysis & trend identification<br>
+                        <span style="color:var(--slate-accent);">▸</span> Staffing recommendations based on peak hours<br>
+                        <span style="color:var(--slate-accent);">▸</span> Inventory planning from product mix data<br>
+                        <span style="color:var(--slate-accent);">▸</span> Branch comparison — Putrajaya vs Puncak Alam<br><br>
+                        Try one of the quick prompts on the right, or type your own question below.
+                    </div>
+                    <div class="bubble-meta" id="welcomeTime"></div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Input Area -->
+        <div class="chat-footer">
+            <div class="input-row">
+                <div class="chat-input-wrap">
+                    <textarea
+                        id="userInput"
+                        class="chat-input"
+                        placeholder="Ask about your sales, forecasts, staffing…"
+                        rows="1"
+                        autocomplete="off"
+                        spellcheck="false"
+                    ></textarea>
+                    <span class="input-hint">Enter ↵</span>
+                </div>
+                <button id="sendBtn" class="btn-send" title="Send">
+                    <i class="fa-solid fa-paper-plane"></i>
+                </button>
+            </div>
+            <div class="footer-hints">
+                <span><i class="fa-solid fa-shield-halved" style="color:var(--teal-success);margin-right:4px;"></i>Your data stays private</span>
+                <span style="color:var(--grey-border);">|</span>
+                <span><i class="fa-solid fa-bolt" style="color:var(--amber-kpi);margin-right:4px;"></i>Live database context injected automatically</span>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ======================================================
+         SIDE PANEL
+    ====================================================== -->
+    <div class="side-panel">
+
+        <!-- Quick Prompts -->
+        <div class="side-card" data-aos="fade-left" data-aos-delay="100">
+            <div class="side-card-title"><i class="fa-solid fa-bolt me-1" style="color:var(--amber-kpi);"></i> Quick Prompts</div>
+
+            <button class="prompt-chip" onclick="usePrompt(this)">
+                <i class="fa-solid fa-chart-line"></i>
+                Analyze my revenue trend and identify the best performing month
+            </button>
+            <button class="prompt-chip" onclick="usePrompt(this)">
+                <i class="fa-solid fa-users"></i>
+                What staffing levels do I need during peak hours this week?
+            </button>
+            <button class="prompt-chip" onclick="usePrompt(this)">
+                <i class="fa-solid fa-box-open"></i>
+                Which products should I stock more of based on sales data?
+            </button>
+            <button class="prompt-chip" onclick="usePrompt(this)">
+                <i class="fa-solid fa-store"></i>
+                Compare performance between Putrajaya and Puncak Alam branches
+            </button>
+            <button class="prompt-chip" onclick="usePrompt(this)">
+                <i class="fa-solid fa-cloud-rain"></i>
+                How does rainy weather affect my sales and what should I prepare?
+            </button>
+            <button class="prompt-chip" onclick="usePrompt(this)">
+                <i class="fa-solid fa-file-lines"></i>
+                Give me a full executive summary of this week's business performance
+            </button>
+        </div>
+
+        <!-- Live Stats -->
+        <div class="side-card" data-aos="fade-left" data-aos-delay="180">
+            <div class="side-card-title"><i class="fa-solid fa-database me-1" style="color:var(--slate-accent);"></i> Live Context</div>
+            <div class="stat-row">
+                <span class="stat-label">Total Revenue</span>
+                <span class="stat-val" id="ctxRevenue">Loading…</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Transactions</span>
+                <span class="stat-val" id="ctxTxns">—</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Top Branch</span>
+                <span class="stat-val" id="ctxBranch">—</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Data Range</span>
+                <span class="stat-val" id="ctxRange">—</span>
+            </div>
+        </div>
+
+        <!-- Session Info -->
+        <div class="side-card" data-aos="fade-left" data-aos-delay="240">
+            <div class="side-card-title"><i class="fa-solid fa-clock-rotate-left me-1" style="color:var(--purple-accent);"></i> This Session</div>
+            <div class="session-stat"><i class="fa-solid fa-comment"></i> <span id="msgCount">0 messages sent</span></div>
+            <div class="session-stat"><i class="fa-solid fa-clock"></i> <span id="sessionTime">Session started just now</span></div>
+            <div class="session-stat"><i class="fa-solid fa-brain"></i> Gemini 2.5 Flash model</div>
+        </div>
+
+    </div>
+</div>
+
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+/* ============================================================
+   STATE
+============================================================ */
+let msgCount    = 0;
+let sessionStart= Date.now();
+
+/* ============================================================
+   INIT
+============================================================ */
+document.addEventListener('DOMContentLoaded', () => {
+    // Set welcome timestamp
+    document.getElementById('welcomeTime').textContent = formatTime(new Date());
+
+    // Auto-grow textarea
+    const ta = document.getElementById('userInput');
+    ta.addEventListener('input', () => {
+        ta.style.height = 'auto';
+        ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+    });
+
+    // Send on Enter (Shift+Enter = newline)
+    ta.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+
+    document.getElementById('sendBtn').addEventListener('click', sendMessage);
+
+    // Load live context stats
+    loadContextStats();
+
+    // Update session timer
+    setInterval(updateSessionTimer, 60000);
+    updateSessionTimer();
+
+    ta.focus();
+});
+
+/* ============================================================
+   UTILS
+============================================================ */
+function formatTime(date) {
+    return date.toLocaleTimeString('en-MY', { hour:'2-digit', minute:'2-digit' });
+}
+
+function scrollToBottom() {
+    const canvas = document.getElementById('chatCanvas');
+    canvas.scrollTo({ top: canvas.scrollHeight, behavior: 'smooth' });
+}
+
+function updateSessionTimer() {
+    const mins = Math.floor((Date.now() - sessionStart) / 60000);
+    const el   = document.getElementById('sessionTime');
+    if (el) el.textContent = mins < 1
+        ? 'Session started just now'
+        : `Session: ${mins} min${mins > 1 ? 's' : ''}`;
+}
+
+function updateMsgCount() {
+    msgCount++;
+    const el = document.getElementById('msgCount');
+    if (el) el.textContent = `${msgCount} message${msgCount > 1 ? 's' : ''} sent`;
+}
+
+/* ============================================================
+   CONTEXT STATS (side panel)
+============================================================ */
+function loadContextStats() {
+    fetch('/api/kpis')
+        .then(r => r.json())
+        .then(d => {
+            if (d.status !== 'success') return;
+            document.getElementById('ctxRevenue').textContent =
+                'RM ' + Number(d.total_revenue).toLocaleString('en-MY', {minimumFractionDigits:2, maximumFractionDigits:2});
+            document.getElementById('ctxTxns').textContent =
+                Number(d.total_transactions).toLocaleString('en-MY');
+            document.getElementById('ctxBranch').textContent = d.top_branch;
+        })
+        .catch(() => {
+            document.getElementById('ctxRevenue').textContent = 'N/A';
+        });
+
+    // Date range
+    fetch('/api/charts')
+        .then(r => r.json())
+        .then(d => {
+            if (d.status !== 'success' || !d.monthly.labels.length) return;
+            const labels = d.monthly.labels;
+            document.getElementById('ctxRange').textContent =
+                labels[0] + ' → ' + labels[labels.length - 1];
+        })
+        .catch(() => {});
+}
+
+/* ============================================================
+   MARKDOWN FORMATTER
+============================================================ */
+function formatResponse(text) {
+    return text
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g,     '<em>$1</em>')
+        .replace(/^###\s(.+)$/gm,  '<div style="font-weight:700;color:var(--text-main);margin:.6rem 0 .2rem;font-size:.92rem;">$1</div>')
+        .replace(/^##\s(.+)$/gm,   '<div style="font-weight:700;color:var(--text-main);margin:.8rem 0 .3rem;">$1</div>')
+        .replace(/^\*\s(.+)$/gm,   '<div style="display:flex;gap:6px;margin:.2rem 0;"><span style="color:var(--slate-accent);margin-top:1px;">▸</span><span>$1</span></div>')
+        .replace(/^-\s(.+)$/gm,    '<div style="display:flex;gap:6px;margin:.2rem 0;"><span style="color:var(--slate-accent);margin-top:1px;">▸</span><span>$1</span></div>')
+        .replace(/\n{2,}/g,        '<br><br>')
+        .replace(/\n/g,            '<br>');
+}
+
+/* ============================================================
+   MESSAGE BUILDERS
+============================================================ */
+function appendUserMsg(text) {
+    const time   = formatTime(new Date());
+    const canvas = document.getElementById('chatCanvas');
+    const div    = document.createElement('div');
+    div.className = 'msg-wrap user';
+    div.innerHTML = `
+        <div class="msg-avatar user-av"><i class="fa-solid fa-user"></i></div>
+        <div>
+            <div class="bubble">${text.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+            <div class="bubble-meta">${time}</div>
+        </div>
+    `;
+    canvas.appendChild(div);
+    scrollToBottom();
+    updateMsgCount();
+}
+
+function appendTyping() {
+    const canvas = document.getElementById('chatCanvas');
+    const div    = document.createElement('div');
+    div.className = 'typing-wrap';
+    div.id        = 'typingIndicator';
+    div.innerHTML = `
+        <div class="msg-avatar bot-av"><i class="fa-solid fa-robot"></i></div>
+        <div class="typing-bubble">
+            <div class="t-dot"></div>
+            <div class="t-dot"></div>
+            <div class="t-dot"></div>
+        </div>
+    `;
+    canvas.appendChild(div);
+    scrollToBottom();
+}
+
+function removeTyping() {
+    const el = document.getElementById('typingIndicator');
+    if (el) el.remove();
+}
+
+function appendBotMsg(html, isError=false) {
+    const time   = formatTime(new Date());
+    const canvas = document.getElementById('chatCanvas');
+    const div    = document.createElement('div');
+    div.className = 'msg-wrap bot';
+
+    const bubbleStyle = isError
+        ? 'border-left:3px solid var(--red-danger);background:var(--red-light);'
+        : '';
+
+    div.innerHTML = `
+        <div class="msg-avatar bot-av"><i class="fa-solid fa-robot"></i></div>
+        <div>
+            <div class="bubble" style="${bubbleStyle}">${isError ? html : formatResponse(html)}</div>
+            <div class="bubble-meta">${time} · Gemini AI</div>
+        </div>
+    `;
+    canvas.appendChild(div);
+    scrollToBottom();
+}
+
+/* ============================================================
+   SEND MESSAGE
+============================================================ */
+function sendMessage() {
+    const input  = document.getElementById('userInput');
+    const sendBtn= document.getElementById('sendBtn');
+    const message= input.value.trim();
+    if (!message) return;
+
+    appendUserMsg(message);
+    input.value = '';
+    input.style.height = 'auto';
+
+    appendTyping();
+    sendBtn.disabled = true;
+
+    fetch('/api/chat', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ message })
+    })
+    .then(r => r.json())
+    .then(data => {
+        removeTyping();
+        if (data.status === 'success') {
+            appendBotMsg(data.response);
+        } else {
+            appendBotMsg(
+                `<i class="fa-solid fa-circle-exclamation" style="color:var(--red-danger);margin-right:6px;"></i>
+                 ${data.message || data.response || 'Unknown error'}`,
+                true
+            );
+        }
+    })
+    .catch(() => {
+        removeTyping();
+        appendBotMsg(
+            '<i class="fa-solid fa-wifi" style="color:var(--red-danger);margin-right:6px;"></i> Connection failed. Please check your network.',
+            true
+        );
+    })
+    .finally(() => {
+        sendBtn.disabled = false;
+        input.focus();
+    });
+}
+
+/* ============================================================
+   QUICK PROMPTS
+============================================================ */
+function usePrompt(btn) {
+    const text  = btn.textContent.trim();
+    const input = document.getElementById('userInput');
+    input.value = text;
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+    input.focus();
+    // Auto-send after brief delay so user sees it populate
+    setTimeout(sendMessage, 150);
+}
+
+/* ============================================================
+   CLEAR CHAT
+============================================================ */
+function clearChat() {
+    if (!confirm('Clear the conversation? This cannot be undone.')) return;
+    const canvas = document.getElementById('chatCanvas');
+    canvas.innerHTML = `
+        <div class="date-sep">Today</div>
+        <div class="msg-wrap bot">
+            <div class="msg-avatar bot-av"><i class="fa-solid fa-robot"></i></div>
+            <div>
+                <div class="bubble">
+                    Conversation cleared. How can I help you?
+                </div>
+                <div class="bubble-meta">${formatTime(new Date())}</div>
+            </div>
+        </div>
+    `;
+    msgCount = 0;
+    document.getElementById('msgCount').textContent = '0 messages sent';
+}
+
+/* ============================================================
+   EXPORT CHAT
+============================================================ */
+function exportChat() {
+    const messages = document.querySelectorAll('.msg-wrap');
+    let text = 'MCS Analytics — AI Chatbot Export\n';
+    text += '='.repeat(40) + '\n';
+    text += `Exported: ${new Date().toLocaleString('en-MY')}\n`;
+    text += '='.repeat(40) + '\n\n';
+
+    messages.forEach(msg => {
+        const isUser  = msg.classList.contains('user');
+        const bubble  = msg.querySelector('.bubble');
+        const meta    = msg.querySelector('.bubble-meta');
+        if (!bubble) return;
+        const role = isUser ? 'You' : 'AI Advisor';
+        const time = meta ? meta.textContent : '';
+        text += `[${role}] ${time}\n${bubble.innerText}\n\n`;
+    });
+
+    const blob = new Blob([text], { type: 'text/plain' });
+    const a    = document.createElement('a');
+    a.href     = URL.createObjectURL(blob);
+    a.download = `mcs_chat_${new Date().toISOString().slice(0,10)}.txt`;
+    a.click();
+}
+</script>
+{% endblock %}

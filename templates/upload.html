@@ -1,0 +1,268 @@
+{% extends "base.html" %}
+{% block title %}Data Ingestion{% endblock %}
+{% block content %}
+<div class="page-header" data-aos="fade-down">
+    <div>
+        <h1 class="page-title">Data Ingestion</h1>
+        <p class="page-subtitle">Upload your sales CSV — the ETL pipeline will clean, validate, and load it automatically</p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-12 col-xl-7" data-aos="fade-up">
+        <div class="dashboard-card">
+            <p class="card-title">Upload Sales CSV File</p>
+            <div class="alert alert-info d-flex gap-2 align-items-start mb-4" style="font-size:.85rem;">
+                <i class="fa-solid fa-circle-info mt-1"></i>
+                <div>
+                    <strong>Required columns:</strong><br>
+                    <code style="font-size:.8rem;color:#1E40AF;">
+                        Transaction_ID, Date, Time, Outlet, Category, Product_Name,
+                        Quantity_Sold, Unit_Price_RM, Total_Revenue_RM, Payment_Method
+                    </code>
+                </div>
+            </div>
+            <form action="{{ url_for('upload_file') }}" method="POST" enctype="multipart/form-data" id="uploadForm">
+                <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+                    <div class="drop-zone-icon">
+                        <i class="fa-solid fa-file-csv" style="color:var(--teal-success);"></i>
+                    </div>
+                    <div class="drop-zone-text" id="dropText">
+                        <strong>Click to browse</strong> or drag &amp; drop your CSV here
+                    </div>
+                    <div class="drop-zone-hint">Only .csv files accepted &mdash; max 50 MB</div>
+                    <input type="file" id="fileInput" name="file" accept=".csv" style="display:none;" required>
+                </div>
+                <div id="progressWrap" style="display:none;margin-top:var(--space-md);">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="text-muted-sm">Processing file…</span>
+                        <span class="text-muted-sm" id="progressLabel">0%</span>
+                    </div>
+                    <div class="progress-wrap">
+                        <div class="progress-bar" id="progressBar" style="width:0%"></div>
+                    </div>
+                </div>
+                <div class="d-flex gap-2 mt-4">
+                    <button type="submit" class="btn-primary-custom w-100" id="uploadBtn" style="justify-content:center;" disabled>
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                        Upload &amp; Process
+                    </button>
+
+                    <button type="button" id="cancelBtn" 
+                            style="display:none; align-items:center; gap:8px; background:var(--red-danger); color:white; border:none; border-radius:50px; padding:0.6rem 1.5rem; font-weight:600; transition:0.2s; flex-shrink:0;" 
+                            onclick="cancelSelection()">
+                        <i class="fa-solid fa-trash-can"></i> Cancel
+                    </button>
+                </div>
+            </form>
+            <div class="divider"></div>
+            <p class="card-title">ETL Pipeline Steps</p>
+            <div class="row g-2">
+                {% for step, icon, desc in [
+                    ('1. Validate', 'fa-check-circle', 'Check required columns exist'),
+                    ('2. Clean',    'fa-broom',        'Drop nulls, fix dates & types'),
+                    ('3. Enrich',   'fa-cloud-sun',    'Backfill weather via Open-Meteo'),
+                    ('4. Load',     'fa-database',     'Bulk insert into SQLite')
+                ] %}
+                <div class="col-6 col-md-3">
+                    <div style="text-align:center;padding:var(--space-md);background:var(--grey-canvas);border-radius:var(--radius-md);font-size:.8rem;">
+                        <i class="fa-solid {{ icon }}" style="font-size:1.4rem;color:var(--slate-accent);margin-bottom:6px;display:block;"></i>
+                        <strong>{{ step }}</strong><br>
+                        <span style="color:var(--text-muted);">{{ desc }}</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-xl-5" data-aos="fade-up" data-aos-delay="100">
+        <div class="dashboard-card h-100">
+            <p class="card-title">Current Database Profile</p>
+            {% if profile and profile.total_records > 0 %}
+            <div class="row g-3 mb-4">
+                <div class="col-6">
+                    <div style="background:var(--slate-light);border-radius:var(--radius-md);padding:var(--space-md);text-align:center;">
+                        <div style="font-size:1.5rem;font-weight:700;font-family:var(--font-mono);color:var(--slate-accent);">
+                            {{ "{:,}".format(profile.total_records) }}
+                        </div>
+                        <div style="font-size:.75rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">
+                            Total Records
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div style="background:var(--teal-light);border-radius:var(--radius-md);padding:var(--space-md);text-align:center;">
+                        <div style="font-size:1.5rem;font-weight:700;font-family:var(--font-mono);color:var(--teal-success);">
+                            {{ profile.categories }}
+                        </div>
+                        <div style="font-size:.75rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">
+                            Categories
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div style="background:var(--grey-canvas);border-radius:var(--radius-md);padding:var(--space-md);margin-bottom:var(--space-md);">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <i class="fa-solid fa-calendar-days" style="color:var(--slate-accent);font-size:.9rem;"></i>
+                    <span class="fw-600" style="font-size:.85rem;">Date Range</span>
+                </div>
+                <div style="font-family:var(--font-mono);font-size:.85rem;color:var(--text-secondary);">
+                    {{ profile.date_from }} &nbsp;→&nbsp; {{ profile.date_to }}
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-2 mb-2">
+                <i class="fa-solid fa-store" style="color:var(--amber-kpi);font-size:.9rem;"></i>
+                <span class="fw-600" style="font-size:.85rem;">Records per Branch</span>
+            </div>
+            {% for branch in profile.branches %}
+            <div class="mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span style="font-size:.85rem;color:var(--text-secondary);">{{ branch.name }}</span>
+                    <span style="font-size:.82rem;font-family:var(--font-mono);color:var(--text-muted);">
+                        {{ "{:,}".format(branch.count) }}
+                    </span>
+                </div>
+                <div class="progress-wrap">
+                    {% set pct = ((branch.count / profile.total_records) * 100)|round(1) %}
+                    <div class="progress-bar" style="width:{{ pct }}%;"></div>
+                </div>
+                <div style="font-size:.72rem;color:var(--text-muted);margin-top:2px;">
+                    {{ pct }}% of total
+                </div>
+            </div>
+            {% endfor %}
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-state-icon"><i class="fa-solid fa-database"></i></div>
+                <div class="empty-state-title">No data loaded yet</div>
+                <p class="empty-state-text">Upload your first CSV file to see the database profile summary here.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4" data-aos="fade-up" data-aos-delay="200">
+    <div class="col-12">
+        <div class="dashboard-card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <p class="card-title mb-0">Upload History</p>
+                <div class="badge-custom badge-blue">{{ past_uploads|length }} Processed Files</div>
+            </div>
+            
+            {% if past_uploads %}
+            <div style="overflow-x: auto;">
+                <table class="table-custom">
+                    <thead>
+                        <tr>
+                            <th>File Name</th>
+                            <th>File Size</th>
+                            <th>Upload Date & Time</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for file in past_uploads %}
+                        <tr>
+                            <td class="fw-600 text-main">
+                                <i class="fa-solid fa-file-csv" style="color:var(--teal-success); margin-right: 8px;"></i>
+                                {{ file.filename }}
+                            </td>
+                            <td style="font-family:var(--font-mono); font-size:0.85rem; color:var(--text-muted);">
+                                {{ file.size }} MB
+                            </td>
+                            <td style="font-size:0.85rem; color:var(--text-secondary);">
+                                {{ file.date }}
+                            </td>
+                            <td>
+                                <span class="badge-custom badge-teal" style="font-size: 0.7rem;">
+                                    <i class="fa-solid fa-check"></i> Loaded to Database
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state" style="padding: 2rem;">
+                <div class="empty-state-icon" style="font-size: 2rem;"><i class="fa-solid fa-folder-open"></i></div>
+                <div class="empty-state-title" style="font-size: 1rem;">No history found</div>
+                <p class="empty-state-text" style="font-size: 0.85rem;">Files uploaded will appear here.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+    const dropZone   = document.getElementById('dropZone');
+    const fileInput  = document.getElementById('fileInput');
+    const dropText   = document.getElementById('dropText');
+    const uploadBtn  = document.getElementById('uploadBtn');
+    const cancelBtn  = document.getElementById('cancelBtn'); // NEW
+    const uploadForm = document.getElementById('uploadForm');
+    const progWrap   = document.getElementById('progressWrap');
+    const progBar    = document.getElementById('progressBar');
+    const progLabel  = document.getElementById('progressLabel');
+    
+    // NEW: Function to clear the selection
+    function cancelSelection() {
+        fileInput.value = ""; // Clear the file
+        dropText.innerHTML = "<strong>Click to browse</strong> or drag &amp; drop your CSV here";
+        
+        // Remove the green success styling
+        dropZone.style.borderColor = "";
+        dropZone.style.background = "";
+        
+        // Reset buttons
+        uploadBtn.disabled = true;
+        cancelBtn.style.display = "none";
+    }
+
+    fileInput.addEventListener('change', function () {
+        if (this.files.length > 0) {
+            dropText.innerHTML         = `<strong>${this.files[0].name}</strong> selected — ready to upload`;
+            dropZone.style.borderColor = 'var(--teal-success)';
+            dropZone.style.background  = 'var(--teal-light)';
+            uploadBtn.disabled         = false;
+            cancelBtn.style.display    = 'flex'; // Show cancel button
+        }
+    });
+    
+    dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', ()  => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', e => {
+        e.preventDefault();
+        dropZone.classList.remove('drag-over');
+        const file = e.dataTransfer.files[0];
+        if (file && file.name.endsWith('.csv')) {
+            fileInput.files            = e.dataTransfer.files;
+            dropText.innerHTML         = `<strong>${file.name}</strong> selected — ready to upload`;
+            dropZone.style.borderColor = 'var(--teal-success)';
+            dropZone.style.background  = 'var(--teal-light)';
+            uploadBtn.disabled         = false;
+            cancelBtn.style.display    = 'flex'; // Show cancel button
+        } else {
+            dropText.innerHTML = '<strong style="color:var(--red-danger);">Only .csv files accepted</strong>';
+        }
+    });
+    
+    uploadForm.addEventListener('submit', function () {
+        progWrap.style.display  = 'block';
+        uploadBtn.disabled      = true;
+        cancelBtn.style.display = 'none'; // Hide cancel button while uploading
+        uploadBtn.innerHTML     = '<i class="fa-solid fa-spinner fa-spin"></i> Processing…';
+        let width = 0;
+        setInterval(() => {
+            width += Math.random() * 12;
+            if (width > 90) width = 90;
+            progBar.style.width   = width + '%';
+            progLabel.textContent = Math.floor(width) + '%';
+        }, 300);
+    });
+</script>
+{% endblock %}

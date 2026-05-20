@@ -1,0 +1,1605 @@
+{% extends "base.html" %}
+
+{% block title %}Executive Report{% endblock %}
+
+
+
+{% block styles %}
+
+<style>
+
+/* ============================================================
+
+   REPORT PAGE STYLES
+
+   ============================================================ */
+
+.report-config-card {
+
+    background: var(--white-card);
+
+    border: 1px solid var(--grey-border);
+
+    border-radius: var(--radius-lg);
+
+    box-shadow: var(--shadow-card);
+
+    padding: var(--space-lg);
+
+    margin-bottom: var(--space-lg);
+
+}
+
+
+
+/* A4 Preview Container */
+
+.a4-preview-wrap {
+
+    display: flex;
+
+    justify-content: center;
+
+    padding: var(--space-xl) 0;
+
+    background: #868686;
+
+    border-radius: var(--radius-lg);
+
+    min-height: 500px;
+
+}
+
+
+
+.a4-page {
+
+    width: 794px;
+
+    min-height: 1123px;
+
+    background: white;
+
+    box-shadow: 0 8px 40px rgba(0,0,0,.35);
+
+    font-family: 'DM Sans', Arial, sans-serif;
+
+    font-size: 11px;
+
+    color: #1E293B;
+
+    position: relative;
+
+    overflow: hidden;
+
+}
+
+
+
+/* Report Header Band */
+
+.rpt-header {
+
+    background: linear-gradient(135deg, #1E2A3A 0%, #2A3B52 100%);
+
+    padding: 28px 36px 24px;
+
+    color: white;
+
+    position: relative;
+
+    overflow: hidden;
+
+}
+
+.rpt-header::after {
+
+    content: '';
+
+    position: absolute;
+
+    right: -40px; top: -40px;
+
+    width: 180px; height: 180px;
+
+    border-radius: 50%;
+
+    background: rgba(59,130,246,.12);
+
+}
+
+.rpt-header::before {
+
+    content: '';
+
+    position: absolute;
+
+    right: 60px; bottom: -60px;
+
+    width: 240px; height: 240px;
+
+    border-radius: 50%;
+
+    background: rgba(245,158,11,.07);
+
+}
+
+.rpt-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+
+.rpt-brand-icon {
+
+    width: 40px; height: 40px;
+
+    background: linear-gradient(135deg, #F59E0B, #D97706);
+
+    border-radius: 8px;
+
+    display: flex; align-items: center; justify-content: center;
+
+    font-size: 1.2rem;
+
+}
+
+.rpt-brand-name { font-size: 1.1rem; font-weight: 700; letter-spacing: .3px; }
+
+.rpt-brand-sub  { font-size: .72rem; opacity: .6; margin-top: 1px; }
+
+.rpt-title-row  { display: flex; justify-content: space-between; align-items: flex-end; }
+
+.rpt-title      { font-size: 1.5rem; font-weight: 700; letter-spacing: -.3px; }
+
+.rpt-subtitle   { font-size: .8rem; opacity: .7; margin-top: 3px; }
+
+.rpt-meta       { text-align: right; font-size: .75rem; opacity: .7; line-height: 1.7; }
+
+
+
+/* Amber accent bar */
+
+.rpt-accent-bar {
+
+    height: 4px;
+
+    background: linear-gradient(90deg, #F59E0B, #3B82F6, #10B981);
+
+}
+
+
+
+/* Report Body */
+
+.rpt-body { padding: 28px 36px; }
+
+
+
+/* Section headers */
+
+.rpt-section-title {
+
+    font-size: .8rem;
+
+    font-weight: 700;
+
+    color: #1E2A3A;
+
+    text-transform: uppercase;
+
+    letter-spacing: .8px;
+
+    border-left: 3px solid #3B82F6;
+
+    padding-left: 8px;
+
+    margin: 20px 0 12px;
+
+}
+
+
+
+/* KPI Summary Row */
+
+.rpt-kpi-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 4px; }
+
+.rpt-kpi-box {
+
+    border: 1px solid #E2E8F0;
+
+    border-radius: 8px;
+
+    padding: 12px 14px;
+
+    background: #F8FAFC;
+
+    position: relative;
+
+    overflow: hidden;
+
+}
+
+.rpt-kpi-box::before {
+
+    content: '';
+
+    position: absolute;
+
+    top: 0; left: 0; right: 0;
+
+    height: 3px;
+
+    border-radius: 8px 8px 0 0;
+
+}
+
+.rpt-kpi-box.k-blue::before   { background: #3B82F6; }
+
+.rpt-kpi-box.k-amber::before  { background: #F59E0B; }
+
+.rpt-kpi-box.k-teal::before   { background: #10B981; }
+
+.rpt-kpi-box.k-purple::before { background: #8B5CF6; }
+
+.rpt-kpi-label { font-size: .65rem; color: #64748B; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 4px; }
+
+.rpt-kpi-value { font-size: 1.1rem; font-weight: 700; color: #1E293B; font-family: 'DM Mono', monospace; line-height: 1.2; }
+
+.rpt-kpi-sub   { font-size: .65rem; color: #94A3B8; margin-top: 3px; }
+
+
+
+/* Tables */
+
+.rpt-table { width: 100%; border-collapse: collapse; font-size: .78rem; margin-bottom: 4px; }
+
+.rpt-table thead th {
+
+    background: #1E2A3A;
+
+    color: white;
+
+    padding: 7px 10px;
+
+    text-align: left;
+
+    font-size: .68rem;
+
+    font-weight: 600;
+
+    letter-spacing: .4px;
+
+    text-transform: uppercase;
+
+}
+
+.rpt-table thead th:first-child { border-radius: 4px 0 0 4px; }
+
+.rpt-table thead th:last-child  { border-radius: 0 4px 4px 0; }
+
+.rpt-table tbody tr:nth-child(even) { background: #F8FAFC; }
+
+.rpt-table tbody td {
+
+    padding: 6px 10px;
+
+    border-bottom: 1px solid #E2E8F0;
+
+    color: #334155;
+
+}
+
+.rpt-table tbody tr:last-child td { border-bottom: none; }
+
+.rpt-table .num { text-align: right; font-family: 'DM Mono', monospace; }
+
+.rpt-table .badge-rank {
+
+    display: inline-block;
+
+    width: 18px; height: 18px;
+
+    border-radius: 50%;
+
+    background: #3B82F6;
+
+    color: white;
+
+    font-size: .6rem;
+
+    font-weight: 700;
+
+    text-align: center;
+
+    line-height: 18px;
+
+}
+
+
+
+/* Two column layout */
+
+.rpt-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+.rpt-three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+
+
+/* Insight boxes */
+
+.rpt-insight-box {
+
+    background: #EFF6FF;
+
+    border: 1px solid #BFDBFE;
+
+    border-radius: 6px;
+
+    padding: 10px 12px;
+
+    font-size: .78rem;
+
+    color: #1E40AF;
+
+    line-height: 1.6;
+
+}
+
+.rpt-insight-box.amber { background: #FFFBEB; border-color: #FDE68A; color: #92400E; }
+
+.rpt-insight-box.teal  { background: #ECFDF5; border-color: #6EE7B7; color: #065F46; }
+
+.rpt-insight-box-title { font-weight: 700; margin-bottom: 4px; font-size: .72rem; }
+
+
+
+/* Forecast table */
+
+.rpt-forecast-row { display: grid; grid-template-columns: 80px 60px 1fr 70px 55px 55px; gap: 6px; padding: 6px 8px; border-radius: 4px; font-size: .74rem; align-items: center; }
+
+.rpt-forecast-row.header { background: #1E2A3A; color: white; font-weight: 600; font-size: .65rem; text-transform: uppercase; letter-spacing: .4px; }
+
+.rpt-forecast-row.even   { background: #F8FAFC; }
+
+.rpt-forecast-bar-wrap   { background: #E2E8F0; border-radius: 4px; height: 6px; overflow: hidden; }
+
+.rpt-forecast-bar        { height: 100%; border-radius: 4px; background: linear-gradient(90deg, #3B82F6, #60A5FA); }
+
+
+
+/* AI Insights section */
+
+.rpt-ai-box {
+
+    background: linear-gradient(135deg, #F8FAFC, #EFF6FF);
+
+    border: 1px solid #BFDBFE;
+
+    border-radius: 8px;
+
+    padding: 14px 16px;
+
+}
+
+.rpt-ai-header {
+
+    display: flex; align-items: center; gap: 8px;
+
+    font-weight: 700; font-size: .8rem;
+
+    color: #1E293B; margin-bottom: 8px;
+
+}
+
+.rpt-ai-content { font-size: .78rem; color: #334155; line-height: 1.7; }
+
+.rpt-ai-content strong { color: #1E293B; }
+
+
+
+/* Daily notes */
+
+.rpt-note-item { display: flex; gap: 8px; margin-bottom: 6px; font-size: .76rem; }
+
+.rpt-note-dot  { width: 6px; height: 6px; border-radius: 50%; background: #3B82F6; flex-shrink: 0; margin-top: 5px; }
+
+
+
+/* Payment bar */
+
+.rpt-pay-item   { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: .76rem; }
+
+.rpt-pay-label  { width: 110px; flex-shrink: 0; color: #334155; }
+
+.rpt-pay-bar-w  { flex: 1; background: #E2E8F0; border-radius: 4px; height: 8px; overflow: hidden; }
+
+.rpt-pay-bar    { height: 100%; border-radius: 4px; }
+
+.rpt-pay-val    { width: 60px; text-align: right; font-family: 'DM Mono', monospace; color: #1E293B; font-weight: 600; }
+
+
+
+/* Footer */
+
+.rpt-footer {
+
+    margin-top: auto;
+
+    padding: 14px 36px;
+
+    background: #F8FAFC;
+
+    border-top: 1px solid #E2E8F0;
+
+    display: flex;
+
+    justify-content: space-between;
+
+    align-items: center;
+
+    font-size: .68rem;
+
+    color: #94A3B8;
+
+}
+
+
+
+/* Weather badge */
+
+.rpt-weather-badge {
+
+    display: inline-flex; align-items: center; gap: 4px;
+
+    padding: 2px 8px;
+
+    border-radius: 20px;
+
+    font-size: .68rem; font-weight: 600;
+
+}
+
+.rpt-weather-badge.sunny   { background: #FFFBEB; color: #92400E; }
+
+.rpt-weather-badge.cloudy  { background: #EFF6FF; color: #1E40AF; }
+
+.rpt-weather-badge.raining { background: #EFF6FF; color: #1E40AF; }
+
+
+
+/* Loading overlay */
+
+.preview-loading {
+
+    display: flex; flex-direction: column;
+
+    align-items: center; justify-content: center;
+
+    min-height: 400px; gap: 16px;
+
+    color: white;
+
+}
+
+</style>
+
+{% endblock %}
+
+
+
+{% block content %}
+
+
+
+<!-- Page Header -->
+
+<div class="page-header" data-aos="fade-down">
+
+    <div>
+
+        <h1 class="page-title">Executive Report</h1>
+
+        <p class="page-subtitle">Generate and download a comprehensive A4 PDF sales performance report</p>
+
+    </div>
+
+</div>
+
+
+
+<!-- ============================================================
+
+     REPORT CONFIGURATION
+
+============================================================ -->
+
+<div class="report-config-card" data-aos="fade-up">
+
+    <p class="card-title">Report Configuration</p>
+
+    <div class="row g-3 align-items-end">
+
+        <div class="col-12 col-md-4">
+
+            <label class="form-label-custom">Branch</label>
+
+            <select id="rptBranch" class="form-control-custom">
+
+                <option value="all">All Branches</option>
+
+                <option value="Putrajaya">Putrajaya</option>
+
+                <option value="Puncak Alam">Puncak Alam</option>
+
+            </select>
+
+        </div>
+
+        <div class="col-12 col-md-4">
+
+            <label class="form-label-custom">Report Type</label>
+
+            <select id="rptType" class="form-control-custom">
+
+                <option value="executive">Executive Summary Report</option>
+
+                <option value="weekly">Weekly Sales Report</option>
+
+            </select>
+
+        </div>
+
+        <div class="col-12 col-md-4">
+
+            <div class="d-flex gap-2">
+
+                <button class="btn-primary-custom w-100" onclick="generatePreview()" id="previewBtn">
+
+                    <i class="fa-solid fa-eye"></i> Preview Report
+
+                </button>
+
+                <button class="btn-amber-custom" onclick="downloadPDF()" id="downloadBtn" disabled>
+
+                    <i class="fa-solid fa-file-pdf"></i> Download PDF
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+
+<!-- ============================================================
+
+     A4 PREVIEW AREA
+
+============================================================ -->
+
+<div class="a4-preview-wrap" data-aos="fade-up" data-aos-delay="80">
+
+    <!-- Loading state -->
+
+    <div class="preview-loading" id="previewLoading" style="display:none;">
+
+        <div class="spinner" style="border-color:rgba(255,255,255,.3);border-top-color:white;width:40px;height:40px;border-width:4px;"></div>
+
+        <div style="font-size:.9rem;font-weight:500;">Compiling report data…</div>
+
+    </div>
+
+
+
+    <!-- Empty state -->
+
+    <div class="preview-loading" id="previewEmpty">
+
+        <i class="fa-solid fa-file-pdf" style="font-size:3rem;opacity:.3;"></i>
+
+        <div style="font-size:.9rem;font-weight:500;">Configure and preview your report above</div>
+
+        <div style="font-size:.8rem;opacity:.6;">Select branch and report type, then click Preview</div>
+
+    </div>
+
+
+
+    <!-- A4 Page (populated by JS) -->
+
+    <div class="a4-page" id="a4Page" style="display:none;"></div>
+
+</div>
+
+
+
+{% endblock %}
+
+
+
+
+
+{% block scripts %}
+
+<script>
+
+/* ============================================================
+
+   HELPERS
+
+============================================================ */
+
+function fmt(n, d=2) {
+
+    return Number(n||0).toLocaleString('en-MY',{minimumFractionDigits:d,maximumFractionDigits:d});
+
+}
+
+function fmtInt(n) {
+
+    return Number(n||0).toLocaleString('en-MY');
+
+}
+
+function weatherIcon(w) {
+
+    return w==='Sunny' ? '☀️' : w==='Raining' ? '🌧️' : '⛅';
+
+}
+
+function weatherClass(w) {
+
+    return w==='Sunny' ? 'sunny' : w==='Raining' ? 'raining' : 'cloudy';
+
+}
+
+function now() {
+
+    return new Date().toLocaleString('en-MY',{
+
+        day:'2-digit',month:'long',year:'numeric',
+
+        hour:'2-digit',minute:'2-digit'
+
+    });
+
+}
+
+function todayFull() {
+
+    return new Date().toLocaleDateString('en-MY',{
+
+        weekday:'long',day:'numeric',month:'long',year:'numeric'
+
+    });
+
+}
+
+
+
+/* ============================================================
+
+   GENERATE PREVIEW
+
+============================================================ */
+
+async function generatePreview() {
+
+    const branch  = document.getElementById('rptBranch').value;
+
+    const rptType = document.getElementById('rptType').value;
+
+    const btn     = document.getElementById('previewBtn');
+
+    const dlBtn   = document.getElementById('downloadBtn');
+
+
+
+    document.getElementById('previewEmpty').style.display   = 'none';
+
+    document.getElementById('a4Page').style.display         = 'none';
+
+    document.getElementById('previewLoading').style.display = 'flex';
+
+    btn.disabled = true;
+
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Loading…';
+
+
+
+    try {
+
+        // Fetch KPI data
+
+        const [kpiRes, chartRes, forecastRes] = await Promise.all([
+
+            fetch('/api/kpis').then(r=>r.json()),
+
+            fetch(`/api/charts?branch=${encodeURIComponent(branch)}`).then(r=>r.json()),
+
+            fetch('/api/report-data').then(r=>r.json())
+
+        ]);
+
+
+
+        document.getElementById('previewLoading').style.display = 'none';
+
+
+
+        if (kpiRes.status !== 'success') {
+
+            alert('Failed to load KPI data. Make sure you have uploaded CSV data first.');
+
+            return;
+
+        }
+
+
+
+        const html = rptType === 'weekly'
+
+            ? buildWeeklyReport(kpiRes, chartRes, forecastRes, branch)
+
+            : buildExecutiveReport(kpiRes, chartRes, forecastRes, branch);
+
+
+
+        const page = document.getElementById('a4Page');
+
+        page.innerHTML = html;
+
+        page.style.display = 'block';
+
+        dlBtn.disabled = false;
+
+
+
+    } catch(e) {
+
+        document.getElementById('previewLoading').style.display = 'none';
+
+        document.getElementById('previewEmpty').style.display   = 'flex';
+
+        alert('Error loading report data: ' + e.message);
+
+    } finally {
+
+        btn.disabled = false;
+
+        btn.innerHTML = '<i class="fa-solid fa-eye"></i> Preview Report';
+
+    }
+
+}
+
+
+
+/* ============================================================
+
+   BUILD EXECUTIVE REPORT HTML
+
+============================================================ */
+
+function buildExecutiveReport(kpi, chart, forecast, branch) {
+
+    const branchLabel = branch === 'all' ? 'All Branches' : branch;
+
+    const cats   = chart.category?.labels  || [];
+
+    const catVals= chart.category?.data    || [];
+
+    const prods  = chart.products?.labels  || [];
+
+    const prodVals=chart.products?.data    || [];
+
+    const pays   = chart.payment?.labels   || [];
+
+    const payVals= chart.payment?.data     || [];
+
+    const fore   = forecast.forecast       || [];
+
+    const totalPayTxns = payVals.reduce((a,b)=>a+b,0)||1;
+
+
+
+    // Revenue by category rows
+
+    const catTotal = catVals.reduce((a,b)=>a+b,0)||1;
+
+    const catRows  = cats.map((c,i) => `
+
+        <tr>
+
+            <td>${c}</td>
+
+            <td class="num">RM ${fmt(catVals[i])}</td>
+
+            <td class="num">${((catVals[i]/catTotal)*100).toFixed(1)}%</td>
+
+            <td>
+
+                <div style="background:#E2E8F0;border-radius:4px;height:6px;overflow:hidden;">
+
+                    <div style="width:${((catVals[i]/catTotal)*100).toFixed(1)}%;height:100%;background:linear-gradient(90deg,#3B82F6,#60A5FA);border-radius:4px;"></div>
+
+                </div>
+
+            </td>
+
+        </tr>
+
+    `).join('');
+
+
+
+    // Top products rows
+
+    const prodRows = prods.map((p,i) => `
+
+        <tr>
+
+            <td><span class="badge-rank">${i+1}</span> ${p}</td>
+
+            <td class="num">${fmtInt(prodVals[i])} units</td>
+
+        </tr>
+
+    `).join('');
+
+
+
+    // Payment breakdown
+
+    const payBars = pays.map((p,i) => `
+
+        <div class="rpt-pay-item">
+
+            <div class="rpt-pay-label">${p}</div>
+
+            <div class="rpt-pay-bar-w">
+
+                <div class="rpt-pay-bar" style="width:${((payVals[i]/totalPayTxns)*100).toFixed(1)}%;
+
+                     background:${['#3B82F6','#F59E0B','#10B981','#8B5CF6'][i%4]};"></div>
+
+            </div>
+
+            <div class="rpt-pay-val">${((payVals[i]/totalPayTxns)*100).toFixed(1)}%</div>
+
+        </div>
+
+    `).join('');
+
+
+
+    // Forecast rows
+
+    const foreMax   = fore.length ? Math.max(...fore.map(r=>r.yhat)) : 1;
+
+    const foreRows  = fore.map((r,i) => {
+
+        const d   = new Date(r.ds);
+
+        const day = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
+
+        const pct = ((r.yhat/foreMax)*100).toFixed(1);
+
+        return `
+
+            <div class="rpt-forecast-row ${i%2===1?'even':''}">
+
+                <div style="font-family:'DM Mono',monospace;">${r.ds}</div>
+
+                <div>${day}</div>
+
+                <div>
+
+                    <div class="rpt-forecast-bar-wrap">
+
+                        <div class="rpt-forecast-bar" style="width:${pct}%;"></div>
+
+                    </div>
+
+                </div>
+
+                <div style="font-family:'DM Mono',monospace;text-align:right;font-weight:600;color:#3B82F6;">RM ${fmt(r.yhat)}</div>
+
+                <div style="font-family:'DM Mono',monospace;text-align:right;color:#94A3B8;font-size:.68rem;">
+
+                    ${fmt(r.yhat_lower)}
+
+                </div>
+
+                <div style="font-family:'DM Mono',monospace;text-align:right;color:#94A3B8;font-size:.68rem;">
+
+                    ${fmt(r.yhat_upper)}
+
+                </div>
+
+            </div>
+
+        `;
+
+    }).join('');
+
+
+
+    const total7Day = fore.reduce((s,r)=>s+r.yhat,0);
+
+    const aiInsight = forecast.ai_insight || 'No AI insight available. Generate a forecast first and interact with the AI Chatbot.';
+
+
+
+    return `
+
+    <!-- HEADER -->
+
+    <div class="rpt-header">
+
+        <div class="rpt-brand">
+
+            <div class="rpt-brand-icon">☕</div>
+
+            <div>
+
+                <div class="rpt-brand-name">Mini Coffee Shop</div>
+
+                <div class="rpt-brand-sub">AI-Powered Analytics System</div>
+
+            </div>
+
+        </div>
+
+        <div class="rpt-title-row">
+
+            <div>
+
+                <div class="rpt-title">Executive Summary Report</div>
+
+                <div class="rpt-subtitle">${branchLabel} · ${todayFull()}</div>
+
+            </div>
+
+            <div class="rpt-meta">
+
+                Generated: ${now()}<br>
+
+                System: MCS Analytics v1.0<br>
+
+                Confidential — Internal Use Only
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="rpt-accent-bar"></div>
+
+
+
+    <div class="rpt-body">
+
+
+
+        <!-- KPI SUMMARY -->
+
+        <div class="rpt-section-title">Sales Performance Overview</div>
+
+        <div class="rpt-kpi-row">
+
+            <div class="rpt-kpi-box k-blue">
+
+                <div class="rpt-kpi-label">Total Revenue</div>
+
+                <div class="rpt-kpi-value">RM ${fmt(kpi.total_revenue)}</div>
+
+                <div class="rpt-kpi-sub">${kpi.trend_label}</div>
+
+            </div>
+
+            <div class="rpt-kpi-box k-amber">
+
+                <div class="rpt-kpi-label">Transactions</div>
+
+                <div class="rpt-kpi-value">${fmtInt(kpi.total_transactions)}</div>
+
+                <div class="rpt-kpi-sub">${kpi.txn_trend_label}</div>
+
+            </div>
+
+            <div class="rpt-kpi-box k-teal">
+
+                <div class="rpt-kpi-label">Daily Average</div>
+
+                <div class="rpt-kpi-value">RM ${fmt(kpi.daily_average)}</div>
+
+                <div class="rpt-kpi-sub">Per active day</div>
+
+            </div>
+
+            <div class="rpt-kpi-box k-purple">
+
+                <div class="rpt-kpi-label">Top Branch</div>
+
+                <div class="rpt-kpi-value" style="font-size:.85rem;margin-top:2px;">${kpi.top_branch}</div>
+
+                <div class="rpt-kpi-sub">Best performer</div>
+
+            </div>
+
+        </div>
+
+
+
+        <!-- REVENUE BY CATEGORY + PAYMENT -->
+
+        <div class="rpt-two-col" style="margin-top:16px;">
+
+            <div>
+
+                <div class="rpt-section-title">Revenue by Category</div>
+
+                <table class="rpt-table">
+
+                    <thead><tr><th>Category</th><th>Revenue</th><th>Share</th><th style="width:80px;">Bar</th></tr></thead>
+
+                    <tbody>${catRows || '<tr><td colspan="4" style="text-align:center;color:#94A3B8;padding:12px;">No data</td></tr>'}</tbody>
+
+                </table>
+
+            </div>
+
+            <div>
+
+                <div class="rpt-section-title">Payment Method Breakdown</div>
+
+                <div style="margin-top:8px;">
+
+                    ${payBars || '<div style="color:#94A3B8;font-size:.78rem;padding:12px 0;">No payment data available</div>'}
+
+                </div>
+
+
+
+                <div class="rpt-section-title" style="margin-top:16px;">Top Products by Volume</div>
+
+                <table class="rpt-table">
+
+                    <thead><tr><th>Product</th><th>Qty Sold</th></tr></thead>
+
+                    <tbody>${prodRows || '<tr><td colspan="2" style="text-align:center;color:#94A3B8;padding:12px;">No data</td></tr>'}</tbody>
+
+                </table>
+
+            </div>
+
+        </div>
+
+
+
+        <!-- FORECAST SECTION -->
+
+        <div class="rpt-section-title">7-Day Prophet Revenue Forecast</div>
+
+        ${fore.length > 0 ? `
+
+        <div style="margin-bottom:10px;">
+
+            <div class="rpt-forecast-row header">
+
+                <div>Date</div><div>Day</div><div>Trend</div>
+
+                <div style="text-align:right;">Forecast</div>
+
+                <div style="text-align:right;">Lower</div>
+
+                <div style="text-align:right;">Upper</div>
+
+            </div>
+
+            ${foreRows}
+
+        </div>
+
+        <div class="rpt-three-col" style="margin-top:10px;">
+
+            <div class="rpt-insight-box">
+
+                <div class="rpt-insight-box-title">📊 7-Day Total</div>
+
+                Predicted revenue: <strong>RM ${fmt(total7Day)}</strong>
+
+            </div>
+
+            <div class="rpt-insight-box amber">
+
+                <div class="rpt-insight-box-title">🎯 Model Accuracy</div>
+
+                MAPE: <strong>${forecast.mape||'—'}%</strong> · RMSE: <strong>RM ${fmt(forecast.rmse||0)}</strong>
+
+            </div>
+
+            <div class="rpt-insight-box teal">
+
+                <div class="rpt-insight-box-title">🌤️ Weather Regressor</div>
+
+                Forecast enriched with <strong>OpenWeatherMap</strong> live data
+
+            </div>
+
+        </div>
+
+        ` : `
+
+        <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;padding:16px;text-align:center;color:#94A3B8;font-size:.8rem;">
+
+            No forecast generated yet. Go to the AI Forecast page and click Generate Forecast first.
+
+        </div>
+
+        `}
+
+
+
+        <!-- AI STRATEGIC RECOMMENDATIONS -->
+
+        <div class="rpt-section-title">AI-Generated Strategic Recommendations</div>
+
+        <div class="rpt-ai-box">
+
+            <div class="rpt-ai-header">
+
+                <span style="background:linear-gradient(135deg,#3B82F6,#8B5CF6);color:white;padding:3px 8px;border-radius:4px;font-size:.68rem;">GEMINI AI</span>
+
+                Operational Insights & Action Plan
+
+            </div>
+
+            <div class="rpt-ai-content" id="aiInsightContent">
+
+                ${aiInsight.replace(/\n/g,'<br>').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')}
+
+            </div>
+
+        </div>
+
+
+
+        <!-- DAILY NOTES -->
+
+        <div class="rpt-section-title" style="margin-top:16px;">Operational Notes & Action Plan</div>
+
+        <div class="rpt-two-col">
+
+            <div>
+
+                <div style="font-weight:600;font-size:.75rem;color:#1E293B;margin-bottom:6px;">📌 Key Observations</div>
+
+                <div class="rpt-note-item"><div class="rpt-note-dot"></div><div>Revenue trend: <strong>${kpi.trend_label}</strong></div></div>
+
+                <div class="rpt-note-item"><div class="rpt-note-dot"></div><div>Top performing branch: <strong>${kpi.top_branch}</strong></div></div>
+
+                <div class="rpt-note-item"><div class="rpt-note-dot"></div><div>Daily average maintained at <strong>RM ${fmt(kpi.daily_average)}</strong></div></div>
+
+                <div class="rpt-note-item"><div class="rpt-note-dot" style="background:#F59E0B;"></div><div>Review slow-moving categories for promotional pricing</div></div>
+
+            </div>
+
+            <div>
+
+                <div style="font-weight:600;font-size:.75rem;color:#1E293B;margin-bottom:6px;">✅ Recommended Actions</div>
+
+                <div class="rpt-note-item"><div class="rpt-note-dot" style="background:#10B981;"></div><div>Increase barista headcount during morning peak hours (8AM–11AM)</div></div>
+
+                <div class="rpt-note-item"><div class="rpt-note-dot" style="background:#10B981;"></div><div>Restock top-selling products before weekend shift</div></div>
+
+                <div class="rpt-note-item"><div class="rpt-note-dot" style="background:#10B981;"></div><div>Promote bundle deals during afternoon slow hours (2PM–4PM)</div></div>
+
+                <div class="rpt-note-item"><div class="rpt-note-dot" style="background:#10B981;"></div><div>Monitor e-wallet payment uptake for digital loyalty integration</div></div>
+
+            </div>
+
+        </div>
+
+
+
+    </div>
+
+
+
+    <!-- FOOTER -->
+
+    <div class="rpt-footer">
+
+        <div>Mini Coffee Shop · AI Analytics System · MCS Analytics v1.0</div>
+
+        <div>Generated on ${now()} · Confidential</div>
+
+        <div>Page 1 of 1</div>
+
+    </div>
+
+    `;
+
+}
+
+
+
+/* ============================================================
+
+   BUILD WEEKLY REPORT HTML
+
+============================================================ */
+
+function buildWeeklyReport(kpi, chart, forecast, branch) {
+
+    const branchLabel = branch === 'all' ? 'All Branches' : branch;
+
+    const months  = chart.monthly?.labels   || [];
+
+    const branches= chart.monthly?.branches || [];
+
+    const mData   = chart.monthly?.data     || {};
+
+    const cats    = chart.category?.labels  || [];
+
+    const catVals = chart.category?.data    || [];
+
+    const catTotal= catVals.reduce((a,b)=>a+b,0)||1;
+
+
+
+    // Monthly rows
+
+    const monthRows = months.map((m,i) => {
+
+        const total = branches.reduce((s,b)=>(s+(mData[b]?.[i]||0)),0);
+
+        return `
+
+            <tr>
+
+                <td style="font-family:'DM Mono',monospace;">${m}</td>
+
+                ${branches.map(b=>`<td class="num">RM ${fmt(mData[b]?.[i]||0)}</td>`).join('')}
+
+                <td class="num" style="font-weight:700;color:#3B82F6;">RM ${fmt(total)}</td>
+
+            </tr>
+
+        `;
+
+    }).join('');
+
+
+
+    // Category share
+
+    const catRows = cats.map((c,i) => `
+
+        <tr>
+
+            <td>${c}</td>
+
+            <td class="num">RM ${fmt(catVals[i])}</td>
+
+            <td class="num">${((catVals[i]/catTotal)*100).toFixed(1)}%</td>
+
+        </tr>
+
+    `).join('');
+
+
+
+    return `
+
+    <div class="rpt-header">
+
+        <div class="rpt-brand">
+
+            <div class="rpt-brand-icon">☕</div>
+
+            <div>
+
+                <div class="rpt-brand-name">Mini Coffee Shop</div>
+
+                <div class="rpt-brand-sub">AI-Powered Analytics System</div>
+
+            </div>
+
+        </div>
+
+        <div class="rpt-title-row">
+
+            <div>
+
+                <div class="rpt-title">Weekly Sales Report</div>
+
+                <div class="rpt-subtitle">${branchLabel} · ${todayFull()}</div>
+
+            </div>
+
+            <div class="rpt-meta">
+
+                Generated: ${now()}<br>
+
+                Confidential — Internal Use Only
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="rpt-accent-bar"></div>
+
+
+
+    <div class="rpt-body">
+
+
+
+        <!-- EXECUTIVE SUMMARY -->
+
+        <div class="rpt-section-title">1. Executive Summary</div>
+
+        <div class="rpt-kpi-row">
+
+            <div class="rpt-kpi-box k-blue">
+
+                <div class="rpt-kpi-label">Gross Sales</div>
+
+                <div class="rpt-kpi-value">RM ${fmt(kpi.total_revenue)}</div>
+
+                <div class="rpt-kpi-sub">${kpi.trend_label}</div>
+
+            </div>
+
+            <div class="rpt-kpi-box k-amber">
+
+                <div class="rpt-kpi-label">Transactions</div>
+
+                <div class="rpt-kpi-value">${fmtInt(kpi.total_transactions)}</div>
+
+                <div class="rpt-kpi-sub">Total recorded</div>
+
+            </div>
+
+            <div class="rpt-kpi-box k-teal">
+
+                <div class="rpt-kpi-label">Avg Transaction</div>
+
+                <div class="rpt-kpi-value">RM ${fmt(kpi.total_transactions > 0 ? kpi.total_revenue / kpi.total_transactions : 0)}</div>
+
+                <div class="rpt-kpi-sub">ATV</div>
+
+            </div>
+
+            <div class="rpt-kpi-box k-purple">
+
+                <div class="rpt-kpi-label">Daily Average</div>
+
+                <div class="rpt-kpi-value">RM ${fmt(kpi.daily_average)}</div>
+
+                <div class="rpt-kpi-sub">Per active day</div>
+
+            </div>
+
+        </div>
+
+
+
+        <!-- MONTHLY BREAKDOWN -->
+
+        <div class="rpt-section-title">2. Monthly Sales Breakdown</div>
+
+        <table class="rpt-table">
+
+            <thead>
+
+                <tr>
+
+                    <th>Month</th>
+
+                    ${branches.map(b=>`<th>${b}</th>`).join('')}
+
+                    <th>Total</th>
+
+                </tr>
+
+            </thead>
+
+            <tbody>
+
+                ${monthRows || '<tr><td colspan="4" style="text-align:center;color:#94A3B8;padding:12px;">No monthly data available</td></tr>'}
+
+            </tbody>
+
+        </table>
+
+
+
+        <!-- CATEGORY + FORECAST -->
+
+        <div class="rpt-two-col" style="margin-top:16px;">
+
+            <div>
+
+                <div class="rpt-section-title">3. Sales by Category</div>
+
+                <table class="rpt-table">
+
+                    <thead><tr><th>Category</th><th>Revenue</th><th>Share</th></tr></thead>
+
+                    <tbody>${catRows || '<tr><td colspan="3" style="text-align:center;color:#94A3B8;">No data</td></tr>'}</tbody>
+
+                </table>
+
+            </div>
+
+            <div>
+
+                <div class="rpt-section-title">4. Prophet Forecast Summary</div>
+
+                ${forecast.forecast?.length > 0 ? `
+
+                <div class="rpt-insight-box" style="margin-bottom:8px;">
+
+                    <div class="rpt-insight-box-title">📈 7-Day Predicted Revenue</div>
+
+                    <strong>RM ${fmt(forecast.forecast.reduce((s,r)=>s+r.yhat,0))}</strong>
+
+                    across the next 7 days
+
+                </div>
+
+                <div class="rpt-insight-box amber" style="margin-bottom:8px;">
+
+                    <div class="rpt-insight-box-title">🎯 Forecast Accuracy</div>
+
+                    MAPE: <strong>${forecast.mape||'—'}%</strong> · RMSE: <strong>RM ${fmt(forecast.rmse||0)}</strong>
+
+                </div>
+
+                ` : `<div style="color:#94A3B8;font-size:.78rem;padding:8px 0;">Generate a forecast from the AI Forecast page first.</div>`}
+
+
+
+                <div class="rpt-section-title" style="margin-top:12px;">5. Top Branch Performance</div>
+
+                <div class="rpt-insight-box teal">
+
+                    <div class="rpt-insight-box-title">🏆 Best Performing Branch</div>
+
+                    <strong>${kpi.top_branch}</strong> leads in total revenue
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+
+        <!-- AI RECOMMENDATIONS -->
+
+        <div class="rpt-section-title">6. AI-Generated Recommendations</div>
+
+        <div class="rpt-ai-box">
+
+            <div class="rpt-ai-header">
+
+                <span style="background:linear-gradient(135deg,#3B82F6,#8B5CF6);color:white;padding:3px 8px;border-radius:4px;font-size:.68rem;">GEMINI AI</span>
+
+                Weekly Strategic Insights
+
+            </div>
+
+            <div class="rpt-ai-content">
+
+                ${(forecast.ai_insight||'No AI insight available. Interact with the AI Chatbot and generate a forecast first.')
+
+                  .replace(/\n/g,'<br>').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')}
+
+            </div>
+
+        </div>
+
+
+
+    </div>
+
+
+
+    <div class="rpt-footer">
+
+        <div>Mini Coffee Shop · AI Analytics System</div>
+
+        <div>Generated ${now()} · Confidential</div>
+
+        <div>Page 1 of 1</div>
+
+    </div>
+
+    `;
+
+}
+
+
+
+/* ============================================================
+
+   DOWNLOAD PDF
+
+============================================================ */
+
+async function downloadPDF() {
+
+    const btn    = document.getElementById('downloadBtn');
+
+    const branch = document.getElementById('rptBranch').value;
+
+    const type   = document.getElementById('rptType').value;
+
+
+
+    btn.disabled = true;
+
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating…';
+
+
+
+    try {
+
+        const response = await fetch(`/api/export-pdf?branch=${encodeURIComponent(branch)}&type=${type}`);
+
+
+
+        if (!response.ok) {
+
+            const err = await response.json();
+
+            alert('PDF generation failed: ' + (err.message || 'Unknown error'));
+
+            return;
+
+        }
+
+
+
+        const blob     = await response.blob();
+
+        const url      = URL.createObjectURL(blob);
+
+        const a        = document.createElement('a');
+
+        a.href         = url;
+
+        a.download     = `MCS_Report_${branch.replace(' ','_')}_${new Date().toISOString().slice(0,10)}.pdf`;
+
+        a.click();
+
+        URL.revokeObjectURL(url);
+
+
+
+    } catch(e) {
+
+        alert('Download error: ' + e.message);
+
+    } finally {
+
+        btn.disabled = false;
+
+        btn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> Download PDF';
+
+    }
+
+}
+
+</script>
+
+{% endblock %}
