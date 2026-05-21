@@ -2,13 +2,14 @@ import pandas as pd
 import sqlite3
 import os
 import requests
+from datetime import datetime
 
 class ETLPipeline:
     def __init__(self, filepath):
         self.filepath = filepath
         self.df = None
         
-        # Weather_Condition removed — system handles it automatically
+        # Exact target schema required by the core analytics engine
         self.required_columns = [
             'Transaction_ID', 'Date', 'Time', 'Outlet', 'Category', 
             'Product_Name', 'Quantity_Sold', 'Unit_Price_RM', 
@@ -16,31 +17,17 @@ class ETLPipeline:
         ]
 
     def _enrich_weather(self, df):
-        """
-        Fetches historical weather from Open-Meteo for each unique date+branch
-        and fills the Weather_Condition column automatically.
-        No API key needed — Open-Meteo is free.
-        """
         BRANCH_COORDS = {
             'Putrajaya':   {'lat': 2.9264, 'lon': 101.6964},
             'Puncak Alam': {'lat': 3.2353, 'lon': 101.4243}
         }
 
         def map_weather_code(code):
-            """
-            Tuned for Malaysian tropical climate.
-            Drizzle (51,53,55) treated as Cloudy — light rain is normal
-            and does not significantly reduce coffee shop footfall.
-            Only moderate/heavy rain (61+) counts as Raining.
-            """
             if code in [0, 1, 2]:
-                # Clear or mainly clear
                 return 'Sunny'
             elif code in [3, 45, 48, 51, 53, 55]:
-                # Overcast, fog, light/moderate drizzle — treated as Cloudy
                 return 'Cloudy'
             elif code in [61, 63, 65, 80, 81, 82, 95, 96, 99]:
-                # Moderate to heavy rain, showers, thunderstorm
                 return 'Raining'
             else:
                 return 'Cloudy'
@@ -49,8 +36,11 @@ class ETLPipeline:
             coords = BRANCH_COORDS.get(branch)
             if not coords:
                 return 'Cloudy'
+            if date_str > datetime.today().strftime('%Y-%m-%d'):
+                return 'Cloudy'
+
             try:
-                url    = "https://archive-api.open-meteo.com/v1/archive"
+                url = "https://archive-api.open-meteo.com/v1/archive"
                 params = {
                     "latitude":   coords['lat'],
                     "longitude":  coords['lon'],
@@ -59,18 +49,21 @@ class ETLPipeline:
                     "daily":      "weathercode",
                     "timezone":   "Asia/Kuala_Lumpur"
                 }
-                resp = requests.get(url, params=params, timeout=8)
+                resp = requests.get(url, params=params, timeout=5)
                 resp.raise_for_status()
-                code = resp.json()["daily"]["weathercode"][0]
-                return map_weather_code(code)
+                res_json = resp.json()
+                
+                if "daily" in res_json and res_json["daily"]["weathercode"]:
+                    code = res_json["daily"]["weathercode"][0]
+                    return map_weather_code(code)
+                return 'Cloudy'
             except Exception:
-                return 'Cloudy'  # safe fallback if API fails
+                return 'Cloudy'  
 
-        # Cache by (date, branch) so we don't repeat API calls for the same day
         weather_cache = {}
         unique_pairs  = df[['Date', 'Outlet']].drop_duplicates()
 
-        print(f"Fetching weather for {len(unique_pairs)} unique date-branch combinations...")
+        print(f"[ETL LOG] Fetching weather for {len(unique_pairs)} discrete vectors...")
 
         for _, row in unique_pairs.iterrows():
             key = (row['Date'], row['Outlet'])
@@ -80,45 +73,70 @@ class ETLPipeline:
         df['Weather_Condition'] = df.apply(
             lambda r: weather_cache.get((r['Date'], r['Outlet']), 'Cloudy'), axis=1
         )
-
-        print("Weather enrichment complete.")
         return df
 
     def process_data(self):
-        """Executes data standardization, cleaning, and enrichment."""
         try:
             self.df = pd.read_csv(self.filepath)
-            self.df.columns = self.df.columns.str.strip()
+            if self.df.empty:
+                return False, "Upload Failed: The uploaded CSV file contains no data rows."
+
+            self.df.columns = self.df.columns.str.strip().str.title()
+            
+            header_mapping = {
+                'Transaction_Id': 'Transaction_ID',     
+                'Transactionid': 'Transaction_ID',
+                'Sale_Date': 'Date',
+                'Sales_Date': 'Date',
+                'Transaction_Time': 'Time',
+                'Outlet_Name': 'Outlet',
+                'Product_Category': 'Category',
+                'Unit_Price': 'Unit_Price_RM',
+                'Unit_Price_Rm': 'Unit_Price_RM',       
+                'Total_Revenue': 'Total_Revenue_RM',
+                'Total_Revenue_Rm': 'Total_Revenue_RM'   
+            }
+            self.df = self.df.rename(columns=header_mapping)
             
             missing_cols = [col for col in self.required_columns if col not in self.df.columns]
             if missing_cols:
                 return False, f"Upload Failed. Missing required columns: {', '.join(missing_cols)}"
 
-            self.df = self.df.dropna(subset=['Date', 'Outlet', 'Total_Revenue_RM'])
-            self.df['Date'] = pd.to_datetime(self.df['Date'], errors='coerce').dt.strftime('%Y-%m-%d')
+            # ✅ SELF-HEALING UPGRADE: Automatically drop internal row collisions inside the uploaded file
+            self.df = self.df.drop_duplicates(subset=['Transaction_ID'], keep='first')
+
+            self.df = self.df.dropna(subset=['Transaction_ID', 'Date', 'Time', 'Product_Name'])
+
+            parsed_dates = pd.to_datetime(self.df['Date'], dayfirst=True, errors='coerce')
             self.df['Time'] = pd.to_datetime(self.df['Time'], format='%H:%M', errors='coerce').dt.strftime('%H:%M')
+            self.df['Date'] = parsed_dates.dt.strftime('%Y-%m-%d')
             self.df = self.df.dropna(subset=['Date', 'Time'])
 
-            self.df['Quantity_Sold'] = pd.to_numeric(self.df['Quantity_Sold'], errors='coerce').fillna(0).astype(int)
+            self.df['Quantity_Sold'] = pd.to_numeric(self.df['Quantity_Sold'], errors='coerce').fillna(1).astype(int)
             self.df['Unit_Price_RM'] = pd.to_numeric(self.df['Unit_Price_RM'], errors='coerce')
-            self.df['Total_Revenue_RM'] = pd.to_numeric(self.df['Total_Revenue_RM'], errors='coerce')
-            self.df = self.df.dropna(subset=['Total_Revenue_RM'])
+            self.df = self.df.dropna(subset=['Unit_Price_RM'])
+            
+            self.df['Total_Revenue_RM'] = self.df['Quantity_Sold'] * self.df['Unit_Price_RM']
+            self.df = self.df[self.df['Total_Revenue_RM'] > 0]
 
-            self.df['Outlet'] = self.df['Outlet'].str.strip().str.title()
-            self.df['Category'] = self.df['Category'].str.strip().str.title()
-            self.df['Payment_Method'] = self.df['Payment_Method'].str.strip().str.upper()
+            self.df['Outlet'] = self.df['Outlet'].astype(str).str.strip().str.title()
+            self.df['Category'] = self.df['Category'].astype(str).str.strip().str.title()
+            self.df['Product_Name'] = self.df['Product_Name'].astype(str).str.strip().str.title()
+            self.df['Payment_Method'] = self.df['Payment_Method'].astype(str).str.strip().str.upper()
 
-            # --- API ENRICHMENT ---
+            self.df = self.df[self.df['Outlet'].isin(['Putrajaya', 'Puncak Alam'])]
+            if self.df.empty:
+                return False, "Upload Failed: No transactions matched valid branch domains."
+
             self.df['Weather_Condition'] = None
             self.df = self._enrich_weather(self.df)
 
-            return True, "Data successfully processed, enriched with weather, and validated."
+            return True, "Data successfully processed, normalized, and validated via ETL pipeline."
 
         except Exception as e:
             return False, f"ETL Pipeline Error: {str(e)}"
 
     def save_to_database(self, db_path):
-        """Maps Pandas columns to SQLite schema and performs bulk insert."""
         try:
             if self.df is None or self.df.empty:
                 return False, "No data available to save."
@@ -149,14 +167,20 @@ class ETLPipeline:
             ]
             db_df = db_df[columns_to_keep]
 
-            conn = sqlite3.connect(db_path)
+            # ✅ LOCK RESOLUTION UPGRADE: Extension timeout extended to 30s to bypass external locks cleanly
+            conn = sqlite3.connect(db_path, timeout=30.0)
             db_df.to_sql('sales_transaction', conn, if_exists='append', index=False)
             conn.commit()
             conn.close()
 
             return True, f"Successfully inserted {len(db_df)} records into the database."
 
-        except sqlite3.IntegrityError:
-            return False, "Database Error: Some of these transactions have already been uploaded (Duplicate ID)."
+        except sqlite3.IntegrityError as e:
+            print(f"[SQL ERROR] Integrity Error Triggered: {e}")
+            return False, "Database Rejection: Double ingestion alert. These transaction IDs are already registered."
         except Exception as e:
-            return False, f"Database Error: {str(e)}"
+            print(f"[DB ERROR] General DB Failure: {e}")
+            error_msg = str(e)
+            if "locked" in error_msg.lower():
+                return False, "Database is currently locked by an external file-viewer process. Please close DB Browser and retry upload."
+            return False, f"Execution failed: {error_msg}"
