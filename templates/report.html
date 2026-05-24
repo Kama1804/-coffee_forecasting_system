@@ -1,1605 +1,987 @@
 {% extends "base.html" %}
-
 {% block title %}Executive Report{% endblock %}
 
-
-
 {% block styles %}
-
 <style>
-
 /* ============================================================
-
-   REPORT PAGE STYLES
-
-   ============================================================ */
-
+   REPORT PAGE
+============================================================ */
 .report-config-card {
-
     background: var(--white-card);
-
     border: 1px solid var(--grey-border);
-
     border-radius: var(--radius-lg);
-
     box-shadow: var(--shadow-card);
-
     padding: var(--space-lg);
-
     margin-bottom: var(--space-lg);
-
 }
 
-
-
-/* A4 Preview Container */
-
+/* A4 Preview */
 .a4-preview-wrap {
-
     display: flex;
-
     justify-content: center;
-
     padding: var(--space-xl) 0;
-
-    background: #868686;
-
+    background: #7A7A7A;
     border-radius: var(--radius-lg);
-
     min-height: 500px;
-
 }
-
-
-
 .a4-page {
-
     width: 794px;
-
     min-height: 1123px;
-
     background: white;
-
-    box-shadow: 0 8px 40px rgba(0,0,0,.35);
-
+    box-shadow: 0 10px 50px rgba(0,0,0,.45);
     font-family: 'DM Sans', Arial, sans-serif;
-
     font-size: 11px;
-
     color: #1E293B;
-
     position: relative;
-
-    overflow: hidden;
-
 }
 
-
-
-/* Report Header Band */
-
+/* Report Header */
 .rpt-header {
-
     background: linear-gradient(135deg, #1E2A3A 0%, #2A3B52 100%);
-
     padding: 28px 36px 24px;
-
     color: white;
-
     position: relative;
-
     overflow: hidden;
-
 }
-
 .rpt-header::after {
-
-    content: '';
-
-    position: absolute;
-
-    right: -40px; top: -40px;
-
-    width: 180px; height: 180px;
-
-    border-radius: 50%;
-
+    content: ''; position: absolute; right: -40px; top: -40px;
+    width: 180px; height: 180px; border-radius: 50%;
     background: rgba(59,130,246,.12);
-
 }
-
-.rpt-header::before {
-
-    content: '';
-
-    position: absolute;
-
-    right: 60px; bottom: -60px;
-
-    width: 240px; height: 240px;
-
-    border-radius: 50%;
-
-    background: rgba(245,158,11,.07);
-
-}
-
 .rpt-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
-
 .rpt-brand-icon {
-
     width: 40px; height: 40px;
-
     background: linear-gradient(135deg, #F59E0B, #D97706);
-
     border-radius: 8px;
-
     display: flex; align-items: center; justify-content: center;
-
-    font-size: 1.2rem;
-
+    font-size: 1.2rem; flex-shrink: 0;
 }
-
-.rpt-brand-name { font-size: 1.1rem; font-weight: 700; letter-spacing: .3px; }
-
+.rpt-brand-name { font-size: 1.1rem; font-weight: 700; }
 .rpt-brand-sub  { font-size: .72rem; opacity: .6; margin-top: 1px; }
-
-.rpt-title-row  { display: flex; justify-content: space-between; align-items: flex-end; }
-
+.rpt-title-row  { display: flex; justify-content: space-between; align-items: flex-end; position: relative; z-index: 1; }
 .rpt-title      { font-size: 1.5rem; font-weight: 700; letter-spacing: -.3px; }
-
 .rpt-subtitle   { font-size: .8rem; opacity: .7; margin-top: 3px; }
-
 .rpt-meta       { text-align: right; font-size: .75rem; opacity: .7; line-height: 1.7; }
 
-
-
-/* Amber accent bar */
-
 .rpt-accent-bar {
-
     height: 4px;
-
     background: linear-gradient(90deg, #F59E0B, #3B82F6, #10B981);
-
 }
-
-
 
 /* Report Body */
-
-.rpt-body { padding: 28px 36px; }
-
-
-
-/* Section headers */
+.rpt-body { padding: 24px 36px; }
 
 .rpt-section-title {
-
-    font-size: .8rem;
-
-    font-weight: 700;
-
-    color: #1E2A3A;
-
-    text-transform: uppercase;
-
+    font-size: .75rem; font-weight: 700;
+    color: #1E2A3A; text-transform: uppercase;
     letter-spacing: .8px;
-
     border-left: 3px solid #3B82F6;
-
     padding-left: 8px;
-
-    margin: 20px 0 12px;
-
+    margin: 18px 0 10px;
 }
 
-
-
-/* KPI Summary Row */
-
-.rpt-kpi-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 4px; }
-
+/* KPI Row */
+.rpt-kpi-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; }
 .rpt-kpi-box {
-
-    border: 1px solid #E2E8F0;
-
-    border-radius: 8px;
-
-    padding: 12px 14px;
-
-    background: #F8FAFC;
-
-    position: relative;
-
-    overflow: hidden;
-
+    border: 1px solid #E2E8F0; border-radius: 8px;
+    padding: 12px 14px; background: #F8FAFC; position: relative; overflow: hidden;
 }
-
 .rpt-kpi-box::before {
-
-    content: '';
-
-    position: absolute;
-
-    top: 0; left: 0; right: 0;
-
-    height: 3px;
-
-    border-radius: 8px 8px 0 0;
-
+    content: ''; position: absolute;
+    top: 0; left: 0; right: 0; height: 3px; border-radius: 8px 8px 0 0;
 }
-
 .rpt-kpi-box.k-blue::before   { background: #3B82F6; }
-
 .rpt-kpi-box.k-amber::before  { background: #F59E0B; }
-
 .rpt-kpi-box.k-teal::before   { background: #10B981; }
-
 .rpt-kpi-box.k-purple::before { background: #8B5CF6; }
-
-.rpt-kpi-label { font-size: .65rem; color: #64748B; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 4px; }
-
+.rpt-kpi-label { font-size: .63rem; color: #64748B; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 4px; }
 .rpt-kpi-value { font-size: 1.1rem; font-weight: 700; color: #1E293B; font-family: 'DM Mono', monospace; line-height: 1.2; }
+.rpt-kpi-sub   { font-size: .63rem; margin-top: 3px; }
+.rpt-kpi-sub.up      { color: #10B981; }
+.rpt-kpi-sub.down    { color: #EF4444; }
+.rpt-kpi-sub.neutral { color: #94A3B8; }
 
-.rpt-kpi-sub   { font-size: .65rem; color: #94A3B8; margin-top: 3px; }
-
-
+/* Sparkline */
+.sparkline { display: flex; align-items: flex-end; gap: 2px; height: 24px; margin-top: 6px; }
+.spark-bar { flex: 1; background: #BFDBFE; border-radius: 2px; min-height: 3px; }
+.spark-bar.peak { background: #3B82F6; }
 
 /* Tables */
-
-.rpt-table { width: 100%; border-collapse: collapse; font-size: .78rem; margin-bottom: 4px; }
-
+.rpt-table { width: 100%; border-collapse: collapse; font-size: .78rem; }
 .rpt-table thead th {
-
-    background: #1E2A3A;
-
-    color: white;
-
-    padding: 7px 10px;
-
-    text-align: left;
-
-    font-size: .68rem;
-
-    font-weight: 600;
-
-    letter-spacing: .4px;
-
-    text-transform: uppercase;
-
+    background: #1E2A3A; color: white;
+    padding: 7px 10px; text-align: left;
+    font-size: .65rem; font-weight: 600;
+    letter-spacing: .4px; text-transform: uppercase;
 }
-
 .rpt-table thead th:first-child { border-radius: 4px 0 0 4px; }
-
 .rpt-table thead th:last-child  { border-radius: 0 4px 4px 0; }
-
 .rpt-table tbody tr:nth-child(even) { background: #F8FAFC; }
-
-.rpt-table tbody td {
-
-    padding: 6px 10px;
-
-    border-bottom: 1px solid #E2E8F0;
-
-    color: #334155;
-
-}
-
+.rpt-table tbody td { padding: 6px 10px; border-bottom: 1px solid #E2E8F0; color: #334155; }
 .rpt-table tbody tr:last-child td { border-bottom: none; }
-
 .rpt-table .num { text-align: right; font-family: 'DM Mono', monospace; }
 
-.rpt-table .badge-rank {
-
-    display: inline-block;
-
-    width: 18px; height: 18px;
-
-    border-radius: 50%;
-
-    background: #3B82F6;
-
-    color: white;
-
-    font-size: .6rem;
-
-    font-weight: 700;
-
-    text-align: center;
-
-    line-height: 18px;
-
-}
-
-
-
-/* Two column layout */
-
-.rpt-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-
-.rpt-three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
-
-
+/* Layout helpers */
+.rpt-two-col   { display: grid; grid-template-columns: 1fr 1fr;     gap: 16px; }
+.rpt-three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
 
 /* Insight boxes */
-
 .rpt-insight-box {
-
-    background: #EFF6FF;
-
-    border: 1px solid #BFDBFE;
-
-    border-radius: 6px;
-
-    padding: 10px 12px;
-
-    font-size: .78rem;
-
-    color: #1E40AF;
-
-    line-height: 1.6;
-
+    background: #EFF6FF; border: 1px solid #BFDBFE;
+    border-radius: 6px; padding: 10px 12px;
+    font-size: .78rem; color: #1E40AF; line-height: 1.6;
 }
-
 .rpt-insight-box.amber { background: #FFFBEB; border-color: #FDE68A; color: #92400E; }
-
 .rpt-insight-box.teal  { background: #ECFDF5; border-color: #6EE7B7; color: #065F46; }
-
+.rpt-insight-box.red   { background: #FEF2F2; border-color: #FECACA; color: #991B1B; }
 .rpt-insight-box-title { font-weight: 700; margin-bottom: 4px; font-size: .72rem; }
 
+/* Forecast rows */
+.rpt-forecast-row {
+    display: grid;
+    grid-template-columns: 90px 55px 1fr 80px;
+    gap: 6px; padding: 6px 8px;
+    border-radius: 4px; font-size: .74rem; align-items: center;
+}
+.rpt-forecast-row.header {
+    background: #1E2A3A; color: white;
+    font-weight: 600; font-size: .64rem;
+    text-transform: uppercase; letter-spacing: .4px;
+}
+.rpt-forecast-row.even { background: #F8FAFC; }
+.rpt-fc-bar-wrap { background: #E2E8F0; border-radius: 4px; height: 6px; overflow: hidden; }
+.rpt-fc-bar      { height: 100%; border-radius: 4px; background: linear-gradient(90deg, #3B82F6, #60A5FA); }
+.holiday-tag {
+    display: inline-block; padding: 1px 5px;
+    background: #FEF3C7; color: #92400E;
+    border-radius: 3px; font-size: .6rem; font-weight: 600; margin-left: 4px;
+}
 
-
-/* Forecast table */
-
-.rpt-forecast-row { display: grid; grid-template-columns: 80px 60px 1fr 70px 55px 55px; gap: 6px; padding: 6px 8px; border-radius: 4px; font-size: .74rem; align-items: center; }
-
-.rpt-forecast-row.header { background: #1E2A3A; color: white; font-weight: 600; font-size: .65rem; text-transform: uppercase; letter-spacing: .4px; }
-
-.rpt-forecast-row.even   { background: #F8FAFC; }
-
-.rpt-forecast-bar-wrap   { background: #E2E8F0; border-radius: 4px; height: 6px; overflow: hidden; }
-
-.rpt-forecast-bar        { height: 100%; border-radius: 4px; background: linear-gradient(90deg, #3B82F6, #60A5FA); }
-
-
-
-/* AI Insights section */
-
+/* AI box */
 .rpt-ai-box {
-
     background: linear-gradient(135deg, #F8FAFC, #EFF6FF);
-
-    border: 1px solid #BFDBFE;
-
-    border-radius: 8px;
-
-    padding: 14px 16px;
-
+    border: 1px solid #BFDBFE; border-radius: 8px; padding: 14px 16px;
 }
-
 .rpt-ai-header {
-
     display: flex; align-items: center; gap: 8px;
-
-    font-weight: 700; font-size: .8rem;
-
-    color: #1E293B; margin-bottom: 8px;
-
+    font-weight: 700; font-size: .8rem; color: #1E293B; margin-bottom: 8px;
 }
+.rpt-ai-content { font-size: .78rem; color: #334155; line-height: 1.75; }
 
-.rpt-ai-content { font-size: .78rem; color: #334155; line-height: 1.7; }
+/* Payment bars */
+.rpt-pay-item  { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; font-size: .76rem; }
+.rpt-pay-label { width: 110px; flex-shrink: 0; color: #334155; }
+.rpt-pay-bar-w { flex: 1; background: #E2E8F0; border-radius: 4px; height: 8px; overflow: hidden; }
+.rpt-pay-bar   { height: 100%; border-radius: 4px; }
+.rpt-pay-val   { width: 55px; text-align: right; font-family: 'DM Mono', monospace; color: #1E293B; font-weight: 600; font-size: .74rem; }
 
-.rpt-ai-content strong { color: #1E293B; }
-
-
-
-/* Daily notes */
-
+/* Notes */
 .rpt-note-item { display: flex; gap: 8px; margin-bottom: 6px; font-size: .76rem; }
-
-.rpt-note-dot  { width: 6px; height: 6px; border-radius: 50%; background: #3B82F6; flex-shrink: 0; margin-top: 5px; }
-
-
-
-/* Payment bar */
-
-.rpt-pay-item   { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: .76rem; }
-
-.rpt-pay-label  { width: 110px; flex-shrink: 0; color: #334155; }
-
-.rpt-pay-bar-w  { flex: 1; background: #E2E8F0; border-radius: 4px; height: 8px; overflow: hidden; }
-
-.rpt-pay-bar    { height: 100%; border-radius: 4px; }
-
-.rpt-pay-val    { width: 60px; text-align: right; font-family: 'DM Mono', monospace; color: #1E293B; font-weight: 600; }
-
-
+.rpt-note-dot  { width: 6px; height: 6px; border-radius: 50%; background: #3B82F6; flex-shrink: 0; margin-top: 4px; }
 
 /* Footer */
-
 .rpt-footer {
-
-    margin-top: auto;
-
-    padding: 14px 36px;
-
-    background: #F8FAFC;
-
-    border-top: 1px solid #E2E8F0;
-
-    display: flex;
-
-    justify-content: space-between;
-
-    align-items: center;
-
-    font-size: .68rem;
-
-    color: #94A3B8;
-
+    padding: 12px 36px;
+    background: #F8FAFC; border-top: 1px solid #E2E8F0;
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: .65rem; color: #94A3B8;
 }
 
-
-
-/* Weather badge */
-
-.rpt-weather-badge {
-
-    display: inline-flex; align-items: center; gap: 4px;
-
-    padding: 2px 8px;
-
-    border-radius: 20px;
-
-    font-size: .68rem; font-weight: 600;
-
+/* vs badge */
+.vs-badge {
+    font-size: .63rem; padding: 2px 7px;
+    border-radius: 20px; font-weight: 600;
+    display: inline-block; margin-top: 4px;
 }
+.vs-badge.up   { background: #ECFDF5; color: #065F46; }
+.vs-badge.down { background: #FEF2F2; color: #991B1B; }
+.vs-badge.flat { background: #F1F5F9; color: #64748B; }
 
-.rpt-weather-badge.sunny   { background: #FFFBEB; color: #92400E; }
-
-.rpt-weather-badge.cloudy  { background: #EFF6FF; color: #1E40AF; }
-
-.rpt-weather-badge.raining { background: #EFF6FF; color: #1E40AF; }
-
-
-
-/* Loading overlay */
-
+/* Loading */
 .preview-loading {
-
     display: flex; flex-direction: column;
-
     align-items: center; justify-content: center;
-
-    min-height: 400px; gap: 16px;
-
-    color: white;
-
+    min-height: 400px; gap: 16px; color: white;
 }
-
 </style>
-
 {% endblock %}
-
-
 
 {% block content %}
 
-
-
-<!-- Page Header -->
-
 <div class="page-header" data-aos="fade-down">
-
     <div>
-
         <h1 class="page-title">Executive Report</h1>
-
         <p class="page-subtitle">Generate and download a comprehensive A4 PDF sales performance report</p>
-
     </div>
-
 </div>
 
-
-
-<!-- ============================================================
-
-     REPORT CONFIGURATION
-
-============================================================ -->
-
+<!-- CONFIG -->
 <div class="report-config-card" data-aos="fade-up">
-
     <p class="card-title">Report Configuration</p>
-
     <div class="row g-3 align-items-end">
-
-        <div class="col-12 col-md-4">
-
+        <div class="col-12 col-md-3">
             <label class="form-label-custom">Branch</label>
-
             <select id="rptBranch" class="form-control-custom">
-
                 <option value="all">All Branches</option>
-
                 <option value="Putrajaya">Putrajaya</option>
-
                 <option value="Puncak Alam">Puncak Alam</option>
-
             </select>
-
         </div>
-
-        <div class="col-12 col-md-4">
-
+        <div class="col-12 col-md-3">
             <label class="form-label-custom">Report Type</label>
-
             <select id="rptType" class="form-control-custom">
-
-                <option value="executive">Executive Summary Report</option>
-
+                <option value="executive">Executive Summary</option>
                 <option value="weekly">Weekly Sales Report</option>
-
             </select>
-
         </div>
-
-        <div class="col-12 col-md-4">
-
+        <div class="col-12 col-md-3">
+            <label class="form-label-custom">Date From</label>
+            <input type="date" id="rptFrom" class="form-control-custom">
+        </div>
+        <div class="col-12 col-md-3">
+            <label class="form-label-custom">Date To</label>
+            <input type="date" id="rptTo" class="form-control-custom">
+        </div>
+        <div class="col-12">
             <div class="d-flex gap-2">
-
-                <button class="btn-primary-custom w-100" onclick="generatePreview()" id="previewBtn">
-
+                <button class="btn-primary-custom" onclick="generatePreview()" id="previewBtn">
                     <i class="fa-solid fa-eye"></i> Preview Report
-
                 </button>
-
                 <button class="btn-amber-custom" onclick="downloadPDF()" id="downloadBtn" disabled>
-
                     <i class="fa-solid fa-file-pdf"></i> Download PDF
-
                 </button>
-
+                <button class="btn-secondary-custom" onclick="clearDates()" style="margin-left:auto;">
+                    <i class="fa-solid fa-rotate-left"></i> Reset Dates
+                </button>
             </div>
-
         </div>
-
     </div>
-
 </div>
 
-
-
-<!-- ============================================================
-
-     A4 PREVIEW AREA
-
-============================================================ -->
-
+<!-- A4 PREVIEW -->
 <div class="a4-preview-wrap" data-aos="fade-up" data-aos-delay="80">
-
-    <!-- Loading state -->
-
     <div class="preview-loading" id="previewLoading" style="display:none;">
-
         <div class="spinner" style="border-color:rgba(255,255,255,.3);border-top-color:white;width:40px;height:40px;border-width:4px;"></div>
-
         <div style="font-size:.9rem;font-weight:500;">Compiling report data…</div>
-
+        <div style="font-size:.78rem;opacity:.7;" id="loadingStep">Fetching sales metrics…</div>
     </div>
-
-
-
-    <!-- Empty state -->
-
     <div class="preview-loading" id="previewEmpty">
-
         <i class="fa-solid fa-file-pdf" style="font-size:3rem;opacity:.3;"></i>
-
         <div style="font-size:.9rem;font-weight:500;">Configure and preview your report above</div>
-
         <div style="font-size:.8rem;opacity:.6;">Select branch and report type, then click Preview</div>
-
     </div>
-
-
-
-    <!-- A4 Page (populated by JS) -->
-
     <div class="a4-page" id="a4Page" style="display:none;"></div>
-
 </div>
-
-
 
 {% endblock %}
 
-
-
-
-
 {% block scripts %}
-
 <script>
-
 /* ============================================================
-
    HELPERS
-
 ============================================================ */
-
 function fmt(n, d=2) {
-
-    return Number(n||0).toLocaleString('en-MY',{minimumFractionDigits:d,maximumFractionDigits:d});
-
+    return Number(n||0).toLocaleString('en-MY', {minimumFractionDigits:d, maximumFractionDigits:d});
 }
-
 function fmtInt(n) {
-
     return Number(n||0).toLocaleString('en-MY');
-
 }
-
-function weatherIcon(w) {
-
-    return w==='Sunny' ? '☀️' : w==='Raining' ? '🌧️' : '⛅';
-
-}
-
-function weatherClass(w) {
-
-    return w==='Sunny' ? 'sunny' : w==='Raining' ? 'raining' : 'cloudy';
-
-}
-
 function now() {
-
-    return new Date().toLocaleString('en-MY',{
-
-        day:'2-digit',month:'long',year:'numeric',
-
-        hour:'2-digit',minute:'2-digit'
-
+    return new Date().toLocaleString('en-MY', {
+        day:'2-digit', month:'long', year:'numeric',
+        hour:'2-digit', minute:'2-digit'
     });
-
 }
-
 function todayFull() {
-
-    return new Date().toLocaleDateString('en-MY',{
-
-        weekday:'long',day:'numeric',month:'long',year:'numeric'
-
+    return new Date().toLocaleDateString('en-MY', {
+        weekday:'long', day:'numeric', month:'long', year:'numeric'
     });
-
+}
+function clearDates() {
+    document.getElementById('rptFrom').value = '';
+    document.getElementById('rptTo').value   = '';
+}
+function setStep(msg) {
+    const el = document.getElementById('loadingStep');
+    if (el) el.textContent = msg;
 }
 
+/* ── Trend badge ─────────────────────────────────────────── */
+function trendBadge(label) {
+    if (!label || label === 'No prior period data' || label === 'Trend N/A' || label === 'No data') {
+        return `<span class="vs-badge flat">${label || 'N/A'}</span>`;
+    }
+    const isUp = label.startsWith('+');
+    return `<span class="vs-badge ${isUp ? 'up' : 'down'}">${label}</span>`;
+}
 
+/* ── Sparkline ───────────────────────────────────────────── */
+function buildSparkline(data) {
+    if (!data || !data.length) return '';
+    const max   = Math.max(...data);
+    const peakI = data.indexOf(max);
+    const bars  = data.map((v, i) => {
+        const h   = max > 0 ? Math.round((v / max) * 100) : 3;
+        const cls = i === peakI ? 'spark-bar peak' : 'spark-bar';
+        return `<div class="${cls}" style="height:${Math.max(h, 6)}%;"></div>`;
+    }).join('');
+    return `<div class="sparkline">${bars}</div>`;
+}
 
 /* ============================================================
-
    GENERATE PREVIEW
-
 ============================================================ */
-
 async function generatePreview() {
-
     const branch  = document.getElementById('rptBranch').value;
-
     const rptType = document.getElementById('rptType').value;
-
+    const from    = document.getElementById('rptFrom').value;
+    const to      = document.getElementById('rptTo').value;
     const btn     = document.getElementById('previewBtn');
-
     const dlBtn   = document.getElementById('downloadBtn');
 
-
-
     document.getElementById('previewEmpty').style.display   = 'none';
-
     document.getElementById('a4Page').style.display         = 'none';
-
     document.getElementById('previewLoading').style.display = 'flex';
-
     btn.disabled = true;
-
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Loading…';
 
-
-
     try {
+        let reportUrl = `/api/report_data?branch=${encodeURIComponent(branch)}&type=${rptType}`;
+        if (from && to) reportUrl += `&date_from=${from}&date_to=${to}`;
 
-        // Fetch KPI data
-
-        const [kpiRes, chartRes, forecastRes] = await Promise.all([
-
-            fetch('/api/kpis').then(r=>r.json()),
-
-            fetch(`/api/charts?branch=${encodeURIComponent(branch)}`).then(r=>r.json()),
-
-            fetch('/api/report-data').then(r=>r.json())
-
+        setStep('Fetching sales metrics…');
+        const [kpiRes, chartRes] = await Promise.all([
+            fetch(`/api/kpis?branch=${encodeURIComponent(branch)}`).then(r => r.json()),
+            fetch(`/api/charts?branch=${encodeURIComponent(branch)}`).then(r => r.json())
         ]);
 
-
+        setStep('Running AI insight & forecast…');
+        const reportRes = await fetch(reportUrl).then(r => r.json());
 
         document.getElementById('previewLoading').style.display = 'none';
-
-
 
         if (kpiRes.status !== 'success') {
-
-            alert('Failed to load KPI data. Make sure you have uploaded CSV data first.');
-
+            showError('Failed to load KPI data. Make sure you have uploaded CSV data first.');
             return;
-
         }
-
-
+        if (reportRes.status !== 'success') {
+            showError('Failed to load report data: ' + (reportRes.message || 'Unknown error'));
+            return;
+        }
 
         const html = rptType === 'weekly'
-
-            ? buildWeeklyReport(kpiRes, chartRes, forecastRes, branch)
-
-            : buildExecutiveReport(kpiRes, chartRes, forecastRes, branch);
-
-
+            ? buildWeeklyReport(kpiRes, chartRes, reportRes, branch)
+            : buildExecutiveReport(kpiRes, chartRes, reportRes, branch);
 
         const page = document.getElementById('a4Page');
-
         page.innerHTML = html;
-
         page.style.display = 'block';
-
         dlBtn.disabled = false;
 
-
-
-    } catch(e) {
-
+    } catch (e) {
         document.getElementById('previewLoading').style.display = 'none';
-
         document.getElementById('previewEmpty').style.display   = 'flex';
-
-        alert('Error loading report data: ' + e.message);
-
+        showError('Error loading report data: ' + e.message);
     } finally {
-
         btn.disabled = false;
-
         btn.innerHTML = '<i class="fa-solid fa-eye"></i> Preview Report';
-
     }
-
 }
 
-
+function showError(msg) {
+    alert(msg);
+    document.getElementById('previewEmpty').style.display = 'flex';
+}
 
 /* ============================================================
-
    BUILD EXECUTIVE REPORT HTML
-
 ============================================================ */
-
-function buildExecutiveReport(kpi, chart, forecast, branch) {
-
+function buildExecutiveReport(kpi, chart, report, branch) {
     const branchLabel = branch === 'all' ? 'All Branches' : branch;
+    const fore        = report.forecast || [];
 
-    const cats   = chart.category?.labels  || [];
+    // KPI values — always from the report endpoint (period-accurate)
+    const periodRev  = report.period_revenue || 0;
+    const periodTxns = report.period_txns    || 0;
+    const dailyAvg   = report.daily_average  || 0;
+    const aovVal     = report.aov            || 0;
+    const trend      = report.trend_label    || '';
+    const topBranch  = report.top_branch     || 'N/A';
+    const aiInsight  = report.ai_insight || 'No AI insight available.';
 
-    const catVals= chart.category?.data    || [];
+    const sparkData = (report.daily || []).map(d => d.revenue || 0).slice(-14);
 
-    const prods  = chart.products?.labels  || [];
-
-    const prodVals=chart.products?.data    || [];
-
-    const pays   = chart.payment?.labels   || [];
-
-    const payVals= chart.payment?.data     || [];
-
-    const fore   = forecast.forecast       || [];
-
-    const totalPayTxns = payVals.reduce((a,b)=>a+b,0)||1;
-
-
-
-    // Revenue by category rows
-
-    const catTotal = catVals.reduce((a,b)=>a+b,0)||1;
-
-    const catRows  = cats.map((c,i) => `
-
-        <tr>
-
-            <td>${c}</td>
-
-            <td class="num">RM ${fmt(catVals[i])}</td>
-
-            <td class="num">${((catVals[i]/catTotal)*100).toFixed(1)}%</td>
-
-            <td>
-
-                <div style="background:#E2E8F0;border-radius:4px;height:6px;overflow:hidden;">
-
-                    <div style="width:${((catVals[i]/catTotal)*100).toFixed(1)}%;height:100%;background:linear-gradient(90deg,#3B82F6,#60A5FA);border-radius:4px;"></div>
-
-                </div>
-
-            </td>
-
-        </tr>
-
-    `).join('');
-
-
-
-    // Top products rows
-
-    const prodRows = prods.map((p,i) => `
-
-        <tr>
-
-            <td><span class="badge-rank">${i+1}</span> ${p}</td>
-
-            <td class="num">${fmtInt(prodVals[i])} units</td>
-
-        </tr>
-
-    `).join('');
-
-
-
-    // Payment breakdown
-
-    const payBars = pays.map((p,i) => `
-
-        <div class="rpt-pay-item">
-
-            <div class="rpt-pay-label">${p}</div>
-
-            <div class="rpt-pay-bar-w">
-
-                <div class="rpt-pay-bar" style="width:${((payVals[i]/totalPayTxns)*100).toFixed(1)}%;
-
-                     background:${['#3B82F6','#F59E0B','#10B981','#8B5CF6'][i%4]};"></div>
-
-            </div>
-
-            <div class="rpt-pay-val">${((payVals[i]/totalPayTxns)*100).toFixed(1)}%</div>
-
-        </div>
-
-    `).join('');
-
-
-
-    // Forecast rows
-
-    const foreMax   = fore.length ? Math.max(...fore.map(r=>r.yhat)) : 1;
-
-    const foreRows  = fore.map((r,i) => {
-
-        const d   = new Date(r.ds);
-
+    // ── Forecast rows ─────────────────────────────────────────
+    const foreMax  = fore.length ? Math.max(...fore.map(r => r.yhat)) : 1;
+    const total7Day = fore.reduce((s, r) => s + r.yhat, 0);
+    const foreRows = fore.map((r, i) => {
+        const d   = new Date(r.ds + 'T00:00:00');
         const day = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
-
-        const pct = ((r.yhat/foreMax)*100).toFixed(1);
-
+        const pct = ((r.yhat / foreMax) * 100).toFixed(1);
+        const hTag = r.is_holiday ? '<span class="holiday-tag">Holiday</span>' : '';
         return `
-
-            <div class="rpt-forecast-row ${i%2===1?'even':''}">
-
-                <div style="font-family:'DM Mono',monospace;">${r.ds}</div>
-
-                <div>${day}</div>
-
-                <div>
-
-                    <div class="rpt-forecast-bar-wrap">
-
-                        <div class="rpt-forecast-bar" style="width:${pct}%;"></div>
-
-                    </div>
-
-                </div>
-
-                <div style="font-family:'DM Mono',monospace;text-align:right;font-weight:600;color:#3B82F6;">RM ${fmt(r.yhat)}</div>
-
-                <div style="font-family:'DM Mono',monospace;text-align:right;color:#94A3B8;font-size:.68rem;">
-
-                    ${fmt(r.yhat_lower)}
-
-                </div>
-
-                <div style="font-family:'DM Mono',monospace;text-align:right;color:#94A3B8;font-size:.68rem;">
-
-                    ${fmt(r.yhat_upper)}
-
-                </div>
-
-            </div>
-
-        `;
-
+        <div class="rpt-forecast-row ${i % 2 === 1 ? 'even' : ''}">
+            <div style="font-family:monospace;">${r.ds}</div>
+            <div>${day}${hTag}</div>
+            <div><div class="rpt-fc-bar-wrap"><div class="rpt-fc-bar" style="width:${pct}%;"></div></div></div>
+            <div style="font-family:monospace;text-align:right;font-weight:700;color:#3B82F6;">RM ${fmt(r.yhat)}</div>
+        </div>`;
     }).join('');
 
+    // ── Top products ──────────────────────────────────────────
+    const topProds  = report.top_products    || [];
+    const botProds  = report.bottom_products || [];
 
+    // ── Category breakdown ────────────────────────────────────
+    const catData   = report.category_breakdown || [];
+    const catTotal  = catData.reduce((s, c) => s + c.revenue, 0) || 1;
 
-    const total7Day = fore.reduce((s,r)=>s+r.yhat,0);
+    // ── Payment breakdown ─────────────────────────────────────
+    const payData   = report.payment_breakdown || [];
+    const payColors = ['#3B82F6', '#F59E0B', '#10B981', '#8B5CF6'];
+    const payTotal  = payData.reduce((s, p) => s + p.txn_count, 0) || 1;
 
-    const aiInsight = forecast.ai_insight || 'No AI insight available. Generate a forecast first and interact with the AI Chatbot.';
+    // ── Hourly breakdown ──────────────────────────────────────
+    const hourlyData = report.hourly_breakdown || [];
+    const hourlyMax  = Math.max(...hourlyData.map(h => h.txns), 1);
 
-
+    // ── DOW breakdown ─────────────────────────────────────────
+    const dowData = report.dow_breakdown || [];
+    const dowMax  = Math.max(...dowData.map(d => d.txns), 1);
 
     return `
-
-    <!-- HEADER -->
-
     <div class="rpt-header">
-
         <div class="rpt-brand">
-
             <div class="rpt-brand-icon">☕</div>
-
             <div>
-
                 <div class="rpt-brand-name">Mini Coffee Shop</div>
-
                 <div class="rpt-brand-sub">AI-Powered Analytics System</div>
-
             </div>
-
         </div>
-
         <div class="rpt-title-row">
-
             <div>
-
                 <div class="rpt-title">Executive Summary Report</div>
-
                 <div class="rpt-subtitle">${branchLabel} · ${todayFull()}</div>
-
             </div>
-
             <div class="rpt-meta">
-
                 Generated: ${now()}<br>
-
-                System: MCS Analytics v1.0<br>
-
+                Period: ${report.period || 'All data'}<br>
                 Confidential — Internal Use Only
-
             </div>
-
         </div>
-
     </div>
-
     <div class="rpt-accent-bar"></div>
-
-
 
     <div class="rpt-body">
 
-
-
-        <!-- KPI SUMMARY -->
-
-        <div class="rpt-section-title">Sales Performance Overview</div>
-
-        <div class="rpt-kpi-row">
-
+        <!-- SECTION 1: KPI SUMMARY -->
+        <div class="rpt-section-title">1. Sales Summary — ${report.period || 'All Data'}</div>
+        <div class="rpt-kpi-row" style="grid-template-columns:repeat(5,1fr);">
             <div class="rpt-kpi-box k-blue">
-
                 <div class="rpt-kpi-label">Total Revenue</div>
-
-                <div class="rpt-kpi-value">RM ${fmt(kpi.total_revenue)}</div>
-
-                <div class="rpt-kpi-sub">${kpi.trend_label}</div>
-
+                <div class="rpt-kpi-value">RM ${fmt(periodRev)}</div>
+                <div>${trendBadge(trend)}</div>
+                ${buildSparkline(sparkData)}
             </div>
-
             <div class="rpt-kpi-box k-amber">
-
                 <div class="rpt-kpi-label">Transactions</div>
-
-                <div class="rpt-kpi-value">${fmtInt(kpi.total_transactions)}</div>
-
-                <div class="rpt-kpi-sub">${kpi.txn_trend_label}</div>
-
+                <div class="rpt-kpi-value">${fmtInt(periodTxns)}</div>
+                <div class="rpt-kpi-sub neutral">Orders placed</div>
             </div>
-
             <div class="rpt-kpi-box k-teal">
-
+                <div class="rpt-kpi-label">Avg Order Value</div>
+                <div class="rpt-kpi-value">RM ${fmt(aovVal)}</div>
+                <div class="rpt-kpi-sub neutral">Per transaction</div>
+            </div>
+            <div class="rpt-kpi-box" style="border-top:3px solid #06B6D4;">
                 <div class="rpt-kpi-label">Daily Average</div>
-
-                <div class="rpt-kpi-value">RM ${fmt(kpi.daily_average)}</div>
-
-                <div class="rpt-kpi-sub">Per active day</div>
-
+                <div class="rpt-kpi-value">RM ${fmt(dailyAvg)}</div>
+                <div class="rpt-kpi-sub neutral">Per calendar day</div>
             </div>
-
             <div class="rpt-kpi-box k-purple">
-
                 <div class="rpt-kpi-label">Top Branch</div>
-
-                <div class="rpt-kpi-value" style="font-size:.85rem;margin-top:2px;">${kpi.top_branch}</div>
-
-                <div class="rpt-kpi-sub">Best performer</div>
-
+                <div class="rpt-kpi-value" style="font-size:.85rem;margin-top:3px;">${topBranch}</div>
+                <div class="rpt-kpi-sub neutral">Highest revenue</div>
             </div>
-
+        </div>
+        <div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:5px;padding:7px 10px;font-size:.7rem;color:#92400E;margin-top:6px;">
+            ⚠ Profit & COGS data is not available from POS transaction logs. Revenue figures represent gross sales only.
         </div>
 
-
-
-        <!-- REVENUE BY CATEGORY + PAYMENT -->
-
-        <div class="rpt-two-col" style="margin-top:16px;">
-
+        <!-- SECTION 2: PRODUCT PERFORMANCE -->
+        <div class="rpt-section-title" style="margin-top:16px;">2. Product Performance</div>
+        <div class="rpt-two-col">
             <div>
-
-                <div class="rpt-section-title">Revenue by Category</div>
-
+                <div style="font-weight:700;font-size:.72rem;color:#1E293B;margin-bottom:6px;">🏆 Top Selling Items</div>
                 <table class="rpt-table">
-
-                    <thead><tr><th>Category</th><th>Revenue</th><th>Share</th><th style="width:80px;">Bar</th></tr></thead>
-
-                    <tbody>${catRows || '<tr><td colspan="4" style="text-align:center;color:#94A3B8;padding:12px;">No data</td></tr>'}</tbody>
-
+                    <thead><tr><th>Product</th><th>Units</th><th>Revenue</th><th>Share</th></tr></thead>
+                    <tbody>
+                        ${topProds.length ? topProds.map((p, i) => `
+                        <tr>
+                            <td><span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:#3B82F6;color:white;font-size:.6rem;font-weight:700;text-align:center;line-height:16px;">${i+1}</span> ${p.product_name}</td>
+                            <td class="num">${fmtInt(p.qty)}</td>
+                            <td class="num">RM ${fmt(p.revenue)}</td>
+                            <td class="num">${p.pct}%</td>
+                        </tr>`).join('') : '<tr><td colspan="4" style="text-align:center;color:#94A3B8;padding:10px;">No data</td></tr>'}
+                    </tbody>
                 </table>
-
             </div>
-
             <div>
+                <div style="font-weight:700;font-size:.72rem;color:#EF4444;margin-bottom:6px;">⚠ Slow-Moving Items (Bottom 3)</div>
+                <table class="rpt-table">
+                    <thead><tr><th>Product</th><th>Units</th><th>Revenue</th></tr></thead>
+                    <tbody>
+                        ${botProds.length ? botProds.map(p => `
+                        <tr>
+                            <td style="color:#EF4444;">${p.product_name}</td>
+                            <td class="num">${fmtInt(p.qty)}</td>
+                            <td class="num">RM ${fmt(p.revenue)}</td>
+                        </tr>`).join('') : '<tr><td colspan="3" style="text-align:center;color:#94A3B8;padding:10px;">No data</td></tr>'}
+                    </tbody>
+                </table>
+            </div>
+        </div>
 
-                <div class="rpt-section-title">Payment Method Breakdown</div>
+        <!-- SECTION 3: CATEGORY & PAYMENT -->
+        <div class="rpt-section-title" style="margin-top:16px;">3. Category Revenue &amp; Payment Methods</div>
+        <div class="rpt-two-col">
+            <div>
+                <div style="font-weight:700;font-size:.72rem;color:#1E293B;margin-bottom:6px;">Revenue by Category</div>
+                <table class="rpt-table">
+                    <thead><tr><th>Category</th><th>Revenue</th><th>Share</th><th style="width:60px;">Bar</th></tr></thead>
+                    <tbody>
+                        ${catData.length ? catData.map((c, i) => {
+                            const bw = ((c.revenue / catTotal) * 100).toFixed(1);
+                            return `<tr>
+                                <td>${c.product_category}</td>
+                                <td class="num">RM ${fmt(c.revenue)}</td>
+                                <td class="num">${c.pct}%</td>
+                                <td>
+                                    <div style="background:#E2E8F0;border-radius:3px;height:5px;overflow:hidden;">
+                                        <div style="width:${bw}%;height:100%;background:linear-gradient(90deg,#3B82F6,#60A5FA);border-radius:3px;"></div>
+                                    </div>
+                                </td>
+                            </tr>`;
+                        }).join('') : '<tr><td colspan="4" style="text-align:center;color:#94A3B8;padding:10px;">No data</td></tr>'}
+                    </tbody>
+                </table>
+            </div>
+            <div>
+                <div style="font-weight:700;font-size:.72rem;color:#1E293B;margin-bottom:8px;">Payment Method Breakdown</div>
+                ${payData.length ? payData.map((p, i) => {
+                    const bw = ((p.txn_count / payTotal) * 100).toFixed(1);
+                    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:.72rem;">
+                        <div style="width:90px;flex-shrink:0;color:#334155;">${p.payment_method}</div>
+                        <div style="flex:1;background:#E2E8F0;border-radius:4px;height:8px;overflow:hidden;">
+                            <div style="width:${bw}%;height:100%;background:${payColors[i%4]};border-radius:4px;"></div>
+                        </div>
+                        <div style="width:38px;text-align:right;font-family:monospace;font-weight:600;">${p.pct}%</div>
+                    </div>`;
+                }).join('') : '<div style="color:#94A3B8;font-size:.72rem;padding:8px 0;">No payment data</div>'}
+            </div>
+        </div>
 
-                <div style="margin-top:8px;">
-
-                    ${payBars || '<div style="color:#94A3B8;font-size:.78rem;padding:12px 0;">No payment data available</div>'}
-
+        <!-- SECTION 4: WHEN DO CUSTOMERS BUY -->
+        <div class="rpt-section-title" style="margin-top:16px;">4. When Do Customers Buy?</div>
+        <div class="rpt-two-col">
+            <div>
+                <div style="font-weight:700;font-size:.72rem;color:#1E293B;margin-bottom:6px;">⏰ Busiest Hours of the Day</div>
+                <table class="rpt-table">
+                    <thead><tr><th>Hour</th><th>Activity</th><th>Orders</th><th>Revenue</th></tr></thead>
+                    <tbody>
+                        ${hourlyData.length ? (() => {
+                            const peakHr = (report.peak_hour || '').substring(0, 2);
+                            return hourlyData.map(h => {
+                                const bw = ((h.txns / hourlyMax) * 100).toFixed(1);
+                                const isPeak = h.hour.substring(0, 2) === peakHr;
+                                return `<tr style="background:${isPeak ? '#EFF6FF' : 'white'};">
+                                    <td style="font-family:monospace;font-size:.7rem;">${isPeak ? '⭐ ' : ''}${h.hour}</td>
+                                    <td>
+                                        <div style="background:#E2E8F0;border-radius:3px;height:5px;overflow:hidden;">
+                                            <div style="width:${bw}%;height:100%;background:${isPeak ? '#1D4ED8' : '#93C5FD'};border-radius:3px;"></div>
+                                        </div>
+                                    </td>
+                                    <td class="num" style="font-size:.7rem;">${fmtInt(h.txns)}</td>
+                                    <td class="num" style="font-size:.7rem;color:#64748B;">RM ${fmt(h.revenue)}</td>
+                                </tr>`;
+                            }).join('');
+                        })() : '<tr><td colspan="4" style="text-align:center;color:#94A3B8;padding:10px;">No hourly data</td></tr>'}
+                    </tbody>
+                </table>
+            </div>
+            <div>
+                <div style="font-weight:700;font-size:.72rem;color:#1E293B;margin-bottom:6px;">📅 Busiest Days of the Week</div>
+                <table class="rpt-table">
+                    <thead><tr><th>Day</th><th>Activity</th><th>Orders</th><th>Revenue</th></tr></thead>
+                    <tbody>
+                        ${dowData.length ? (() => {
+                            const peakDay = report.peak_day || '';
+                            return dowData.map(d => {
+                                const bw = ((d.txns / dowMax) * 100).toFixed(1);
+                                const isPeak = (d.day === peakDay);
+                                return `<tr style="background:${isPeak ? '#ECFDF5' : 'white'};">
+                                    <td style="font-size:.7rem;">${isPeak ? '⭐ ' : ''}${d.day}</td>
+                                    <td>
+                                        <div style="background:#E2E8F0;border-radius:3px;height:5px;overflow:hidden;">
+                                            <div style="width:${bw}%;height:100%;background:${isPeak ? '#059669' : '#6EE7B7'};border-radius:3px;"></div>
+                                        </div>
+                                    </td>
+                                    <td class="num" style="font-size:.7rem;">${fmtInt(d.txns)}</td>
+                                    <td class="num" style="font-size:.7rem;color:#64748B;">RM ${fmt(d.revenue)}</td>
+                                </tr>`;
+                            }).join('');
+                        })() : '<tr><td colspan="4" style="text-align:center;color:#94A3B8;padding:10px;">No data</td></tr>'}
+                    </tbody>
+                </table>
+                <div class="rpt-insight-box teal" style="margin-top:8px;">
+                    ⭐ <strong>Busiest Hour:</strong> ${report.peak_hour || 'N/A'} &nbsp;|&nbsp;
+                    ⭐ <strong>Busiest Day:</strong> ${report.peak_day || 'N/A'}
                 </div>
-
-
-
-                <div class="rpt-section-title" style="margin-top:16px;">Top Products by Volume</div>
-
-                <table class="rpt-table">
-
-                    <thead><tr><th>Product</th><th>Qty Sold</th></tr></thead>
-
-                    <tbody>${prodRows || '<tr><td colspan="2" style="text-align:center;color:#94A3B8;padding:12px;">No data</td></tr>'}</tbody>
-
-                </table>
-
             </div>
-
         </div>
 
-
-
-        <!-- FORECAST SECTION -->
-
-        <div class="rpt-section-title">7-Day Prophet Revenue Forecast</div>
-
-        ${fore.length > 0 ? `
-
+        <!-- SECTION 5: 7-DAY FORECAST -->
+        <div class="rpt-section-title">5. Next 7-Day Revenue Forecast</div>
+        ${fore.length ? `
         <div style="margin-bottom:10px;">
-
             <div class="rpt-forecast-row header">
-
-                <div>Date</div><div>Day</div><div>Trend</div>
-
-                <div style="text-align:right;">Forecast</div>
-
-                <div style="text-align:right;">Lower</div>
-
-                <div style="text-align:right;">Upper</div>
-
+                <div>Date</div><div>Day</div><div>Expected Volume</div><div style="text-align:right;">Forecast Revenue</div>
             </div>
-
             ${foreRows}
-
         </div>
-
-        <div class="rpt-three-col" style="margin-top:10px;">
-
+        <div class="rpt-two-col" style="margin-top:8px;">
             <div class="rpt-insight-box">
-
-                <div class="rpt-insight-box-title">📊 7-Day Total</div>
-
-                Predicted revenue: <strong>RM ${fmt(total7Day)}</strong>
-
+                <div class="rpt-insight-box-title">📊 Predicted Total (Next 7 Days)</div>
+                <strong style="font-size:1rem;">RM ${fmt(total7Day)}</strong>
             </div>
-
-            <div class="rpt-insight-box amber">
-
-                <div class="rpt-insight-box-title">🎯 Model Accuracy</div>
-
-                MAPE: <strong>${forecast.mape||'—'}%</strong> · RMSE: <strong>RM ${fmt(forecast.rmse||0)}</strong>
-
-            </div>
-
             <div class="rpt-insight-box teal">
-
-                <div class="rpt-insight-box-title">🌤️ Weather Regressor</div>
-
-                Forecast enriched with <strong>OpenWeatherMap</strong> live data
-
+                <div class="rpt-insight-box-title">📍 Peak Patterns</div>
+                Busiest Hour: <strong>${report.peak_hour || 'N/A'}</strong><br>
+                Busiest Day: <strong>${report.peak_day || 'N/A'}</strong>
             </div>
-
         </div>
-
         ` : `
-
         <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;padding:16px;text-align:center;color:#94A3B8;font-size:.8rem;">
-
-            No forecast generated yet. Go to the AI Forecast page and click Generate Forecast first.
-
+            No forecast data. Go to the AI Forecast page and generate a forecast first.
         </div>
-
         `}
 
-
-
-        <!-- AI STRATEGIC RECOMMENDATIONS -->
-
-        <div class="rpt-section-title">AI-Generated Strategic Recommendations</div>
-
+        <!-- SECTION 6: AI RECOMMENDATIONS -->
+        <div class="rpt-section-title">6. What Should You Do This Week?</div>
         <div class="rpt-ai-box">
-
             <div class="rpt-ai-header">
-
-                <span style="background:linear-gradient(135deg,#3B82F6,#8B5CF6);color:white;padding:3px 8px;border-radius:4px;font-size:.68rem;">GEMINI AI</span>
-
-                Operational Insights & Action Plan
-
+                <span style="background:linear-gradient(135deg,#3B82F6,#8B5CF6);color:white;padding:3px 8px;border-radius:4px;font-size:.68rem;">AI INSIGHTS</span>
+                Recommendations for the Owner
             </div>
-
-            <div class="rpt-ai-content" id="aiInsightContent">
-
-                ${aiInsight.replace(/\n/g,'<br>').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')}
-
+            <div class="rpt-ai-content">
+                ${(aiInsight || '').replace(/\n/g,'<br>').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')}
             </div>
-
         </div>
 
-
-
-        <!-- DAILY NOTES -->
-
-        <div class="rpt-section-title" style="margin-top:16px;">Operational Notes & Action Plan</div>
-
+        <!-- SECTION 7: QUICK ACTION PLAN -->
+        <div class="rpt-section-title" style="margin-top:16px;">7. Quick Action Plan</div>
         <div class="rpt-two-col">
-
             <div>
-
-                <div style="font-weight:600;font-size:.75rem;color:#1E293B;margin-bottom:6px;">📌 Key Observations</div>
-
-                <div class="rpt-note-item"><div class="rpt-note-dot"></div><div>Revenue trend: <strong>${kpi.trend_label}</strong></div></div>
-
-                <div class="rpt-note-item"><div class="rpt-note-dot"></div><div>Top performing branch: <strong>${kpi.top_branch}</strong></div></div>
-
-                <div class="rpt-note-item"><div class="rpt-note-dot"></div><div>Daily average maintained at <strong>RM ${fmt(kpi.daily_average)}</strong></div></div>
-
-                <div class="rpt-note-item"><div class="rpt-note-dot" style="background:#F59E0B;"></div><div>Review slow-moving categories for promotional pricing</div></div>
-
+                <div style="font-weight:700;font-size:.75rem;color:#1E293B;margin-bottom:6px;">📌 What's Happening</div>
+                <div class="rpt-note-item"><div class="rpt-note-dot"></div><div>Revenue vs last period: <strong>${trend || 'N/A'}</strong></div></div>
+                <div class="rpt-note-item"><div class="rpt-note-dot"></div><div>Best performing branch: <strong>${topBranch}</strong></div></div>
+                <div class="rpt-note-item"><div class="rpt-note-dot"></div><div>Average order value: <strong>RM ${fmt(aovVal)}</strong></div></div>
+                <div class="rpt-note-item"><div class="rpt-note-dot"></div><div>Daily average revenue: <strong>RM ${fmt(dailyAvg)}</strong></div></div>
             </div>
-
             <div>
-
-                <div style="font-weight:600;font-size:.75rem;color:#1E293B;margin-bottom:6px;">✅ Recommended Actions</div>
-
-                <div class="rpt-note-item"><div class="rpt-note-dot" style="background:#10B981;"></div><div>Increase barista headcount during morning peak hours (8AM–11AM)</div></div>
-
-                <div class="rpt-note-item"><div class="rpt-note-dot" style="background:#10B981;"></div><div>Restock top-selling products before weekend shift</div></div>
-
-                <div class="rpt-note-item"><div class="rpt-note-dot" style="background:#10B981;"></div><div>Promote bundle deals during afternoon slow hours (2PM–4PM)</div></div>
-
-                <div class="rpt-note-item"><div class="rpt-note-dot" style="background:#10B981;"></div><div>Monitor e-wallet payment uptake for digital loyalty integration</div></div>
-
+                <div style="font-weight:700;font-size:.75rem;color:#1E293B;margin-bottom:6px;">✅ Actions to Take</div>
+                <div class="rpt-note-item"><div class="rpt-note-dot" style="background:#10B981;"></div><div>Add more staff during <strong>${report.peak_hour || 'peak hours'}</strong></div></div>
+                <div class="rpt-note-item"><div class="rpt-note-dot" style="background:#10B981;"></div><div>Stock up before <strong>${report.peak_day || 'busiest day'}</strong> each week</div></div>
+                <div class="rpt-note-item"><div class="rpt-note-dot" style="background:#10B981;"></div><div>Promote slow-moving items with bundle deals</div></div>
+                <div class="rpt-note-item"><div class="rpt-note-dot" style="background:#10B981;"></div><div>Run afternoon promotions (2PM – 4PM) to boost quiet hours</div></div>
             </div>
-
         </div>
-
-
 
     </div>
-
-
-
-    <!-- FOOTER -->
 
     <div class="rpt-footer">
-
-        <div>Mini Coffee Shop · AI Analytics System · MCS Analytics v1.0</div>
-
-        <div>Generated on ${now()} · Confidential</div>
-
+        <div>Mini Coffee Shop · AI Analytics System · MCS v1.0</div>
+        <div>Generated ${now()} · Confidential</div>
         <div>Page 1 of 1</div>
-
     </div>
-
     `;
-
 }
 
-
-
 /* ============================================================
-
    BUILD WEEKLY REPORT HTML
-
+   FIX: months.slice(-6) with safe index guard to prevent negative index
 ============================================================ */
-
-function buildWeeklyReport(kpi, chart, forecast, branch) {
-
+function buildWeeklyReport(kpi, chart, report, branch) {
     const branchLabel = branch === 'all' ? 'All Branches' : branch;
 
-    const months  = chart.monthly?.labels   || [];
+    // Period KPIs — all from report endpoint (respects date filter)
+    const periodRev  = report.period_revenue || 0;
+    const periodTxns = report.period_txns    || 0;
+    const dailyAvg   = report.daily_average  || 0;
+    const aovVal     = report.aov            || 0;
+    const trend      = report.trend_label    || '';
+    const topBranch  = report.top_branch     || 'N/A';
+    const aiInsight  = report.ai_insight || 'No AI insight available.';
 
-    const branches= chart.monthly?.branches || [];
+    // ── FIX: safe last-6-months slice ────────────────────────
+    // Never access negative index; guard by clamping to array length
+    const months      = chart.monthly?.labels    || [];
+    const branches    = chart.monthly?.branches  || [];
+    const byBranch    = chart.monthly?.by_branch || {};
+    const totalMonths = months.length;
+    const sliceCount  = Math.min(6, totalMonths);      // ← BUG FIX: was always 6
+    const startIdx    = totalMonths - sliceCount;       // ← safe start index (never negative)
+    const recentMonths = months.slice(startIdx);
 
-    const mData   = chart.monthly?.data     || {};
-
-    const cats    = chart.category?.labels  || [];
-
-    const catVals = chart.category?.data    || [];
-
-    const catTotal= catVals.reduce((a,b)=>a+b,0)||1;
-
-
-
-    // Monthly rows
-
-    const monthRows = months.map((m,i) => {
-
-        const total = branches.reduce((s,b)=>(s+(mData[b]?.[i]||0)),0);
-
+    const monthRows = recentMonths.map((m, i) => {
+        const realIdx = startIdx + i;                   // ← BUG FIX: was months.length - 6 + idx
+        const total   = branches.reduce((s, b) => s + (byBranch[b]?.[realIdx] || 0), 0);
         return `
-
-            <tr>
-
-                <td style="font-family:'DM Mono',monospace;">${m}</td>
-
-                ${branches.map(b=>`<td class="num">RM ${fmt(mData[b]?.[i]||0)}</td>`).join('')}
-
-                <td class="num" style="font-weight:700;color:#3B82F6;">RM ${fmt(total)}</td>
-
-            </tr>
-
-        `;
-
+        <tr>
+            <td style="font-family:monospace;">${m}</td>
+            ${branches.map(b => `<td class="num">RM ${fmt(byBranch[b]?.[realIdx] || 0)}</td>`).join('')}
+            <td class="num" style="font-weight:700;color:#3B82F6;">RM ${fmt(total)}</td>
+        </tr>`;
     }).join('');
 
+    // ── Daily breakdown (respects date filter) ────────────────
+    const dailyData  = report.daily || [];
+    const sparkData  = dailyData.map(d => d.revenue || 0);
 
-
-    // Category share
-
-    const catRows = cats.map((c,i) => `
-
+    const dailyRows = dailyData.map((row, i) => {
+        const d   = new Date(row.date + 'T00:00:00');
+        const day = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
+        const rowAov = row.txns > 0 ? row.revenue / row.txns : 0;
+        return `
         <tr>
+            <td style="font-family:monospace;font-size:.7rem;">${row.date}</td>
+            <td style="font-size:.7rem;">${day}</td>
+            <td class="num">RM ${fmt(row.revenue)}</td>
+            <td class="num">${fmtInt(row.txns)}</td>
+            <td class="num" style="color:#64748B;">RM ${fmt(rowAov)}</td>
+        </tr>`;
+    }).join('');
 
-            <td>${c}</td>
+    // ── Category from report (date-filtered) ──────────────────
+    const catData  = report.category_breakdown || [];
+    const catTotal = catData.reduce((s, c) => s + c.revenue, 0) || 1;
+    const catRows  = catData.map((c, i) => `
+        <tr>
+            <td>${c.product_category}</td>
+            <td class="num">RM ${fmt(c.revenue)}</td>
+            <td class="num">${c.pct}%</td>
+        </tr>`).join('');
 
-            <td class="num">RM ${fmt(catVals[i])}</td>
-
-            <td class="num">${((catVals[i]/catTotal)*100).toFixed(1)}%</td>
-
-        </tr>
-
-    `).join('');
-
-
+    // ── Forecast ──────────────────────────────────────────────
+    const fore      = report.forecast || [];
+    const total7Day = fore.reduce((s, r) => s + r.yhat, 0);
+    const foreMax   = fore.length ? Math.max(...fore.map(r => r.yhat)) : 1;
+    const foreRows  = fore.map((r, i) => {
+        const d   = new Date(r.ds + 'T00:00:00');
+        const day = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
+        const pct = ((r.yhat / foreMax) * 100).toFixed(1);
+        const hTag = r.is_holiday ? '<span class="holiday-tag">Holiday</span>' : '';
+        return `
+        <div class="rpt-forecast-row ${i%2===1?'even':''}">
+            <div style="font-family:monospace;">${r.ds}</div>
+            <div>${day}${hTag}</div>
+            <div><div class="rpt-fc-bar-wrap"><div class="rpt-fc-bar" style="width:${pct}%;"></div></div></div>
+            <div style="font-family:monospace;text-align:right;font-weight:700;color:#3B82F6;">RM ${fmt(r.yhat)}</div>
+        </div>`;
+    }).join('');
 
     return `
-
     <div class="rpt-header">
-
         <div class="rpt-brand">
-
             <div class="rpt-brand-icon">☕</div>
-
             <div>
-
                 <div class="rpt-brand-name">Mini Coffee Shop</div>
-
                 <div class="rpt-brand-sub">AI-Powered Analytics System</div>
-
             </div>
-
         </div>
-
         <div class="rpt-title-row">
-
             <div>
-
                 <div class="rpt-title">Weekly Sales Report</div>
-
                 <div class="rpt-subtitle">${branchLabel} · ${todayFull()}</div>
-
             </div>
-
             <div class="rpt-meta">
-
                 Generated: ${now()}<br>
-
+                Period: ${report.period || 'Last 7 days'}<br>
                 Confidential — Internal Use Only
-
             </div>
-
         </div>
-
     </div>
-
     <div class="rpt-accent-bar"></div>
-
-
 
     <div class="rpt-body">
 
-
-
-        <!-- EXECUTIVE SUMMARY -->
-
-        <div class="rpt-section-title">1. Executive Summary</div>
-
+        <!-- SECTION 1: SUMMARY NUMBERS -->
+        <div class="rpt-section-title">1. Sales Summary — ${report.period || 'Last 7 Days'}</div>
         <div class="rpt-kpi-row">
-
             <div class="rpt-kpi-box k-blue">
-
-                <div class="rpt-kpi-label">Gross Sales</div>
-
-                <div class="rpt-kpi-value">RM ${fmt(kpi.total_revenue)}</div>
-
-                <div class="rpt-kpi-sub">${kpi.trend_label}</div>
-
+                <div class="rpt-kpi-label">Total Revenue</div>
+                <div class="rpt-kpi-value">RM ${fmt(periodRev)}</div>
+                <div>${trendBadge(trend)}</div>
+                ${buildSparkline(sparkData)}
             </div>
-
             <div class="rpt-kpi-box k-amber">
-
-                <div class="rpt-kpi-label">Transactions</div>
-
-                <div class="rpt-kpi-value">${fmtInt(kpi.total_transactions)}</div>
-
-                <div class="rpt-kpi-sub">Total recorded</div>
-
+                <div class="rpt-kpi-label">Orders Placed</div>
+                <div class="rpt-kpi-value">${fmtInt(periodTxns)}</div>
+                <div class="rpt-kpi-sub neutral">Total transactions</div>
             </div>
-
             <div class="rpt-kpi-box k-teal">
-
-                <div class="rpt-kpi-label">Avg Transaction</div>
-
-                <div class="rpt-kpi-value">RM ${fmt(kpi.total_transactions > 0 ? kpi.total_revenue / kpi.total_transactions : 0)}</div>
-
-                <div class="rpt-kpi-sub">ATV</div>
-
+                <div class="rpt-kpi-label">Avg Order Value</div>
+                <div class="rpt-kpi-value">RM ${fmt(aovVal)}</div>
+                <div class="rpt-kpi-sub neutral">Revenue per order</div>
             </div>
-
             <div class="rpt-kpi-box k-purple">
-
                 <div class="rpt-kpi-label">Daily Average</div>
-
-                <div class="rpt-kpi-value">RM ${fmt(kpi.daily_average)}</div>
-
-                <div class="rpt-kpi-sub">Per active day</div>
-
+                <div class="rpt-kpi-value">RM ${fmt(dailyAvg)}</div>
+                <div class="rpt-kpi-sub neutral">Per calendar day</div>
             </div>
-
         </div>
 
-
-
-        <!-- MONTHLY BREAKDOWN -->
-
-        <div class="rpt-section-title">2. Monthly Sales Breakdown</div>
-
+        <!-- SECTION 2: DAY-BY-DAY BREAKDOWN -->
+        ${dailyRows ? `
+        <div class="rpt-section-title" style="margin-top:16px;">2. Day-by-Day Sales Breakdown</div>
         <table class="rpt-table">
-
             <thead>
-
                 <tr>
-
-                    <th>Month</th>
-
-                    ${branches.map(b=>`<th>${b}</th>`).join('')}
-
-                    <th>Total</th>
-
+                    <th>Date</th><th>Day</th>
+                    <th style="text-align:right;">Revenue</th>
+                    <th style="text-align:right;">Orders</th>
+                    <th style="text-align:right;">Avg Order</th>
                 </tr>
-
             </thead>
+            <tbody>${dailyRows}</tbody>
+        </table>` : ''}
 
-            <tbody>
+        <!-- SECTION 3: MONTHLY TREND (LAST 6 MONTHS) -->
+        <div class="rpt-section-title" style="margin-top:16px;">3. Monthly Sales Trend (Last ${Math.min(6, months.length)} Months)</div>
+        ${recentMonths.length ? `
+        <table class="rpt-table">
+            <thead>
+                <tr>
+                    <th>Month</th>
+                    ${branches.map(b => `<th>${b}</th>`).join('')}
+                    <th style="text-align:right;">Total</th>
+                </tr>
+            </thead>
+            <tbody>${monthRows}</tbody>
+        </table>` : `<div style="color:#94A3B8;font-size:.78rem;padding:8px 0;">No monthly data available.</div>`}
 
-                ${monthRows || '<tr><td colspan="4" style="text-align:center;color:#94A3B8;padding:12px;">No monthly data available</td></tr>'}
-
-            </tbody>
-
-        </table>
-
-
-
-        <!-- CATEGORY + FORECAST -->
-
-        <div class="rpt-two-col" style="margin-top:16px;">
-
+        <!-- SECTION 4: CATEGORY & OPERATIONS -->
+        <div class="rpt-section-title" style="margin-top:16px;">4. What's Selling &amp; When</div>
+        <div class="rpt-two-col">
             <div>
-
-                <div class="rpt-section-title">3. Sales by Category</div>
-
+                <div style="font-weight:700;font-size:.72rem;color:#1E293B;margin-bottom:6px;">Revenue by Category</div>
+                ${catRows ? `
                 <table class="rpt-table">
-
-                    <thead><tr><th>Category</th><th>Revenue</th><th>Share</th></tr></thead>
-
-                    <tbody>${catRows || '<tr><td colspan="3" style="text-align:center;color:#94A3B8;">No data</td></tr>'}</tbody>
-
-                </table>
-
+                    <thead><tr><th>Category</th><th style="text-align:right;">Revenue</th><th style="text-align:right;">Share</th></tr></thead>
+                    <tbody>${catRows}</tbody>
+                </table>` : `<div style="color:#94A3B8;font-size:.78rem;">No category data</div>`}
             </div>
-
             <div>
-
-                <div class="rpt-section-title">4. Prophet Forecast Summary</div>
-
-                ${forecast.forecast?.length > 0 ? `
-
+                <div style="font-weight:700;font-size:.72rem;color:#1E293B;margin-bottom:6px;">⭐ Peak Times</div>
+                <div class="rpt-insight-box teal" style="margin-bottom:8px;">
+                    <div class="rpt-insight-box-title">Busiest Hour</div>
+                    <strong style="font-size:.9rem;">${report.peak_hour || 'N/A'}</strong>
+                </div>
                 <div class="rpt-insight-box" style="margin-bottom:8px;">
-
-                    <div class="rpt-insight-box-title">📈 7-Day Predicted Revenue</div>
-
-                    <strong>RM ${fmt(forecast.forecast.reduce((s,r)=>s+r.yhat,0))}</strong>
-
-                    across the next 7 days
-
+                    <div class="rpt-insight-box-title">Busiest Day</div>
+                    <strong style="font-size:.9rem;">${report.peak_day || 'N/A'}</strong>
                 </div>
-
-                <div class="rpt-insight-box amber" style="margin-bottom:8px;">
-
-                    <div class="rpt-insight-box-title">🎯 Forecast Accuracy</div>
-
-                    MAPE: <strong>${forecast.mape||'—'}%</strong> · RMSE: <strong>RM ${fmt(forecast.rmse||0)}</strong>
-
+                <div class="rpt-insight-box amber">
+                    <div class="rpt-insight-box-title">Top Branch This Period</div>
+                    <strong style="font-size:.9rem;">${topBranch}</strong>
                 </div>
-
-                ` : `<div style="color:#94A3B8;font-size:.78rem;padding:8px 0;">Generate a forecast from the AI Forecast page first.</div>`}
-
-
-
-                <div class="rpt-section-title" style="margin-top:12px;">5. Top Branch Performance</div>
-
-                <div class="rpt-insight-box teal">
-
-                    <div class="rpt-insight-box-title">🏆 Best Performing Branch</div>
-
-                    <strong>${kpi.top_branch}</strong> leads in total revenue
-
-                </div>
-
             </div>
-
         </div>
 
+        <!-- SECTION 5: NEXT WEEK FORECAST -->
+        <div class="rpt-section-title" style="margin-top:16px;">5. Next 7-Day Revenue Forecast</div>
+        ${fore.length ? `
+        <div>
+            <div class="rpt-forecast-row header">
+                <div>Date</div><div>Day</div><div>Expected Volume</div>
+                <div style="text-align:right;">Forecast Revenue</div>
+            </div>
+            ${foreRows}
+        </div>
+        <div class="rpt-insight-box" style="margin-top:8px;">
+            <div class="rpt-insight-box-title">📊 Predicted Total Next 7 Days</div>
+            <strong style="font-size:1rem;">RM ${fmt(total7Day)}</strong>
+        </div>` : `
+        <div style="color:#94A3B8;font-size:.78rem;padding:8px 0;">Generate a forecast from the AI Forecast page first.</div>`}
 
-
-        <!-- AI RECOMMENDATIONS -->
-
-        <div class="rpt-section-title">6. AI-Generated Recommendations</div>
-
+        <!-- SECTION 6: AI RECOMMENDATIONS -->
+        <div class="rpt-section-title" style="margin-top:16px;">6. What Should You Do This Week?</div>
         <div class="rpt-ai-box">
-
             <div class="rpt-ai-header">
-
-                <span style="background:linear-gradient(135deg,#3B82F6,#8B5CF6);color:white;padding:3px 8px;border-radius:4px;font-size:.68rem;">GEMINI AI</span>
-
-                Weekly Strategic Insights
-
+                <span style="background:linear-gradient(135deg,#3B82F6,#8B5CF6);color:white;padding:3px 8px;border-radius:4px;font-size:.68rem;">AI INSIGHTS</span>
+                Recommendations for the Owner
             </div>
-
             <div class="rpt-ai-content">
-
-                ${(forecast.ai_insight||'No AI insight available. Interact with the AI Chatbot and generate a forecast first.')
-
-                  .replace(/\n/g,'<br>').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')}
-
+                ${(aiInsight || '').replace(/\n/g,'<br>').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')}
             </div>
-
         </div>
-
-
 
     </div>
-
-
 
     <div class="rpt-footer">
-
         <div>Mini Coffee Shop · AI Analytics System</div>
-
         <div>Generated ${now()} · Confidential</div>
-
         <div>Page 1 of 1</div>
-
     </div>
-
     `;
-
 }
-
-
 
 /* ============================================================
-
    DOWNLOAD PDF
-
 ============================================================ */
-
 async function downloadPDF() {
-
     const btn    = document.getElementById('downloadBtn');
-
     const branch = document.getElementById('rptBranch').value;
-
     const type   = document.getElementById('rptType').value;
-
-
+    const from   = document.getElementById('rptFrom').value;
+    const to     = document.getElementById('rptTo').value;
 
     btn.disabled = true;
-
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating…';
 
-
-
     try {
+        let url = `/api/export-pdf?branch=${encodeURIComponent(branch)}&type=${type}`;
+        if (from && to) url += `&date_from=${from}&date_to=${to}`;
 
-        const response = await fetch(`/api/export-pdf?branch=${encodeURIComponent(branch)}&type=${type}`);
-
-
-
+        const response = await fetch(url);
         if (!response.ok) {
-
-            const err = await response.json();
-
-            alert('PDF generation failed: ' + (err.message || 'Unknown error'));
-
-            return;
-
+            let errMsg = 'Unknown error';
+            try { const e = await response.json(); errMsg = e.message; } catch {}
+            throw new Error(errMsg);
         }
 
-
-
-        const blob     = await response.blob();
-
-        const url      = URL.createObjectURL(blob);
-
-        const a        = document.createElement('a');
-
-        a.href         = url;
-
-        a.download     = `MCS_Report_${branch.replace(' ','_')}_${new Date().toISOString().slice(0,10)}.pdf`;
-
-        a.click();
-
-        URL.revokeObjectURL(url);
-
-
-
-    } catch(e) {
-
-        alert('Download error: ' + e.message);
-
+        const contentType = response.headers.get('Content-Type') || '';
+        if (contentType.includes('application/pdf')) {
+            const blob = await response.blob();
+            const a    = document.createElement('a');
+            a.href     = URL.createObjectURL(blob);
+            a.download = `MCS_Report_${branch.replace(' ','_')}_${new Date().toISOString().slice(0,10)}.pdf`;
+            a.click();
+            URL.revokeObjectURL(a.href);
+        } else {
+            const html = await response.text();
+            const win  = window.open('', '_blank');
+            win.document.write(html);
+            win.document.close();
+            setTimeout(() => { win.print(); win.focus(); }, 800);
+        }
+    } catch (e) {
+        alert('Download failed: ' + e.message +
+              '\n\nFallback: Use Ctrl+P / Cmd+P to print the preview as PDF.');
     } finally {
-
         btn.disabled = false;
-
         btn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> Download PDF';
-
     }
-
 }
-
 </script>
-
 {% endblock %}
