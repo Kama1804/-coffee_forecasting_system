@@ -467,13 +467,17 @@ function applyFilters() {
             hideLoader('loadingPayment');
 
             // 6. Peak Hours Heatmap
-            const days  = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-            const hours = Array.from({length:24}, (_,i) =>
-                `${String(i).padStart(2,'0')}:00`
+            const days  = ['Mon','Tue','Wed','Thu','Fri','Sat'];
+            const hours = Array.from({length:13}, (_, i) =>
+                `${String(i + 9).padStart(2,'0')}:00`
             );
             const z = days.map(day =>
-                hours.map((_,h) => {
-                    const match = d.heatmap.find(r => r.day === day && r.hour === h);
+                hours.map((_, h) => {
+                    // Add 9 to the index 'h' to get the actual hour value (9 to 21)
+                    const actualHour = h + 9; 
+                    
+                    // Match against the actual database hour, not the array index
+                    const match = d.heatmap.find(r => r.day === day && r.hour === actualHour);
                     return match ? match.value : 0;
                 })
             );

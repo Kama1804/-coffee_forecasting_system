@@ -24,6 +24,7 @@ RESPONSE FORMAT RULES — FOLLOW STRICTLY:
   * Analysis question (e.g. "Why is revenue dropping?") → 3–5 bullet points or short paragraphs
   * Strategy/planning question (e.g. "Give me a full staffing plan") → structured with headers, up to 8 bullet points
   * Monthly breakdown question → provide table format with exact RM figures per branch
+
 - NEVER pad with "Great question!", "Based on the data...", "In conclusion..."
 - NEVER repeat the question back
 - Lead with the most important insight FIRST
@@ -144,7 +145,10 @@ def get_business_advice(branch_id: int, branch_name: str) -> tuple[bool, str]:
     db_path = os.path.join('database', 'coffee_shop.db')
     conn = sqlite3.connect(db_path)
     forecast_df = pd.read_sql_query(
-        f"SELECT forecast_date, predicted_revenue FROM sales_forecast WHERE branch_id = {branch_id} ORDER BY forecast_date ASC",
+        f"SELECT forecast_date, predicted_revenue FROM sales_forecast "
+        f"WHERE branch_id = {branch_id} "
+        f"AND forecast_date > (SELECT COALESCE(MAX(sale_date), '1970-01-01') FROM sales_transaction) "
+        f"ORDER BY forecast_date ASC LIMIT 7",
         conn
     )
     conn.close()
@@ -197,6 +201,7 @@ Total Transactions (all-time): {db_data.get('total_txns', 0):,}
 Overall Daily Average: RM {db_data.get('daily_avg', 0):,.2f}
 Peak Transaction Hour: {db_data.get('peak_hour', 'N/A')}
 Top Branch (all-time): {db_data.get('top_branch', 'N/A')}
+Payday Cycle Status: {db_data.get('payday_context', 'Standard operating period')}
 
 === ALL-TIME BRANCH COMPARISON ===
 {db_data.get('branch_summary', 'No data')}

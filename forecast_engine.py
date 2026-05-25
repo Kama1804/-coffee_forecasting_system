@@ -272,23 +272,20 @@ class ForecastEngine:
 
         forecast = m.predict(future)
         last_hist_date = df['ds'].max()
-        future_forecast = forecast[forecast['ds'] > last_hist_date].head(7).copy()
-
+        
         # Database clear & save sequence
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute("DELETE FROM sales_forecast WHERE branch_id = ?", (branch_id,))
-        
+
         fore_payload = []
-        for _, row in future_forecast.iterrows():
+        for _, row in forecast.iterrows():
             date_str = row['ds'].strftime('%Y-%m-%d')
+            is_future = row['ds'] > last_hist_date
+            
             is_sunday = (row['ds'].dayofweek == 6)
             is_closed_holiday = date_str in closed_set
             
-            weather   = future_weather_labels.get(date_str, 'Cloudy')
-            is_friday = (row['ds'].dayofweek == 4)
-            season    = promo_map.get(date_str, None)
-
             # Apply hard operational drop thresholds (RM 0.00 for closures)
             if is_sunday or is_closed_holiday:
                 adj_yhat = 0.0
@@ -301,22 +298,29 @@ class ForecastEngine:
                 yhat_lower = max(0.0, row['yhat_lower'])
                 yhat_upper = max(0.0, row['yhat_upper'])
 
+            # Save ALL rows to database for monthly report "Predicted vs Actual" support
             cursor.execute("""
                 INSERT INTO sales_forecast (forecast_date, branch_id, predicted_revenue, lower_bound_revenue, upper_bound_revenue)
                 VALUES (?, ?, ?, ?, ?)
             """, (date_str, branch_id, round(adj_yhat, 2), round(yhat_lower, 2), round(yhat_upper, 2)))
 
-            fore_payload.append({
-                'ds':         date_str,
-                'yhat':       round(adj_yhat, 2),
-                'yhat_lower': round(yhat_lower, 2),
-                'yhat_upper': round(yhat_upper, 2),
-                'weather':    weather,
-                'is_holiday': date_str in {h[0] for h in MY_PUBLIC_HOLIDAYS},
-                'is_friday':  is_friday,
-                'season':     season,
-                'promotions': [season] if season else ([] if not is_friday else ["Friday: 20% off all Lattes"])
-            })
+            # Only add to the 7-day payload if it's in the future window
+            if is_future and len(fore_payload) < 7:
+                weather   = future_weather_labels.get(date_str, 'Cloudy')
+                is_friday = (row['ds'].dayofweek == 4)
+                season    = promo_map.get(date_str, None)
+                
+                fore_payload.append({
+                    'ds':         date_str,
+                    'yhat':       round(adj_yhat, 2),
+                    'yhat_lower': round(yhat_lower, 2),
+                    'yhat_upper': round(yhat_upper, 2),
+                    'weather':    weather,
+                    'is_holiday': date_str in {h[0] for h in MY_PUBLIC_HOLIDAYS},
+                    'is_friday':  is_friday,
+                    'season':     season,
+                    'promotions': [season] if season else ([] if not is_friday else ["Friday: 20% off all Lattes"])
+                })
 
         conn.commit()
         conn.close()
