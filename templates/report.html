@@ -540,12 +540,12 @@ async function generatePreview() {
 }
 
 /* ============================================================
-   BUILD EXECUTIVE REPORT HTML — 7 SECTIONS, 3 PAGES
+   BUILD EXECUTIVE REPORT HTML — matches ReportLab PDF style
+   Replace the entire buildExecutiveReport() function in report.html
 ============================================================ */
 function buildExecutiveReport(report, branch, monthLabel, from, to) {
     const branchLabel = branch === 'all' ? 'All Branches' : branch;
     const now         = new Date().toLocaleString('en-MY');
-    const today       = new Date().toLocaleDateString('en-MY', {weekday:'long',day:'numeric',month:'long',year:'numeric'});
 
     // Core KPIs
     const periodRev  = report.period_revenue || 0;
@@ -558,7 +558,45 @@ function buildExecutiveReport(report, branch, monthLabel, from, to) {
     const daysInP    = Math.max((report.daily || []).length, 1);
     const avgDailyT  = (periodTxns / daysInP).toFixed(1);
 
-    // ── SECTION 2: Monthly trend table ───────────────────────
+    // Shared styles
+    const TH = `style="background:#1E293B;color:white;padding:6px 9px;text-align:left;font-size:.72rem;font-weight:600;"`;
+    const TH_R = `style="background:#1E293B;color:white;padding:6px 9px;text-align:right;font-size:.72rem;font-weight:600;"`;
+    const TD = `style="padding:5px 9px;border-bottom:1px solid #E2E8F0;color:#334155;font-size:.76rem;"`;
+    const TD_R = `style="padding:5px 9px;border-bottom:1px solid #E2E8F0;color:#334155;font-size:.76rem;text-align:right;font-family:monospace;"`;
+    const TABLE = `style="width:100%;border-collapse:collapse;margin-bottom:6px;"`;
+    const SEC = `style="font-size:.72rem;font-weight:700;color:#1E293B;text-transform:uppercase;letter-spacing:.8px;border-left:3px solid #2563EB;padding-left:8px;margin:16px 0 8px;"`;
+    const SUBSEC = `style="font-size:.72rem;font-weight:700;color:#1E293B;margin-bottom:5px;margin-top:10px;"`;
+    const NOTE = `style="font-size:.68rem;color:#92400E;background:#FFFBEB;border:1px solid #FDE68A;border-radius:4px;padding:5px 9px;margin-top:5px;"`;
+
+    function bar(pct, color='#2563EB') {
+        const filled = Math.round((pct / 100) * 12);
+        const f = '█'.repeat(Math.max(0, filled));
+        const e = '░'.repeat(Math.max(0, 12 - filled));
+        return `<span style="font-family:monospace;color:${color};font-size:.7rem;">${f}${e}</span>`;
+    }
+
+    function stripeRow(i) {
+        return i % 2 === 1 ? 'background:#F1F5F9;' : 'background:white;';
+    }
+
+    // ── SECTION 1: KPI Summary Table ────────────────────────
+    const kpiRows = [
+        ['Total Revenue',    `RM ${fmt(periodRev)}`,      'Sales Volume',      `${fmtInt(periodTxns)} orders`],
+        ['Daily Average',    `RM ${fmt(dailyAvg)}`,       'Avg Order Value',   `RM ${fmt(aovVal)}`],
+        ['Period vs Prior',  trend,                        'Top Branch',        topBranch],
+        ['Peak Hour',        report.peak_hour||'N/A',      'Peak Day',          report.peak_day||'N/A'],
+        ['Reporting Period', `${from} to ${to}`,           'Avg Daily Orders',  avgDailyT],
+    ];
+
+    const kpiTableRows = kpiRows.map((r, i) => `
+        <tr style="${stripeRow(i)}">
+            <td style="padding:5px 9px;border-bottom:1px solid #E2E8F0;font-size:.76rem;font-weight:700;color:#1E293B;width:25%;">${r[0]}</td>
+            <td style="padding:5px 9px;border-bottom:1px solid #E2E8F0;font-size:.76rem;color:#2563EB;font-family:monospace;width:25%;">${r[1]}</td>
+            <td style="padding:5px 9px;border-bottom:1px solid #E2E8F0;font-size:.76rem;font-weight:700;color:#1E293B;width:25%;">${r[2]}</td>
+            <td style="padding:5px 9px;border-bottom:1px solid #E2E8F0;font-size:.76rem;color:#2563EB;font-family:monospace;width:25%;">${r[3]}</td>
+        </tr>`).join('');
+
+    // ── SECTION 2: Monthly Trend Table ──────────────────────
     const mt         = report.monthly_trend || {};
     const mtLabels   = mt.labels   || [];
     const mtKeys     = mt.keys     || [];
@@ -567,485 +605,339 @@ function buildExecutiveReport(report, branch, monthLabel, from, to) {
     const sliceN     = Math.min(6, mtLabels.length);
     const startIdx   = mtLabels.length - sliceN;
 
-    const headerCols = mtBranches.map(b => `<th class="num">${b}</th>`).join('');
     let monthRows = '';
     for (let i = startIdx; i < mtLabels.length; i++) {
         const lbl    = mtLabels[i];
         const key    = mtKeys[i];
         const isCurr = (key === from.substring(0,7));
-        const rowStyle = isCurr ? 'background:#EFF6FF;font-weight:700;' : (i%2===0 ? '' : 'background:#F8FAFC;');
+        const rowStyle = isCurr
+            ? 'background:#EFF6FF;font-weight:700;'
+            : stripeRow(i - startIdx);
         let branchCells = '';
         let rowTotal = 0;
         mtBranches.forEach(b => {
             const v = (mtByB[b] || [])[i] || 0;
             rowTotal += v;
-            branchCells += `<td class="num">RM ${fmt(v)}</td>`;
+            branchCells += `<td style="padding:5px 9px;border-bottom:1px solid #E2E8F0;font-size:.76rem;text-align:right;font-family:monospace;">${isCurr ? '<strong>' : ''}RM ${fmt(v)}${isCurr ? '</strong>' : ''}</td>`;
         });
         monthRows += `
         <tr style="${rowStyle}">
-            <td style="font-family:monospace;">${lbl}${isCurr ? ' ◀' : ''}</td>
+            <td style="padding:5px 9px;border-bottom:1px solid #E2E8F0;font-size:.76rem;font-family:monospace;">${isCurr ? '► ' : ''}${lbl}</td>
             ${branchCells}
-            <td class="num" style="font-weight:700;color:#3B82F6;">RM ${fmt(rowTotal)}</td>
+            <td style="padding:5px 9px;border-bottom:1px solid #E2E8F0;font-size:.76rem;text-align:right;font-family:monospace;color:#2563EB;font-weight:700;">RM ${fmt(rowTotal)}</td>
         </tr>`;
     }
+    const headerCols = mtBranches.map(b => `<th ${TH_R}>${b}</th>`).join('');
 
-    // ── SECTION 4: Predicted vs Actual ───────────────────────
+    // ── SECTION 3: PvA Table ─────────────────────────────────
     const pvaRows    = report.predicted_vs_actual || [];
     const pvaTotalP  = report.pva_total_predicted || 0;
     const pvaTotalA  = report.pva_total_actual    || 0;
     const pvaMape    = report.pva_mape            || 0;
     const pvaInRange = report.pva_within_range    || 0;
     const pvaDays    = report.pva_days_with_data  || 0;
-    const pvaMaxVal  = Math.max(
-        ...pvaRows.map(r => Math.max(r.yhat || 0, r.actual || 0)),
-        1
-    );
 
     let pvaTableRows = '';
     pvaRows.forEach((r, i) => {
         const hasActual = r.actual !== null && r.actual !== undefined;
-        const var_val   = r.variance;
-        const var_pct   = r.variance_pct;
+        const varVal    = r.variance;
+        const varPct    = r.variance_pct;
         const inRange   = r.in_range;
-        const hBadge    = r.is_holiday ? '<span class="holiday-tag">Holiday</span>' : '';
-        const rowBg     = i % 2 === 1 ? 'background:#F8FAFC;' : '';
+        const holiday   = r.is_holiday ? ' 🎉' : '';
 
-        let varColor = '#94A3B8', varStr = '—';
-        if (var_val !== null && var_val !== undefined) {
-            varColor = var_val >= 0 ? '#059669' : '#DC2626';
-            const sign = var_val >= 0 ? '+' : '';
-            const pctSign = var_pct >= 0 ? '+' : '';
-            varStr = `${sign}RM ${fmt(Math.abs(var_val))} (${pctSign}${var_pct}%)`;
+        let varColor = '#64748B', varStr = '—';
+        if (varVal !== null && varVal !== undefined) {
+            varColor = varVal >= 0 ? '#0D9488' : '#DC2626';
+            const s  = varVal >= 0 ? '+' : '';
+            const ps = varPct >= 0 ? '+' : '';
+            varStr   = `${s}RM ${fmt(Math.abs(varVal))} (${ps}${varPct}%)`;
         }
 
-        const actualStr = hasActual
-            ? `<span style="font-family:monospace;">RM ${fmt(r.actual)}</span>`
-            : `<span style="color:#94A3B8;font-size:.65rem;">No data</span>`;
-
-        let rangeBadge = '';
+        const actualStr  = hasActual ? `RM ${fmt(r.actual)}` : '—';
+        let statusStr = '';
         if (hasActual && inRange !== null) {
-            rangeBadge = inRange
-                ? `<span style="background:#ECFDF5;color:#065F46;border-radius:3px;font-size:.6rem;padding:1px 5px;white-space:nowrap;">✓ On Target</span>`
-                : `<span style="background:#FEF2F2;color:#991B1B;border-radius:3px;font-size:.6rem;padding:1px 5px;white-space:nowrap;">⚠ Off Range</span>`;
+            statusStr = inRange
+                ? `<span style="background:#ECFDF5;color:#065F46;border-radius:3px;font-size:.62rem;padding:1px 5px;">✓ On Target</span>`
+                : `<span style="background:#FEF2F2;color:#991B1B;border-radius:3px;font-size:.62rem;padding:1px 5px;">⚠ Off Range</span>`;
         }
-
-        const pctOfMax = (((r.yhat || 0) / pvaMaxVal) * 100).toFixed(1);
-        const actPct   = hasActual ? (((r.actual || 0) / pvaMaxVal) * 100).toFixed(1) : 0;
 
         pvaTableRows += `
-        <tr style="${rowBg}">
-            <td style="font-family:monospace;font-size:.7rem;">${r.ds}</td>
-            <td style="font-size:.7rem;">${r.day_name}${hBadge}</td>
-            <td style="padding:5px 9px;width:70px;">
-                <div style="background:#E2E8F0;border-radius:2px;height:4px;margin-bottom:2px;overflow:hidden;">
-                    <div style="width:${pctOfMax}%;height:100%;background:#93C5FD;border-radius:2px;"></div>
-                </div>
-                <div style="background:#E2E8F0;border-radius:2px;height:4px;overflow:hidden;">
-                    <div style="width:${actPct}%;height:100%;background:#10B981;border-radius:2px;"></div>
-                </div>
-            </td>
-            <td class="num" style="color:#3B82F6;font-size:.72rem;">RM ${fmt(r.yhat || 0)}</td>
-            <td class="num" style="font-size:.72rem;">${actualStr}</td>
-            <td class="num" style="color:${varColor};font-size:.7rem;">${varStr}</td>
-            <td style="font-size:.68rem;padding:5px 9px;">${rangeBadge}</td>
+        <tr style="${stripeRow(i)}">
+            <td ${TD}>${r.ds}</td>
+            <td ${TD}>${r.day_name}${holiday}</td>
+            <td ${TD_R}>${fmt(r.yhat || 0)}</td>
+            <td ${TD_R}>${actualStr}</td>
+            <td style="padding:5px 9px;border-bottom:1px solid #E2E8F0;font-size:.76rem;text-align:right;color:${varColor};">${varStr}</td>
+            <td ${TD}>${statusStr}</td>
         </tr>`;
     });
 
+    const pvaSummaryRows = [
+        ['Total Predicted', `RM ${fmt(pvaTotalP)}`, 'Total Actual', `RM ${fmt(pvaTotalA)}`],
+        ['MAPE', `${pvaMape}%`, 'On Target', `${pvaInRange} / ${pvaDays} days`],
+    ].map((r, i) => `
+        <tr style="${stripeRow(i)}">
+            <td style="padding:5px 9px;border-bottom:1px solid #E2E8F0;font-size:.76rem;font-weight:700;color:#1E293B;width:25%;">${r[0]}</td>
+            <td style="padding:5px 9px;border-bottom:1px solid #E2E8F0;font-size:.76rem;font-family:monospace;color:#2563EB;width:25%;">${r[1]}</td>
+            <td style="padding:5px 9px;border-bottom:1px solid #E2E8F0;font-size:.76rem;font-weight:700;color:#1E293B;width:25%;">${r[2]}</td>
+            <td style="padding:5px 9px;border-bottom:1px solid #E2E8F0;font-size:.76rem;font-family:monospace;color:#2563EB;width:25%;">${r[3]}</td>
+        </tr>`).join('');
+
     const pvaSection = pvaRows.length > 0 ? `
-        <div class="pva-legend">
-            <span><span class="pva-legend-dot" style="background:#93C5FD;"></span>Predicted</span>
-            <span><span class="pva-legend-dot" style="background:#10B981;"></span>Actual</span>
-            <span style="margin-left:auto;font-size:.65rem;color:#94A3B8;">
-                In-sample fit — comparing Prophet forecast against recorded daily revenue
-            </span>
-        </div>
-        <table class="rpt-table">
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Day</th>
-                    <th style="width:70px;">Volume</th>
-                    <th class="num">Predicted (RM)</th>
-                    <th class="num">Actual (RM)</th>
-                    <th class="num">Variance</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
+        <table ${TABLE}><tbody>${pvaSummaryRows}</tbody></table>
+        <table ${TABLE}>
+            <thead><tr>
+                <th ${TH}>Date</th><th ${TH}>Day</th>
+                <th ${TH_R}>Predicted (RM)</th><th ${TH_R}>Actual (RM)</th>
+                <th ${TH_R}>Variance</th><th ${TH}>Status</th>
+            </tr></thead>
             <tbody>${pvaTableRows}</tbody>
-        </table>
-        <div class="rpt-three-col" style="margin-top:8px;">
-            <div class="rpt-insight-box">
-                <strong>📊 Model Accuracy (MAPE):</strong><br>
-                ${pvaMape}% avg error across ${pvaDays} day${pvaDays !== 1 ? 's' : ''}
-            </div>
-            <div class="rpt-insight-box teal">
-                <strong>🎯 Within Forecast Range:</strong><br>
-                ${pvaInRange} of ${pvaDays} days on target
-            </div>
-            <div class="rpt-insight-box amber">
-                <strong>📈 Predicted vs Actual Total:</strong><br>
-                RM ${fmt(pvaTotalP)} vs RM ${fmt(pvaTotalA)}
-            </div>
-        </div>` : `
-        <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;
-             padding:14px;text-align:center;color:#94A3B8;font-size:.76rem;">
-            No forecast data found for this period.<br>
-            Go to the <strong>AI Forecast</strong> page, generate a forecast, then return here
-            and select a past month to compare predictions against actual sales.
+        </table>` : `
+        <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:4px;padding:12px;text-align:center;color:#94A3B8;font-size:.76rem;">
+            No forecast data for this period. Run the AI Forecast engine first, then select a past month.
         </div>`;
 
-    // ── SECTION 5: Products / Regional / Category / Payment ───
-    const topProds = report.top_products      || [];
-    const botProds = report.bottom_products   || [];
-    const catData  = report.category_breakdown|| [];
-    const payData  = report.payment_breakdown || [];
-    const regional = report.regional_breakdown|| [];
-    const brMax    = report.branch_max_rev    || 1;
-    const payTotal = payData.reduce((s,p) => s+p.txn_count, 0) || 1;
-    const payColors = ['#3B82F6','#F59E0B','#10B981','#8B5CF6'];
+    // ── SECTION 4: Products ──────────────────────────────────
+    const topProds = report.top_products       || [];
+    const botProds = report.bottom_products    || [];
+    const catData  = report.category_breakdown || [];
+    const payData  = report.payment_breakdown  || [];
+    const regional = report.regional_breakdown || [];
+    const brMax    = report.branch_max_rev     || 1;
 
-    const topProdRows = topProds.map((p,i) => `
-        <tr>
-            <td>
-                <span style="display:inline-block;width:16px;height:16px;border-radius:50%;
-                      background:#3B82F6;color:white;font-size:.58rem;font-weight:700;
-                      text-align:center;line-height:16px;">${i+1}</span>
-                &nbsp;${p.product_name}
-            </td>
-            <td class="num">${fmtInt(p.qty)}</td>
-            <td class="num">RM ${fmt(p.revenue)}</td>
-            <td style="padding:5px 9px;width:60px;">
-                <div style="background:#E2E8F0;border-radius:3px;height:5px;overflow:hidden;">
-                    <div style="width:${p.pct}%;height:100%;background:linear-gradient(90deg,#3B82F6,#60A5FA);border-radius:3px;"></div>
-                </div>
-            </td>
-            <td class="num" style="color:#64748B;">${p.pct}%</td>
+    const topProdRows = topProds.map((p, i) => `
+        <tr style="${stripeRow(i)}">
+            <td ${TD}>${i+1}. ${p.product_name}</td>
+            <td ${TD_R}>${fmtInt(p.qty)}</td>
+            <td ${TD_R}>RM ${fmt(p.revenue)}</td>
+            <td ${TD_R}>${p.pct}%</td>
+            <td ${TD}>${bar(parseFloat(p.pct) * 4.5, '#2563EB')}</td>
         </tr>`).join('');
 
-    const botProdRows = botProds.map(p => `
-        <tr>
-            <td style="color:#EF4444;">${p.product_name}</td>
-            <td class="num">${fmtInt(p.qty)}</td>
-            <td class="num">RM ${fmt(p.revenue)}</td>
+    const botProdRows = botProds.map((p, i) => `
+        <tr style="${stripeRow(i)}">
+            <td style="padding:5px 9px;border-bottom:1px solid #E2E8F0;font-size:.76rem;color:#DC2626;">${p.product_name}</td>
+            <td ${TD_R}>${fmtInt(p.qty)}</td>
+            <td ${TD_R}>RM ${fmt(p.revenue)}</td>
         </tr>`).join('');
 
-    const regionalBars = regional.map((r,i) => {
-        const pct   = ((r.rev / brMax) * 100).toFixed(1);
+    const regionalRows = regional.map((r, i) => {
+        const pct   = ((r.rev / brMax) * 100);
         const isTop = (r.branch_name === topBranch);
         return `
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px;font-size:.73rem;">
-            <div style="width:95px;flex-shrink:0;font-weight:${isTop?'700':'400'};color:#334155;">
-                ${isTop?'⭐ ':''}${r.branch_name}
-            </div>
-            <div style="flex:1;background:#E2E8F0;border-radius:4px;height:10px;overflow:hidden;">
-                <div style="width:${pct}%;height:100%;background:${payColors[i%4]};border-radius:4px;"></div>
-            </div>
-            <div style="width:80px;text-align:right;font-family:monospace;font-weight:600;color:#1E293B;font-size:.72rem;">RM ${fmt(r.rev)}</div>
-        </div>`;
-    }).join('');
-
-    const catRows = catData.map((c,i) => {
-        const catTotal = catData.reduce((s,x) => s+x.revenue, 0) || 1;
-        const bw = ((c.revenue / catTotal) * 100).toFixed(1);
-        return `
-        <tr style="background:${i%2===1?'#F8FAFC':'white'};">
-            <td>${c.product_category}</td>
-            <td class="num">RM ${fmt(c.revenue)}</td>
-            <td class="num">${c.pct}%</td>
-            <td style="padding:5px 9px;width:60px;">
-                <div style="background:#E2E8F0;border-radius:3px;height:5px;overflow:hidden;">
-                    <div style="width:${bw}%;height:100%;background:linear-gradient(90deg,#10B981,#34D399);border-radius:3px;"></div>
-                </div>
-            </td>
+        <tr style="${stripeRow(i)}">
+            <td ${TD}>${isTop ? '★ ' : ''}${r.branch_name}</td>
+            <td ${TD_R}>RM ${fmt(r.rev)}</td>
+            <td ${TD_R}>${fmtInt(r.txns)}</td>
+            <td ${TD}>${bar(pct, '#2563EB')}</td>
         </tr>`;
     }).join('');
 
-    const payBars = payData.map((p,i) => {
-        const bw = ((p.txn_count / payTotal) * 100).toFixed(1);
-        return `
-        <div class="rpt-pay-item">
-            <div class="rpt-pay-label">${p.payment_method}</div>
-            <div class="rpt-pay-bar-w">
-                <div class="rpt-pay-bar" style="width:${bw}%;background:${payColors[i%4]};"></div>
-            </div>
-            <div class="rpt-pay-val">${p.pct}%</div>
-        </div>`;
-    }).join('');
+    const catTotal = catData.reduce((s, c) => s + c.revenue, 0) || 1;
+    const catRows  = catData.map((c, i) => `
+        <tr style="${stripeRow(i)}">
+            <td ${TD}>${c.product_category}</td>
+            <td ${TD_R}>RM ${fmt(c.revenue)}</td>
+            <td ${TD_R}>${c.pct}%</td>
+            <td ${TD}>${bar((c.revenue / catTotal) * 100, '#0D9488')}</td>
+        </tr>`).join('');
 
-    // ── SECTION 6: Hourly & DOW ───────────────────────────────
+    const payTotal = payData.reduce((s, p) => s + p.txn_count, 0) || 1;
+    const payRows  = payData.map((p, i) => `
+        <tr style="${stripeRow(i)}">
+            <td ${TD}>${p.payment_method}</td>
+            <td ${TD_R}>${fmtInt(p.txn_count)}</td>
+            <td ${TD_R}>${p.pct}%</td>
+            <td ${TD}>${bar((p.txn_count / payTotal) * 100, '#D97706')}</td>
+        </tr>`).join('');
+
+    // ── SECTION 5: Hourly & DOW ──────────────────────────────
     const hourlyData  = report.hourly_breakdown || [];
     const hourlyMax   = Math.max(...hourlyData.map(h => h.txns), 1);
     const peakHourStr = report.peak_hour || '';
-    const dowData     = report.dow_breakdown  || [];
+    const dowData     = report.dow_breakdown    || [];
     const dowMax      = Math.max(...dowData.map(d => d.txns), 1);
-    const peakDayStr  = report.peak_day || '';
+    const peakDayStr  = report.peak_day  || '';
 
-    const hourlyRows = hourlyData.map(h => {
-        const bw     = ((h.txns / hourlyMax) * 100).toFixed(1);
+    const hourlyRows = hourlyData.map((h, i) => {
         const isPeak = peakHourStr.startsWith(h.hour.substring(0,2));
         return `
-        <tr style="background:${isPeak?'#EFF6FF':'transparent'};">
-            <td style="font-size:.7rem;">${isPeak?'⭐ ':''}${h.hour}</td>
-            <td>
-                <div style="background:#E2E8F0;height:4px;border-radius:2px;">
-                    <div style="height:100%;background:${isPeak?'#1D4ED8':'#93C5FD'};width:${bw}%;border-radius:2px;"></div>
-                </div>
-            </td>
-            <td class="num" style="font-size:.7rem;">${fmtInt(h.txns)}</td>
-            <td class="num" style="font-size:.7rem;color:#64748B;">RM ${fmt(h.revenue)}</td>
+        <tr style="${isPeak ? 'background:#EFF6FF;' : stripeRow(i)}">
+            <td ${TD}>${isPeak ? '★ ' : ''}${h.hour}</td>
+            <td ${TD_R}>${fmtInt(h.txns)}</td>
+            <td ${TD_R}>RM ${fmt(h.revenue)}</td>
+            <td ${TD}>${bar((h.txns / hourlyMax) * 100, isPeak ? '#1D4ED8' : '#2563EB')}</td>
         </tr>`;
     }).join('');
 
-    const dowRows = dowData.map(d => {
-        const bw     = ((d.txns / dowMax) * 100).toFixed(1);
+    const dowRows = dowData.map((d, i) => {
         const isPeak = (d.day === peakDayStr);
         return `
-        <tr style="background:${isPeak?'#ECFDF5':'transparent'};">
-            <td style="font-size:.7rem;">${isPeak?'⭐ ':''}${d.day}</td>
-            <td>
-                <div style="background:#E2E8F0;height:4px;border-radius:2px;">
-                    <div style="height:100%;background:${isPeak?'#059669':'#6EE7B7'};width:${bw}%;border-radius:2px;"></div>
-                </div>
-            </td>
-            <td class="num" style="font-size:.7rem;">${fmtInt(d.txns)}</td>
-            <td class="num" style="font-size:.7rem;color:#64748B;">RM ${fmt(d.revenue)}</td>
+        <tr style="${isPeak ? 'background:#ECFDF5;' : stripeRow(i)}">
+            <td ${TD}>${isPeak ? '★ ' : ''}${d.day}</td>
+            <td ${TD_R}>${fmtInt(d.txns)}</td>
+            <td ${TD_R}>RM ${fmt(d.revenue)}</td>
+            <td ${TD}>${bar((d.txns / dowMax) * 100, isPeak ? '#0D9488' : '#2563EB')}</td>
         </tr>`;
     }).join('');
 
-    const cleanAI = aiInsight.replace(/\n/g,'<br>').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
+    // ── SECTION 6: AI Recommendations ───────────────────────
+    const aiLines = aiInsight.replace(/\r\n/g, '\n').split('\n');
+    const aiHTML  = aiLines.map(line => {
+        line = line.trim();
+        if (!line) return '<div style="height:5px;"></div>';
+        const isNum = line.length > 2 && line[0].match(/\d/) && line[1].match(/[.):]/) ;
+        const isBul = line.startsWith('•') || line.startsWith('-');
+        if (isNum || isBul) {
+            return `<div style="font-size:.76rem;color:#334155;line-height:1.7;padding-left:12px;margin-bottom:3px;">• ${line.replace(/^[\d.):•\-\s]+/, '')}</div>`;
+        }
+        return `<div style="font-size:.76rem;color:#334155;line-height:1.7;margin-bottom:3px;">${line}</div>`;
+    }).join('');
+
     const bestProd = topProds[0] || null;
 
+    const findingsRows = [
+        ['Revenue Trend',    trend],
+        ['Top Branch',       topBranch],
+        ['Avg Order Value',  `RM ${fmt(aovVal)}`],
+        ['Busiest Window',   `${report.peak_hour||'N/A'} · ${report.peak_day||'N/A'}`],
+        ['Best Product',     bestProd ? `${bestProd.product_name} (${fmtInt(bestProd.qty)} units)` : 'N/A'],
+        ['Period Revenue',   `RM ${fmt(periodRev)} across ${fmtInt(periodTxns)} transactions`],
+    ].map((r, i) => `
+        <tr style="${stripeRow(i)}">
+            <td style="padding:5px 9px;border-bottom:1px solid #E2E8F0;font-size:.76rem;font-weight:700;color:#1E293B;width:35%;">${r[0]}</td>
+            <td style="padding:5px 9px;border-bottom:1px solid #E2E8F0;font-size:.76rem;color:#334155;">${r[1]}</td>
+        </tr>`).join('');
+
+    // ── ASSEMBLE FULL REPORT ─────────────────────────────────
     return `
-    <!-- ═══════════════════ PAGE 1 ═══════════════════ -->
-    <div class="rpt-header rpt-no-break">
-        <div class="rpt-brand">
-            <div class="rpt-brand-icon">☕</div>
-            <div>
-                <div class="rpt-brand-name">Mini Coffee Shop</div>
-                <div class="rpt-brand-sub">AI-Powered Analytics System</div>
-            </div>
-        </div>
-        <div class="rpt-title-row">
-            <div>
-                <div class="rpt-title">Executive Sales Report</div>
-                <div class="rpt-subtitle">${branchLabel} · ${monthLabel} · ${today}</div>
-            </div>
-            <div class="rpt-meta">
-                Generated: ${now}<br>
-                Period: ${from} – ${to}<br>
-                Confidential — Internal Use Only
-            </div>
+    <!-- HEADER -->
+    <div style="background:#1E293B;padding:24px 32px 20px;color:white;">
+        <div style="font-size:.78rem;opacity:.6;margin-bottom:6px;">☕ Mini Coffee Shop</div>
+        <div style="font-size:1.3rem;font-weight:700;margin-bottom:4px;">Executive Sales Report</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;">
+            <div style="font-size:.76rem;opacity:.7;">${branchLabel} · ${monthLabel} · Confidential — Internal Use Only</div>
+            <div style="font-size:.72rem;opacity:.65;text-align:right;">Generated: ${now}<br>Period: ${from} – ${to}</div>
         </div>
     </div>
-    <div class="rpt-accent-bar"></div>
+    <div style="height:3px;background:linear-gradient(90deg,#F59E0B,#2563EB,#0D9488);"></div>
 
-    <div class="rpt-body">
+    <div style="padding:20px 32px;">
 
-        <!-- ══ 1. EXECUTIVE SUMMARY ═════════════════════════ -->
-        <div class="rpt-section-title rpt-keep-next">1. Executive Summary</div>
-        <div class="rpt-kpi-5col rpt-no-break">
-            <div class="rpt-kpi-box k-blue">
-                <div class="rpt-kpi-label">Total Revenue</div>
-                <div class="rpt-kpi-value">RM ${fmt(periodRev)}</div>
-                <div>${trendBadge(trend)}</div>
-            </div>
-            <div class="rpt-kpi-box k-amber">
-                <div class="rpt-kpi-label">Sales Volume</div>
-                <div class="rpt-kpi-value">${fmtInt(periodTxns)}</div>
-                <div class="rpt-kpi-sub">Orders placed</div>
-            </div>
-            <div class="rpt-kpi-box k-teal">
-                <div class="rpt-kpi-label">Daily Average</div>
-                <div class="rpt-kpi-value">RM ${fmt(dailyAvg)}</div>
-                <div class="rpt-kpi-sub">Revenue per day</div>
-            </div>
-            <div class="rpt-kpi-box k-cyan">
-                <div class="rpt-kpi-label">Avg Order Value</div>
-                <div class="rpt-kpi-value">RM ${fmt(aovVal)}</div>
-                <div class="rpt-kpi-sub">Per transaction</div>
-            </div>
-            <div class="rpt-kpi-box k-purple">
-                <div class="rpt-kpi-label">Top Branch</div>
-                <div class="rpt-kpi-value" style="font-size:.82rem;margin-top:3px;">${topBranch}</div>
-                <div class="rpt-kpi-sub">Highest revenue</div>
-            </div>
-        </div>
-        <div class="data-note rpt-no-break">
-            ⚠ Profit &amp; COGS data is not available from POS logs. Revenue figures represent gross sales only.
-        </div>
+        <!-- 1. Executive Summary -->
+        <div ${SEC}>1. Executive Summary</div>
+        <table ${TABLE}><tbody>${kpiTableRows}</tbody></table>
+        <div ${NOTE}>⚠ Profit &amp; COGS data not available from POS logs. Revenue figures represent gross sales only.</div>
 
-        <!-- ══ 2. REVENUE TREND — LAST 6 MONTHS ════════════ -->
-        <div class="rpt-section-title rpt-keep-next">2. Revenue &amp; Sales Volume — Last ${sliceN} Months</div>
-        <div class="rpt-no-break">
+        <!-- 2. Revenue Trend -->
+        <div ${SEC}>2. Revenue Trend — Last ${sliceN} Months</div>
         ${monthRows ? `
-        <table class="rpt-table">
-            <thead>
-                <tr>
-                    <th>Month</th>
-                    ${headerCols}
-                    <th class="num">Total Revenue</th>
-                </tr>
-            </thead>
+        <table ${TABLE}>
+            <thead><tr><th ${TH}>Month</th>${headerCols}<th ${TH_R}>Total Revenue</th></tr></thead>
             <tbody>${monthRows}</tbody>
         </table>
-        <div style="font-size:.62rem;color:#94A3B8;margin-top:3px;">◀ Highlighted = selected reporting month</div>
-        ` : '<div style="color:#94A3B8;font-size:.75rem;padding:8px 0;">Insufficient monthly history.</div>'}
-        </div>
+        <div style="font-size:.62rem;color:#94A3B8;margin-top:2px;">► Highlighted = selected reporting month</div>
+        ` : '<div style="color:#94A3B8;font-size:.76rem;">No monthly data.</div>'}
 
-        <!-- ══ 3. KEY PERFORMANCE INDICATORS ════════════════ -->
-        <div class="rpt-section-title rpt-keep-next">3. Key Performance Indicators</div>
-        <div class="rpt-kpi-4col rpt-no-break">
-            <div class="rpt-kpi-box k-blue">
-                <div class="rpt-kpi-label">Avg Deal Size (AOV)</div>
-                <div class="rpt-kpi-value">RM ${fmt(aovVal)}</div>
-                <div class="rpt-kpi-sub">Revenue ÷ Transactions</div>
-            </div>
-            <div class="rpt-kpi-box k-teal">
-                <div class="rpt-kpi-label">Avg Daily Orders</div>
-                <div class="rpt-kpi-value">${avgDailyT}</div>
-                <div class="rpt-kpi-sub">Transactions per day</div>
-            </div>
-            <div class="rpt-kpi-box k-amber">
-                <div class="rpt-kpi-label">Peak Hour</div>
-                <div class="rpt-kpi-value" style="font-size:.85rem;">${report.peak_hour||'N/A'}</div>
-                <div class="rpt-kpi-sub">Highest traffic</div>
-            </div>
-            <div class="rpt-kpi-box k-purple">
-                <div class="rpt-kpi-label">Peak Day</div>
-                <div class="rpt-kpi-value" style="font-size:.85rem;">${report.peak_day||'N/A'}</div>
-                <div class="rpt-kpi-sub">Most active weekday</div>
-            </div>
-        </div>
-        <div class="rpt-insight-box slate rpt-no-break" style="font-size:.72rem;margin-top:6px;">
-            <strong>Period-over-Period:</strong> ${trend} &nbsp;|&nbsp;
-            <strong>Active Days:</strong> ${daysInP} &nbsp;|&nbsp;
-            <strong>Avg Revenue/Day:</strong> RM ${fmt(dailyAvg)}
-        </div>
+        <!-- 3. Daily Sales — Predicted vs Actual -->
+        <div ${SEC}>3. Daily Sales — Predicted vs Actual (${monthLabel})</div>
+        ${pvaSection}
 
-    </div><!-- /.rpt-body page 1 -->
+    </div>
 
-    <!-- Page separator (visible in preview, hidden in print) -->
+    <!-- PAGE SEPARATOR -->
     <div class="rpt-page-sep">— Page 2 —</div>
 
-    <!-- ═══════════════════ PAGE 2 ═══════════════════ -->
-    <div class="rpt-body rpt-page-break">
+    <div style="padding:20px 32px;" class="rpt-page-break">
 
-        <!-- ══ 4. PREDICTED VS ACTUAL ════════════════════════ -->
-        <div class="rpt-section-title rpt-keep-next">4. Daily Sales Trend (${monthLabel})</div>
-        ${pvaSection}
-    </div><!-- /.rpt-body page 2 -->
+        <!-- 4. Product Performance -->
+        <div ${SEC}>4. Product Performance</div>
 
-    <!-- Page separator (visible in preview, hidden in print) -->
+        <div ${SUBSEC}>Top-Selling Products (by quantity)</div>
+        ${topProdRows ? `
+        <table ${TABLE}>
+            <thead><tr><th ${TH}>Product</th><th ${TH_R}>Units Sold</th><th ${TH_R}>Revenue (RM)</th><th ${TH_R}>Share %</th><th ${TH}>Bar</th></tr></thead>
+            <tbody>${topProdRows}</tbody>
+        </table>` : '<div style="color:#94A3B8;font-size:.76rem;">No data.</div>'}
+
+        <div ${SUBSEC}>Underperforming Products — Bottom 3</div>
+        ${botProdRows ? `
+        <table ${TABLE}>
+            <thead><tr><th ${TH}>Product</th><th ${TH_R}>Units Sold</th><th ${TH_R}>Revenue (RM)</th></tr></thead>
+            <tbody>${botProdRows}</tbody>
+        </table>` : '<div style="color:#94A3B8;font-size:.76rem;">No data.</div>'}
+
+        <!-- 5. Regional & Category -->
+        <div ${SEC}>5. Regional &amp; Category Breakdown</div>
+
+        <div ${SUBSEC}>Branch Performance</div>
+        ${regionalRows ? `
+        <table ${TABLE}>
+            <thead><tr><th ${TH}>Branch</th><th ${TH_R}>Revenue (RM)</th><th ${TH_R}>Transactions</th><th ${TH}>Bar</th></tr></thead>
+            <tbody>${regionalRows}</tbody>
+        </table>` : '<div style="color:#94A3B8;font-size:.76rem;">No data.</div>'}
+
+        <div ${SUBSEC}>Revenue by Product Category</div>
+        ${catRows ? `
+        <table ${TABLE}>
+            <thead><tr><th ${TH}>Category</th><th ${TH_R}>Revenue (RM)</th><th ${TH_R}>Share %</th><th ${TH}>Bar</th></tr></thead>
+            <tbody>${catRows}</tbody>
+        </table>` : '<div style="color:#94A3B8;font-size:.76rem;">No data.</div>'}
+
+        <div ${SUBSEC}>Payment Method Breakdown</div>
+        ${payRows ? `
+        <table ${TABLE}>
+            <thead><tr><th ${TH}>Payment Method</th><th ${TH_R}>Transactions</th><th ${TH_R}>Share %</th><th ${TH}>Bar</th></tr></thead>
+            <tbody>${payRows}</tbody>
+        </table>` : '<div style="color:#94A3B8;font-size:.76rem;">No data.</div>'}
+
+        <!-- 6. Transaction Flow -->
+        <div ${SEC}>6. Transaction Flow by Time</div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            <div>
+                <div ${SUBSEC}>Hourly Transaction Volume</div>
+                ${hourlyRows ? `
+                <table ${TABLE}>
+                    <thead><tr><th ${TH}>Hour</th><th ${TH_R}>Orders</th><th ${TH_R}>Revenue (RM)</th><th ${TH}>Activity</th></tr></thead>
+                    <tbody>${hourlyRows}</tbody>
+                </table>` : '<div style="color:#94A3B8;font-size:.76rem;">No data.</div>'}
+            </div>
+            <div>
+                <div ${SUBSEC}>Day-of-Week Pattern</div>
+                ${dowRows ? `
+                <table ${TABLE}>
+                    <thead><tr><th ${TH}>Day</th><th ${TH_R}>Orders</th><th ${TH_R}>Revenue (RM)</th><th ${TH}>Activity</th></tr></thead>
+                    <tbody>${dowRows}</tbody>
+                </table>` : '<div style="color:#94A3B8;font-size:.76rem;">No data.</div>'}
+            </div>
+        </div>
+
+    </div>
+
+    <!-- PAGE SEPARATOR -->
     <div class="rpt-page-sep">— Page 3 —</div>
 
-    <!-- ═══════════════════ PAGE 3 ═══════════════════ -->
-    <div class="rpt-body rpt-page-break">
+    <div style="padding:20px 32px;" class="rpt-page-break">
 
-          <!-- ══ 5. SEGMENT BREAKDOWN ══════════════════════════ -->
-        <div class="rpt-section-title rpt-keep-next" style="margin-top:18px;">5. Segment Breakdown — Product, Region &amp; Category</div>
-
-        <div class="rpt-two-col rpt-no-break" style="margin-bottom:12px;">
-            <div>
-                <div style="font-size:.7rem;font-weight:700;color:#1E293B;margin-bottom:5px;">🏆 Top-Selling Products</div>
-                ${topProdRows ? `
-                <table class="rpt-table">
-                    <thead><tr><th>Product</th><th class="num">Units</th><th class="num">Revenue</th><th style="width:60px;">Bar</th><th class="num">Share</th></tr></thead>
-                    <tbody>${topProdRows}</tbody>
-                </table>` : '<div style="color:#94A3B8;font-size:.72rem;">No product data</div>'}
-            </div>
-            <div>
-                <div style="font-size:.7rem;font-weight:700;color:#EF4444;margin-bottom:5px;">⚠ Underperforming Products (Bottom 3)</div>
-                ${botProdRows ? `
-                <table class="rpt-table">
-                    <thead><tr><th>Product</th><th class="num">Units</th><th class="num">Revenue</th></tr></thead>
-                    <tbody>${botProdRows}</tbody>
-                </table>` : '<div style="color:#94A3B8;font-size:.72rem;">No data</div>'}
-                <div class="rpt-insight-box red" style="margin-top:8px;font-size:.7rem;">
-                    <strong>Action:</strong> Bundle underperformers with top sellers or run targeted promotions to reduce slow stock.
-                </div>
-            </div>
+        <!-- 7. AI Recommendations -->
+        <div ${SEC}>7. AI-Powered Actionable Recommendations</div>
+        <div style="font-size:.72rem;color:#64748B;margin-bottom:8px;">Branch: ${branchLabel} · Period: ${monthLabel} · Revenue: RM ${fmt(periodRev)}</div>
+        <div style="border:1px solid #E2E8F0;border-radius:4px;padding:12px 14px;background:#FAFAFA;margin-bottom:12px;">
+            ${aiHTML}
         </div>
 
-        <div class="rpt-two-col rpt-no-break">
-            <div>
-                <div style="font-size:.7rem;font-weight:700;color:#1E293B;margin-bottom:6px;">📍 Regional Performance (By Branch)</div>
-                ${regionalBars || '<div style="color:#94A3B8;font-size:.72rem;">No branch data</div>'}
-                <div style="margin-top:10px;font-size:.7rem;font-weight:700;color:#1E293B;margin-bottom:6px;">💳 Payment Method Breakdown</div>
-                ${payBars || '<div style="color:#94A3B8;font-size:.72rem;">No payment data</div>'}
-            </div>
-            <div>
-                <div style="font-size:.7rem;font-weight:700;color:#1E293B;margin-bottom:5px;">🗂 Revenue by Product Category</div>
-                ${catRows ? `
-                <table class="rpt-table">
-                    <thead><tr><th>Category</th><th class="num">Revenue</th><th class="num">Share</th><th style="width:60px;">Bar</th></tr></thead>
-                    <tbody>${catRows}</tbody>
-                </table>` : '<div style="color:#94A3B8;font-size:.72rem;">No category data</div>'}
-            </div>
-        </div>
+        <!-- Key Findings Table -->
+        <div ${SUBSEC}>Key Findings</div>
+        <table ${TABLE}>
+            <thead><tr><th ${TH}>Finding</th><th ${TH}>Detail</th></tr></thead>
+            <tbody>${findingsRows}</tbody>
+        </table>
 
-        <!-- ══ 6. SALES PIPELINE HEALTH ════════════════════ -->
-        <div class="rpt-section-title rpt-keep-next">6. Sales Pipeline Health — Transaction Flow by Time</div>
-        <div class="rpt-two-col rpt-no-break">
-            <div>
-                <div style="font-size:.7rem;font-weight:700;color:#1E293B;margin-bottom:5px;">⏰ Hourly Transaction Volume</div>
-                ${hourlyRows ? `
-                <table class="rpt-table">
-                    <thead><tr><th>Hour</th><th>Activity</th><th class="num">Orders</th><th class="num">Revenue</th></tr></thead>
-                    <tbody>${hourlyRows}</tbody>
-                </table>` : '<div style="color:#94A3B8;font-size:.72rem;">No hourly data</div>'}
-            </div>
-            <div>
-                <div style="font-size:.7rem;font-weight:700;color:#1E293B;margin-bottom:5px;">📅 Day-of-Week Revenue Pattern</div>
-                ${dowRows ? `
-                <table class="rpt-table">
-                    <thead><tr><th>Day</th><th>Activity</th><th class="num">Orders</th><th class="num">Revenue</th></tr></thead>
-                    <tbody>${dowRows}</tbody>
-                </table>` : '<div style="color:#94A3B8;font-size:.72rem;">No data</div>'}
-                <div class="rpt-insight-box teal" style="margin-top:8px;font-size:.7rem;">
-                    ⭐ <strong>Peak Hour:</strong> ${report.peak_hour||'N/A'}
-                    &nbsp;|&nbsp;
-                    ⭐ <strong>Peak Day:</strong> ${report.peak_day||'N/A'}<br>
-                    Maximise staff coverage at these windows to capture full revenue potential.
-                </div>
-            </div>
-        </div>
+    </div>
 
-        <!-- ══ 7. AI RECOMMENDATIONS ════════════════════════ -->
-        <div class="rpt-section-title rpt-keep-next" style="margin-top:20px;">7. AI-Powered Actionable Recommendations</div>
-        <div class="rpt-ai-box rpt-no-break">
-            <div class="rpt-ai-header">
-                <span style="background:linear-gradient(135deg,#3B82F6,#8B5CF6);color:white;padding:3px 9px;border-radius:4px;font-size:.65rem;">GEMINI AI</span>
-                Strategic Recommendations for ${monthLabel}
-            </div>
-            <div class="rpt-ai-content">${cleanAI}</div>
-        </div>
-
-        <div class="rpt-two-col rpt-no-break" style="margin-top:12px;">
-            <div>
-                <div style="font-size:.7rem;font-weight:700;color:#1E293B;margin-bottom:5px;">📌 Key Findings</div>
-                <div style="font-size:.75rem;line-height:1.9;color:#334155;">
-                    ● Revenue trend: <strong>${trend}</strong><br>
-                    ● Top branch: <strong>${topBranch}</strong><br>
-                    ● Avg order value: <strong>RM ${fmt(aovVal)}</strong><br>
-                    ● Busiest window: <strong>${report.peak_hour||'N/A'} · ${report.peak_day||'N/A'}</strong><br>
-                    ● Best product: <strong>${bestProd ? bestProd.product_name + ' (' + fmtInt(bestProd.qty) + ' units)' : 'N/A'}</strong>
-                </div>
-            </div>
-            <div>
-                <div style="font-size:.7rem;font-weight:700;color:#1E293B;margin-bottom:5px;">✅ Recommended Actions</div>
-                <div style="font-size:.75rem;line-height:1.9;color:#334155;">
-                    ✓ Deploy extra baristas during <strong>${report.peak_hour||'peak hours'}</strong><br>
-                    ✓ Pre-stock inventory before <strong>${report.peak_day||'peak day'}</strong> each week<br>
-                    ✓ Bundle slow movers with <strong>${bestProd ? bestProd.product_name : 'top sellers'}</strong><br>
-                    ✓ Run 2PM–4PM afternoon deals to lift off-peak volume<br>
-                    ✓ Incentivise cashless payments to cut cash-handling overhead
-                </div>
-            </div>
-        </div>
-
-    </div><!-- /.rpt-body page 3 -->
-
-    <div class="rpt-footer">
+    <!-- FOOTER -->
+    <div style="padding:10px 32px;background:#F8FAFC;border-top:1px solid #E2E8F0;display:flex;justify-content:space-between;font-size:.65rem;color:#94A3B8;">
         <div>Mini Coffee Shop · MCS Analytics v1.0 · ${monthLabel}</div>
         <div>Generated ${now} · Confidential — Internal Use Only</div>
         <div>Page 3 of 3</div>

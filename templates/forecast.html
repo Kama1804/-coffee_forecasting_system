@@ -112,6 +112,100 @@
     background: #CBD5E1;
     border-radius: var(--radius-full);
 }
+
+@media print {
+    /* Hide UI chrome */
+    .page-header,
+    #statusBanner,
+    #emptyState,
+    nav, header, footer,
+    .sidebar,
+    .navbar,
+    .btn-primary-custom,
+    .btn-outline-custom,
+    .btn-amber-custom,
+    #downloadPdfBtn,
+    #generateBtn,
+    #fvaBtnWeek,
+    #fvaBtnMonth,
+    #fvaMonthFilter {
+        display: none !important;
+    }
+
+    body {
+        background: #fff !important;
+        color: #1A1A2E !important;
+        font-size: 10pt;
+        margin: 0;
+        padding: 0;
+    }
+
+    #resultsSection {
+        display: block !important;
+    }
+
+    .dashboard-card {
+        box-shadow: none !important;
+        border: 1px solid #E5E7EB !important;
+        break-inside: avoid;
+        page-break-inside: avoid;
+        margin-bottom: 12pt;
+    }
+
+    .chart-container {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    .persona-card {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    /* Fix grid for print */
+    .row {
+        display: flex !important;
+        flex-wrap: wrap !important;
+    }
+    .col-6, .col-md-3 {
+        width: 25% !important;
+        flex: 0 0 25% !important;
+        max-width: 25% !important;
+    }
+    .col-12 {
+        width: 100% !important;
+        flex: 0 0 100% !important;
+    }
+    .col-xl-6 {
+        width: 50% !important;
+        flex: 0 0 50% !important;
+    }
+    .col-xl-7 {
+        width: 58% !important;
+        flex: 0 0 58% !important;
+    }
+    .col-xl-5 {
+        width: 42% !important;
+        flex: 0 0 42% !important;
+    }
+
+    /* Print title injected at top */
+    #resultsSection::before {
+        content: "Mini Coffee Shop — AI Sales Forecast Report";
+        display: block;
+        font-size: 16pt;
+        font-weight: bold;
+        margin-bottom: 12pt;
+        border-bottom: 2pt solid #1A1A2E;
+        padding-bottom: 6pt;
+        color: #1A1A2E;
+    }
+
+    @page {
+        size: A4 portrait;
+        margin: 15mm 12mm;
+    }
+}
 </style>
 {% endblock %}
 
@@ -200,7 +294,7 @@
                     id="downloadPdfBtn"
                     style="font-size:.78rem;padding:.45rem .9rem;border-radius:var(--radius-md);"
                     onclick="downloadForecastPDF()">
-                <i class="fa-solid fa-file-pdf"></i> Export Management PDF
+                <i class="fa-solid fa-file-pdf"></i> Download PDF
             </button>
         </div>
     </div>
@@ -1013,28 +1107,47 @@ function renderTable(forecast) {
     }).join('');
 }
 
-/* ============================================================
-   MANAGEMENT REPORT PDF EXPORT MANAGER LOOP
-============================================================ */
+
 function downloadForecastPDF() {
-    const sel = document.getElementById('branchSelect');
-    const branchId = sel.value;
+    const btn        = document.getElementById('downloadPdfBtn');
+    const sel        = document.getElementById('branchSelect');
+    const branchId   = sel.value;
     const branchName = sel.options[sel.selectedIndex].dataset.name;
-    const pdfBtn = document.getElementById('downloadPdfBtn');
 
-    pdfBtn.disabled = true;
-    pdfBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Compiling PDF…';
+    // Check if a specific month is selected in the FVA section
+    const monthFilter = document.getElementById('fvaMonthFilter');
+    const isMonthMode = fvaPeriodMode === 'month';
+    const selectedMonth = (isMonthMode && monthFilter) ? monthFilter.value : '';
 
-    // Directly request the backend generation endpoint
-    const exportUrl = `/api/export-forecast-pdf?branch_id=${branchId}&branch_name=${encodeURIComponent(branchName)}`;
-    
-    window.location.href = exportUrl;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating PDF…';
 
-    // Graceful reset button status after download trigger
-    setTimeout(() => {
-        pdfBtn.disabled = false;
-        pdfBtn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> Export Management PDF';
-    }, 2500);
+    let url = `/api/export-forecast-pdf?branch_id=${branchId}&branch_name=${encodeURIComponent(branchName)}`;
+    if (selectedMonth) {
+        url += `&month=${selectedMonth}`;
+    }
+
+    fetch(url)
+        .then(res => {
+            if (!res.ok) throw new Error('Export failed');
+            return res.blob();
+        })
+        .then(blob => {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            const dateStr = new Date().toISOString().slice(0,10);
+            const suffix = selectedMonth ? `_${selectedMonth}` : '';
+            a.download = `MCS_Forecast_${branchName.replace(' ','_')}${suffix}_${dateStr}.pdf`;
+            a.click();
+            URL.revokeObjectURL(a.href);
+        })
+        .catch(err => {
+            alert('PDF Export failed: ' + err.message);
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> Download PDF';
+        });
 }
 </script>
 {% endblock %}

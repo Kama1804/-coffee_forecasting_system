@@ -13,6 +13,16 @@ from init_db import initialize_database
 from etl_pipeline import ETLPipeline
 from gemini_agent import get_ai_insight, build_chat_system_context
 from forecast_engine import ForecastEngine, MY_PUBLIC_HOLIDAYS, MY_SEASONS
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.units import mm
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
+    HRFlowable, PageBreak, KeepTogether
+)
+from io import BytesIO
 
 load_dotenv(override=True)
 
@@ -525,6 +535,8 @@ GLOBAL_CHAT_CACHE = {
     "expiry_timestamp": 0
 }
 CACHE_TTL_SECONDS = 300
+REPORT_CACHE = {}
+FORECAST_CACHE = {}
 
 
 def _fetch_db_context() -> dict:
@@ -884,396 +896,35 @@ def api_forecast():
     branch_id   = request.args.get('branch_id',   1,            type=int)
     branch_name = request.args.get('branch_name', 'Putrajaya', type=str)
     try:
-        engine          = ForecastEngine()
-        success, result = engine.generate_7_day_forecast(branch_id, branch_name)
-        if success:
-            return jsonify({
-                "status":              "success",
-                "mape":                result['mape'],
-                "rmse":                result['rmse'],
-                "accuracy":            result.get('accuracy', 0),
-                "persona":             result.get('persona', ''),
-                "historical":          result['historical'],
-                "forecast":            result['forecast'],
-                "hourly":              result.get('hourly', []),
-                "forecast_vs_actual": result.get('forecast_vs_actual', []),
-                "insample_fit":        result.get('insample_fit', []),
-                "weather_by_time":     result.get('weather_by_time', [])
-            })
+        # Check global cache
+        cache_key = f"{branch_id}_{branch_name}"
+        if cache_key in FORECAST_CACHE:
+            result = FORECAST_CACHE[cache_key]
         else:
-            return jsonify({"status": "error", "message": result}), 500
+            engine          = ForecastEngine()
+            success, result = engine.generate_7_day_forecast(branch_id, branch_name)
+            if not success:
+                return jsonify({"status": "error", "message": result}), 500
+            
+            # Save to global cache
+            FORECAST_CACHE[cache_key] = result
+
+        return jsonify({
+            "status":              "success",
+            "mape":                result['mape'],
+            "rmse":                result['rmse'],
+            "accuracy":            result.get('accuracy', 0),
+            "persona":             result.get('persona', ''),
+            "historical":          result['historical'],
+            "forecast":            result['forecast'],
+            "hourly":              result.get('hourly', []),
+            "forecast_vs_actual": result.get('forecast_vs_actual', []),
+            "insample_fit":        result.get('insample_fit', []),
+            "weather_by_time":     result.get('weather_by_time', [])
+        })
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# ============================================================
-#    API — AI FORECAST PDF REPORT GENERATOR (SINGLE-PAGE MIRROR)
-# ============================================================
-@app.route('/api/preview-forecast')
-@login_required
-def api_preview_forecast():
-    branch_id   = request.args.get('branch_id',   1,           type=int)
-    branch_name = request.args.get('branch_name', 'Putrajaya', type=str)
-    try:
-        from forecast_engine import ForecastEngine
-        engine = ForecastEngine()
-        success, result = engine.generate_7_day_forecast(branch_id, branch_name)
-        if not success:
-            return jsonify({"status": "error", "message": result}), 500
-    except Exception as e:
-        return jsonify({"status": "error", "message": f"Engine failure: {str(e)}"}), 500
-
-    html_document = _build_forecast_html(branch_id, branch_name, result)
-    response = make_response(html_document)
-    response.headers['Content-Type'] = 'text/html; charset=utf-8'
-    return response
-
-
-@app.route('/api/export-forecast-pdf')
-@login_required
-def api_export_forecast_pdf():
-    branch_id   = request.args.get('branch_id',   1,           type=int)
-    branch_name = request.args.get('branch_name', 'Putrajaya', type=str)
-    try:
-        from forecast_engine import ForecastEngine
-        engine = ForecastEngine()
-        success, result = engine.generate_7_day_forecast(branch_id, branch_name)
-        if not success:
-            return jsonify({"status": "error", "message": result}), 500
-    except Exception as e:
-        return jsonify({"status": "error", "message": f"Engine failure: {str(e)}"}), 500
-
-    html_document = _build_forecast_html(branch_id, branch_name, result)
-    safe_name = branch_name.replace(" ", "_")
-    try:
-        from weasyprint import HTML as WP_HTML
-        pdf_bytes = WP_HTML(string=html_document).write_pdf()
-        response = make_response(pdf_bytes)
-        response.headers['Content-Type']        = 'application/pdf'
-        response.headers['Content-Disposition'] = f'attachment; filename="Forecast_Report_{safe_name}.pdf"'
-        return response
-    except ImportError:
-        response = make_response(html_document)
-        response.headers['Content-Type']        = 'text/html; charset=utf-8'
-        response.headers['Content-Disposition'] = f'attachment; filename="Forecast_Report_{safe_name}.html"'
-        return response
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-def _build_forecast_html(branch_id, branch_name, result):
-    mape          = result['mape']
-    rmse          = result['rmse']
-    accuracy      = result['accuracy']
-    persona_desc  = result['persona']
-    forecast_list = result['forecast']
-    hourly_list   = result['hourly']
-    wbt_list      = result['weather_by_time']
-
-    now_str    = datetime.now().strftime('%d %b %Y, %I:%M %p')
-    today_str  = datetime.now().strftime('%A, %d %B %Y')
-    outlet_icon = '🎓' if branch_name == 'Puncak Alam' else '🏢'
-    acc_color   = '#16A34A' if accuracy >= 85 else ('#D97706' if accuracy >= 70 else '#DC2626')
-
-    # ── 1. 7-Day Forecast Rows
-    DAY_NAMES    = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
-    WEATHER_ICON = {'Sunny': '☀️', 'Cloudy': '⛅', 'Rainy': '🌧️'}
-    PILL = ('<span style="display:inline-block;padding:1px 6px;border-radius:10px;'
-            'font-size:7.5px;font-weight:600;font-family:Arial,sans-serif;'
-            'margin-right:2px;{style}">{label}</span>')
-
-    forecast_rows = ''
-    total_7day_rev = 0.0
-    for r in forecast_list:
-        dt       = datetime.strptime(r['ds'], '%Y-%m-%d')
-        day_name = DAY_NAMES[dt.weekday()]
-        is_sun   = (dt.weekday() == 6)
-
-        row_bg = '#FFF5F5' if r['is_holiday'] else ('#FFFDF0' if dt.weekday() in (5,6) else '#ffffff')
-
-        if is_sun:
-            badge_style = 'background:#F1F5F9;color:#94A3B8;'
-        elif r['is_holiday']:
-            badge_style = 'background:#FEE2E2;color:#991B1B;'
-        elif dt.weekday() in (5, 6):
-            badge_style = 'background:#FEF3C7;color:#92400E;'
-        else:
-            badge_style = 'background:#EEF2FF;color:#3730A3;'
-
-        day_badge = (f'<span style="display:inline-block;padding:1px 6px;border-radius:3px;'
-                     f'font-size:8px;font-weight:700;font-family:Arial,sans-serif;{badge_style}">'
-                     f'{day_name[:3]}</span>')
-
-        flags = []
-        if r['is_holiday']:
-            flags.append(PILL.format(style='background:#FEE2E2;color:#991B1B;',  label='🏖 Holiday'))
-        if r['is_friday']:
-            flags.append(PILL.format(style='background:#DBEAFE;color:#1E40AF;',  label='🎉 Promo'))
-        if r.get('season'):
-            flags.append(PILL.format(style='background:#F3E8FF;color:#6B21A8;',  label='🎁 Season'))
-        if is_sun:
-            flags.append(PILL.format(style='background:#F1F5F9;color:#94A3B8;',  label='🔒 Closed'))
-        elif dt.weekday() in (5, 6):
-            flags.append(PILL.format(style='background:#FEF3C7;color:#92400E;',  label='Weekend'))
-        flags_html = ''.join(flags) or '—'
-
-        if is_sun:
-            rev_main  = '<span style="color:#9CA3AF;font-style:italic;font-size:8.5px;">Closed</span>'
-            rev_lower = rev_upper = '—'
-        else:
-            total_7day_rev += r['yhat']
-            rev_main  = (f'<span style="font-weight:700;color:#1A1A2E;font-size:9.5px;'
-                         f'font-family:\'Courier New\',monospace;">RM {r["yhat"]:,.2f}</span>')
-            rev_lower = (f'<span style="color:#9CA3AF;font-size:8.5px;'
-                         f'font-family:\'Courier New\',monospace;">{r["yhat_lower"]:,.2f}</span>')
-            rev_upper = (f'<span style="color:#9CA3AF;font-size:8.5px;'
-                         f'font-family:\'Courier New\',monospace;">{r["yhat_upper"]:,.2f}</span>')
-
-        weather_icon = WEATHER_ICON.get(r['weather'], '🌡️')
-        forecast_rows += f"""
-        <tr style="background-color:{row_bg};">
-            <td style="padding:6px 8px;border-bottom:1px solid #F3F4F6;font-family:'Courier New',monospace;font-size:9px;color:#374151;">{r['ds']}</td>
-            <td style="padding:6px 8px;border-bottom:1px solid #F3F4F6;">{day_badge}</td>
-            <td style="padding:6px 8px;border-bottom:1px solid #F3F4F6;font-size:9px;color:#374151;">{weather_icon} {r['weather']}</td>
-            <td style="padding:6px 8px;border-bottom:1px solid #F3F4F6;">{flags_html}</td>
-            <td style="padding:6px 8px;border-bottom:1px solid #F3F4F6;text-align:right;">{rev_main}</td>
-            <td style="padding:6px 8px;border-bottom:1px solid #F3F4F6;text-align:right;">{rev_lower}</td>
-            <td style="padding:6px 8px;border-bottom:1px solid #F3F4F6;text-align:right;">{rev_upper}</td>
-        </tr>"""
-
-    # ── 2. Hourly Peak Rows
-    hourly_rows = ''
-    top_hours   = hourly_list[:6]
-    max_hour_rev = max((h['revenue'] for h in top_hours), default=1)
-    for h in top_hours:
-        bar_w = int((h['revenue'] / max_hour_rev) * 100)
-        hourly_rows += f"""
-        <tr>
-            <td style="padding:5px 6px;border-bottom:1px solid #F3F4F6;font-family:'Courier New',monospace;font-size:9px;color:#374151;white-space:nowrap;">{h['hour']:02d}:00</td>
-            <td style="padding:5px 6px;border-bottom:1px solid #F3F4F6;width:80px;">
-                <div style="background:#E5E7EB;height:5px;border-radius:3px;overflow:hidden;">
-                    <div style="background:#C8922A;height:100%;width:{bar_w}%;border-radius:3px;"></div>
-                </div>
-            </td>
-            <td style="padding:5px 6px;border-bottom:1px solid #F3F4F6;text-align:right;font-family:'Courier New',monospace;font-size:9px;font-weight:700;color:#1A1A2E;">RM {h['revenue']:,.0f}</td>
-        </tr>"""
-
-    # ── 3. Weather × Shift Rows
-    wbt_rows     = ''
-    top_wbt      = wbt_list[:3]
-    max_wbt      = max((w['count'] for w in top_wbt), default=1)
-    WBT_COLOR    = {'Sunny': '#C8922A', 'Cloudy': '#6B7280', 'Rainy': '#374151'}
-    for w in top_wbt:
-        bar_w     = int((w['count'] / max_wbt) * 100)
-        bar_color = WBT_COLOR.get(w['weather'], '#6B7280')
-        wbt_rows += f"""
-        <tr>
-            <td style="padding:5px 6px;border-bottom:1px solid #F3F4F6;font-size:9px;font-weight:600;color:#374151;">{w['shift']}</td>
-            <td style="padding:5px 6px;border-bottom:1px solid #F3F4F6;font-size:9px;color:#6B7280;">{w['weather']}</td>
-            <td style="padding:5px 6px;border-bottom:1px solid #F3F4F6;width:70px;">
-                <div style="background:#E5E7EB;height:5px;border-radius:3px;overflow:hidden;">
-                    <div style="background:{bar_color};height:100%;width:{bar_w}%;border-radius:3px;"></div>
-                </div>
-            </td>
-            <td style="padding:5px 6px;border-bottom:1px solid #F3F4F6;text-align:right;font-family:'Courier New',monospace;font-size:9px;font-weight:700;color:#1A1A2E;">{w['count']:,}</td>
-        </tr>"""
-
-    # ── 4. Full HTML Document
-    return f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sales Forecast Report — {branch_name}</title>
-<style>
-@page {{ size: A4 portrait; margin: 13mm 11mm 11mm 11mm; }}
-*, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
-body {{
-    font-family: Georgia, 'Times New Roman', serif;
-    font-size: 10px;
-    color: #1A1A2E;
-    background: #ffffff;
-    line-height: 1.55;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-}}
-.sans {{ font-family: Arial, Helvetica, sans-serif; }}
-
-/* Header */
-.rpt-header {{ border-bottom: 3px solid #1A1A2E; padding-bottom: 10px; margin-bottom: 13px; }}
-.rpt-brand  {{ font-family: Arial, sans-serif; font-size: 7.5px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #C8922A; margin-bottom: 3px; }}
-.rpt-title  {{ font-size: 18px; font-weight: bold; color: #1A1A2E; letter-spacing: -0.3px; line-height: 1.15; }}
-.rpt-byline {{ font-family: Arial, sans-serif; font-size: 8.5px; color: #9CA3AF; font-style: italic; margin-top: 2px; }}
-.rpt-badge  {{ display: inline-block; background: #1A1A2E; color: #fff; font-family: Arial, sans-serif; font-size: 7px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; padding: 2px 8px; border-radius: 3px; margin-top: 5px; }}
-
-/* Executive summary band */
-.exec-band       {{ background: #FDFAF4; border-left: 4px solid #C8922A; padding: 8px 12px; border-radius: 0 4px 4px 0; margin-bottom: 13px; }}
-.exec-band-label {{ font-family: Arial, sans-serif; font-size: 7.5px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #C8922A; margin-bottom: 3px; }}
-.exec-band-text  {{ font-size: 9.5px; color: #374151; font-style: italic; line-height: 1.45; }}
-
-/* KPI strip */
-.kpi-table {{ width: 100%; border-collapse: separate; border-spacing: 6px 0; margin-bottom: 13px; }}
-.kpi-cell  {{ width: 25%; background: #F9FAFB; border: 1px solid #E5E7EB; border-top: 3px solid #1A1A2E; padding: 8px 10px 9px; vertical-align: top; border-radius: 0 0 4px 4px; }}
-.kpi-cell.amber  {{ border-top-color: #C8922A; }}
-.kpi-cell.green  {{ border-top-color: #16A34A; }}
-.kpi-cell.purple {{ border-top-color: #7C3AED; }}
-.kpi-lbl  {{ font-family: Arial, sans-serif; font-size: 7.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #6B7280; margin-bottom: 5px; }}
-.kpi-val  {{ font-family: Arial, sans-serif; font-size: 15px; font-weight: 700; color: #1A1A2E; line-height: 1; }}
-.kpi-note {{ font-family: Arial, sans-serif; font-size: 7.5px; color: #9CA3AF; margin-top: 3px; }}
-
-/* Section headings */
-.section-head  {{ border-bottom: 1.5px solid #E5E7EB; padding-bottom: 5px; margin-bottom: 8px; margin-top: 13px; }}
-.section-title {{ font-family: Arial, sans-serif; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px; color: #1A1A2E; }}
-.section-sub   {{ font-family: Arial, sans-serif; font-size: 8px; color: #9CA3AF; font-style: italic; margin-top: 1px; }}
-
-/* Forecast table */
-.fc-table {{ width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; font-size: 9px; margin-bottom: 13px; }}
-.fc-table thead tr {{ background: #1A1A2E; color: #ffffff; }}
-.fc-table th {{ padding: 6px 8px; text-align: left; font-size: 7.5px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; white-space: nowrap; }}
-.fc-table th.r {{ text-align: right; }}
-.fc-table td   {{ padding: 6px 8px; border-bottom: 1px solid #F3F4F6; vertical-align: middle; }}
-.fc-table td.r {{ text-align: right; }}
-.fc-table tbody tr:last-child td {{ border-bottom: none; }}
-.fc-table tfoot td {{ background: #F9FAFB; border-top: 1.5px solid #D1D5DB; font-family: Arial, sans-serif; font-size: 9px; font-weight: 700; color: #1A1A2E; padding: 6px 8px; }}
-
-/* Split layout */
-.split-table {{ width: 100%; border-collapse: separate; border-spacing: 8px 0; margin-bottom: 13px; }}
-.split-cell  {{ width: 50%; vertical-align: top; }}
-.mini-card   {{ background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 4px; padding: 8px 10px; }}
-.mini-table  {{ width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; font-size: 9px; }}
-.mini-table td {{ padding: 5px 6px; border-bottom: 1px solid #F3F4F6; color: #374151; vertical-align: middle; }}
-.mini-table tr:last-child td {{ border-bottom: none; }}
-
-/* Disclaimer + footer */
-.disclaimer {{ background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 4px; padding: 8px 10px; font-family: Arial, sans-serif; font-size: 8px; color: #64748B; line-height: 1.45; margin-bottom: 10px; }}
-.rpt-footer {{ border-top: 1.5px solid #E5E7EB; padding-top: 7px; }}
-.footer-row {{ width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; font-size: 7.5px; color: #9CA3AF; }}
-.page-badge {{ display: inline-block; background: #F1F5F9; border: 1px solid #E2E8F0; border-radius: 3px; padding: 2px 8px; font-size: 7px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #6B7280; }}
-</style>
-</head>
-<body>
-
-<!-- HEADER -->
-<div class="rpt-header">
-    <table style="width:100%;border-collapse:collapse;">
-        <tr>
-            <td style="vertical-align:bottom;">
-                <div class="rpt-brand">Mini Coffee Shop &middot; Management Intelligence</div>
-                <div class="rpt-title">7-Day Sales Forecast Report</div>
-                <div class="rpt-byline">AI-Assisted Revenue Projection &mdash; Prophet Multiplicative Seasonal Model</div>
-            </td>
-            <td style="vertical-align:top;text-align:right;padding-left:12px;">
-                <div style="font-family:Arial,sans-serif;font-size:13px;font-weight:700;color:#1A1A2E;">{outlet_icon} {branch_name} Outlet</div>
-                <div style="font-family:Arial,sans-serif;font-size:8.5px;color:#6B7280;margin-top:2px;">Period: {today_str}</div>
-                <div><span class="rpt-badge">Confidential &mdash; Internal Use Only</span></div>
-            </td>
-        </tr>
-    </table>
-</div>
-
-<!-- EXECUTIVE SUMMARY -->
-<div class="exec-band">
-    <div class="exec-band-label">Outlet Profile &amp; Executive Summary</div>
-    <div class="exec-band-text"><strong>{branch_name}:</strong> {persona_desc}</div>
-</div>
-
-<!-- KPI STRIP -->
-<table class="kpi-table">
-    <tr>
-        <td class="kpi-cell green">
-            <div class="kpi-lbl">Forecast Accuracy</div>
-            <div class="kpi-val" style="color:{acc_color};">{accuracy}%</div>
-            <div class="kpi-note">Overall model confidence</div>
-        </td>
-        <td class="kpi-cell amber">
-            <div class="kpi-lbl">Mean Abs. % Error</div>
-            <div class="kpi-val">{mape}%</div>
-            <div class="kpi-note">Lower is better</div>
-        </td>
-        <td class="kpi-cell">
-            <div class="kpi-lbl">Root Mean Sq. Error</div>
-            <div class="kpi-val" style="font-size:12px;">RM&nbsp;{rmse:,.2f}</div>
-            <div class="kpi-note">Avg. residual deviation</div>
-        </td>
-        <td class="kpi-cell purple">
-            <div class="kpi-lbl">7-Day Revenue Total</div>
-            <div class="kpi-val" style="color:#7C3AED;font-size:12px;">RM&nbsp;{total_7day_rev:,.2f}</div>
-            <div class="kpi-note">Projected gross intake</div>
-        </td>
-    </tr>
-</table>
-
-<!-- 7-DAY FORECAST TABLE -->
-<div class="section-head">
-    <div class="section-title">7-Day Predictive Revenue Breakdown</div>
-    <div class="section-sub">Daily projected revenue with confidence intervals, weather context, and operational flags</div>
-</div>
-<table class="fc-table">
-    <thead>
-        <tr>
-            <th>Date</th>
-            <th>Day</th>
-            <th>Weather</th>
-            <th>Flags &amp; Events</th>
-            <th class="r">Expected Revenue</th>
-            <th class="r">Lower Bound</th>
-            <th class="r">Upper Bound</th>
-        </tr>
-    </thead>
-    <tbody>{forecast_rows}</tbody>
-    <tfoot>
-        <tr>
-            <td colspan="4">7-Day Projected Total</td>
-            <td style="text-align:right;color:#7C3AED;">RM&nbsp;{total_7day_rev:,.2f}</td>
-            <td colspan="2"></td>
-        </tr>
-    </tfoot>
-</table>
-
-<!-- SPLIT: HOURLY + WEATHER×SHIFT -->
-<table class="split-table">
-    <tr>
-        <td class="split-cell">
-            <div class="section-head" style="margin-top:0;">
-                <div class="section-title">&#9201; Peak Hour Revenue Profile</div>
-                <div class="section-sub">Top trading hours by estimated revenue</div>
-            </div>
-            <div class="mini-card">
-                <table class="mini-table"><tbody>{hourly_rows}</tbody></table>
-            </div>
-        </td>
-        <td class="split-cell">
-            <div class="section-head" style="margin-top:0;">
-                <div class="section-title">&#9925; Weather &times; Shift Density</div>
-                <div class="section-sub">Historical transaction frequency by shift &amp; condition</div>
-            </div>
-            <div class="mini-card">
-                <table class="mini-table"><tbody>{wbt_rows}</tbody></table>
-            </div>
-        </td>
-    </tr>
-</table>
-
-<!-- DISCLAIMER -->
-<div class="disclaimer">
-    <strong>&#8505; Disclaimer:</strong> This report was automatically generated by the Mini Coffee Shop
-    Forecasting System using Meta Prophet with multiplicative seasonality and Malaysian public holiday
-    regressors. Projections are statistical estimates and should be reviewed alongside operational context
-    before making business decisions. Confidence intervals reflect model uncertainty, not guaranteed
-    performance ranges.
-</div>
-
-<!-- FOOTER -->
-<div class="rpt-footer">
-    <table class="footer-row">
-        <tr>
-            <td>Generated: {now_str} &nbsp;&middot;&nbsp; Branch: {branch_name} &nbsp;&middot;&nbsp; Engine: Prophet AI Core (Multiplicative)</td>
-            <td style="text-align:right;"><span class="page-badge">Page 1 of 1</span></td>
-        </tr>
-    </table>
-</div>
-
-</body>
-</html>"""
     
 # ============================================================
 #    API — AVAILABLE REPORT MONTHS (for month picker disabling)
@@ -1770,7 +1421,16 @@ def api_report_data():
         return jsonify({"status": "error", "message": "date_from and date_to are required."}), 400
 
     try:
+        # Check global cache first
+        cache_key = f"{branch_filter}_{date_from}_{date_to}"
+        if cache_key in REPORT_CACHE:
+            return jsonify(REPORT_CACHE[cache_key])
+
         result = _build_report_data(branch_filter, date_from, date_to)
+        
+        # Save to global cache
+        REPORT_CACHE[cache_key] = result
+        
         return jsonify(result)
     except Exception as e:
         print("Report API Error:", e)
@@ -1778,630 +1438,794 @@ def api_report_data():
 
 
 # ============================================================
+#    API — PDF EXPORT (Forecast Report)
+# ============================================================
+@app.route('/api/export-forecast-pdf')
+@login_required
+def api_export_forecast_pdf():
+    branch_id   = request.args.get('branch_id',   1,            type=int)
+    branch_name = request.args.get('branch_name', 'Putrajaya', type=str)
+    month_filter = request.args.get('month',       None,         type=str)
+
+    try:
+        # Check global forecast cache
+        cache_key = f"{branch_id}_{branch_name}"
+        if cache_key in FORECAST_CACHE:
+             result = FORECAST_CACHE[cache_key]
+        else:
+            engine          = ForecastEngine()
+            success, result = engine.generate_7_day_forecast(branch_id, branch_name)
+            if not success:
+                return jsonify({"status": "error", "message": result}), 500
+            
+            # Save to global cache
+            FORECAST_CACHE[cache_key] = result
+
+        # Build data components
+        forecast_rows = ""
+        for row in result['forecast']:
+            promos = " ".join([f"<span style='background:#FEF3C7;color:#92400E;padding:1px 4px;border-radius:3px;font-size:8px;font-weight:600;margin-right:3px;'>{p}</span>" for p in row.get('promotions', [])])
+            if row.get('is_holiday'):
+                promos += "<span style='background:#FEE2E2;color:#991B1B;padding:1px 4px;border-radius:3px;font-size:8px;font-weight:600;margin-right:3px;'>🏖️ Holiday</span>"
+            
+            day_name = datetime.strptime(row['ds'], '%Y-%m-%d').strftime('%A')
+            row_style = "background:#F8FAFC;" if row.get('is_holiday') else ("background:#FEF3C7;" if day_name in ['Saturday','Sunday'] else "")
+            
+            forecast_rows += f"""
+            <tr style="{row_style}">
+                <td style="font-family:monospace;padding:5px 8px;">{row['ds']}</td>
+                <td style="padding:5px 8px;">{day_name}</td>
+                <td style="padding:5px 8px;">{row['weather']}</td>
+                <td style="padding:5px 8px;">{promos}</td>
+                <td style="text-align:right;font-family:monospace;padding:5px 8px;font-weight:700;">RM {row['yhat']:,.2f}</td>
+                <td style="text-align:right;font-family:monospace;padding:5px 8px;color:#64748B;">RM {row['yhat_lower']:,.2f}</td>
+                <td style="text-align:right;font-family:monospace;padding:5px 8px;color:#64748B;">RM {row['yhat_upper']:,.2f}</td>
+            </tr>"""
+
+        # Predicted vs Actual Section
+        pva_section_html = ""
+        if month_filter:
+            pva_data = [r for r in result.get('forecast_vs_actual', []) if r['ds'].startswith(month_filter)]
+            if pva_data:
+                pva_rows = ""
+                total_p = 0
+                total_a = 0
+                mape_sum = 0
+                count = 0
+                
+                for r in pva_data:
+                    var = r['actual'] - r['predicted']
+                    var_pct = (var / r['predicted'] * 100) if r['predicted'] > 0 else 0
+                    var_color = "#059669" if var >= 0 else "#DC2626"
+                    
+                    total_p += r['predicted']
+                    total_a += r['actual']
+                    mape_sum += abs(var_pct)
+                    count += 1
+                    
+                    pva_rows += f"""
+                    <tr>
+                        <td style="font-family:monospace;padding:4px 8px;">{r['ds']}</td>
+                        <td style="text-align:right;font-family:monospace;padding:4px 8px;">RM {r['predicted']:,.2f}</td>
+                        <td style="text-align:right;font-family:monospace;padding:4px 8px;">RM {r['actual']:,.2f}</td>
+                        <td style="text-align:right;font-family:monospace;padding:4px 8px;color:{var_color};">
+                            {'+' if var>=0 else ''}RM {var:,.2f} ({'+' if var_pct>=0 else ''}{var_pct:.1f}%)
+                        </td>
+                    </tr>"""
+                
+                avg_mape = mape_sum / count if count > 0 else 0
+                month_label = datetime.strptime(month_filter + "-01", "%Y-%m-%d").strftime("%B %Y")
+                
+                pva_section_html = f"""
+                <div style="page-break-before: always;"></div>
+                <div class="section-title">Historical Performance: {month_label}</div>
+                <div class="kpi-grid">
+                    <div class="kpi-box"><div class="kpi-label">Month Total Predicted</div><div class="kpi-value">RM {total_p:,.2f}</div></div>
+                    <div class="kpi-box"><div class="kpi-label">Month Total Actual</div><div class="kpi-value">RM {total_a:,.2f}</div></div>
+                    <div class="kpi-box"><div class="kpi-label">Avg. Month Accuracy</div><div class="kpi-value">{max(0, round(100 - avg_mape, 1))}%</div></div>
+                    <div class="kpi-box"><div class="kpi-label">Variance</div><div class="kpi-value" style="color:{'#059669' if total_a >= total_p else '#DC2626'};">RM {total_a - total_p:,.2f}</div></div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th style="text-align:right;">Predicted (RM)</th>
+                            <th style="text-align:right;">Actual (RM)</th>
+                            <th style="text-align:right;">Variance</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {pva_rows}
+                    </tbody>
+                </table>
+                """
+
+        now_str = datetime.now().strftime('%d %b %Y, %I:%M %p')
+        
+        html_doc = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @page {{ size: A4 portrait; margin: 15mm 12mm; }}
+  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+  body {{ font-family: Arial, sans-serif; font-size: 10px; color: #1E293B; }}
+  .header {{ background: linear-gradient(135deg,#1E2A3A,#2A3B52); padding: 25px 30px; color: white; }}
+  .brand {{ display:flex;align-items:center;gap:10px;margin-bottom:10px; }}
+  .accent {{ height:4px;background:linear-gradient(90deg,#F59E0B,#3B82F6,#10B981); }}
+  .body {{ padding:20px 30px; }}
+  .section-title {{ font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;border-left:3px solid #3B82F6;padding-left:7px;margin:15px 0 10px;color:#1E2A3A; }}
+  .kpi-grid {{ display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:15px; }}
+  .kpi-box {{ border:1px solid #E2E8F0;border-radius:6px;padding:10px;background:#F8FAFC; }}
+  .kpi-label {{ font-size:8px;color:#64748B;text-transform:uppercase;margin-bottom:3px; }}
+  .kpi-value {{ font-size:14px;font-weight:700;font-family:monospace; }}
+  table {{ width:100%;border-collapse:collapse;margin-top:5px; }}
+  thead th {{ background:#1E2A3A;color:white;padding:6px 8px;text-align:left;font-size:9px; }}
+  tbody td {{ padding:5px 8px;border-bottom:1px solid #E2E8F0; }}
+  .footer {{ padding:10px 30px;background:#F8FAFC;border-top:1px solid #E2E8F0;display:flex;justify-content:space-between;font-size:8px;color:#94A3B8; }}
+</style>
+</head>
+<body>
+<div class="header">
+    <div class="brand"><div style="background:#F59E0B;padding:5px;border-radius:5px;">☕</div> <strong>Mini Coffee Shop</strong></div>
+    <div style="font-size:18px;font-weight:700;">AI Sales Forecast Report</div>
+    <div style="font-size:10px;opacity:.8;">Branch: {branch_name} | Generated: {now_str}</div>
+</div>
+<div class="accent"></div>
+<div class="body">
+    <div class="section-title">Model Performance & Persona</div>
+    <div class="kpi-grid">
+        <div class="kpi-box"><div class="kpi-label">MAPE</div><div class="kpi-value">{result['mape']}%</div></div>
+        <div class="kpi-box"><div class="kpi-label">RMSE</div><div class="kpi-value">RM {result['rmse']:,.2f}</div></div>
+        <div class="kpi-box"><div class="kpi-label">Accuracy</div><div class="kpi-value">{result['accuracy']}%</div></div>
+        <div class="kpi-box"><div class="kpi-label">7-Day Total</div><div class="kpi-value">RM {sum(r['yhat'] for r in result['forecast']):,.2f}</div></div>
+    </div>
+    <div style="background:#EFF6FF;padding:10px;border-radius:6px;margin-bottom:15px;font-size:10px;">
+        <strong>Branch Persona:</strong> {result['persona']}
+    </div>
+
+    <div class="section-title">7-Day Prediction Breakdown</div>
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Day</th>
+                <th>Weather</th>
+                <th>Promotions/Flags</th>
+                <th style="text-align:right;">Predicted (RM)</th>
+                <th style="text-align:right;">Lower</th>
+                <th style="text-align:right;">Upper</th>
+            </tr>
+        </thead>
+        <tbody>
+            {forecast_rows}
+        </tbody>
+    </table>
+
+    {pva_section_html}
+    
+    <div style="margin-top:20px;font-size:9px;color:#64748B;line-height:1.6;">
+        <strong>Note:</strong> This forecast is generated using Prophet with multiplicative seasonality, 
+        incorporating Malaysian public holidays, weather regressors, and branch-specific demand patterns.
+        95% confidence intervals (Lower/Upper) are provided for risk assessment.
+    </div>
+</div>
+<div class="footer">
+    <div>MCS Analytics v1.0</div>
+    <div>Internal Use Only</div>
+</div>
+</body>
+</html>"""
+
+        from weasyprint import HTML as WP_HTML
+        pdf_bytes = WP_HTML(string=html_doc).write_pdf()
+        response  = make_response(pdf_bytes)
+        response.headers['Content-Type']        = 'application/pdf'
+        filename_str = f"MCS_Forecast_{branch_name.replace(' ','_')}_{datetime.now().strftime('%Y%m%d')}.pdf"
+        response.headers['Content-Disposition'] = f'attachment; filename="{filename_str}"'
+        return response
+
+    except ImportError:
+        # Fallback to HTML if WeasyPrint is missing
+        response = make_response(html_doc)
+        response.headers['Content-Type']        = 'text/html; charset=utf-8'
+        filename_str = f"MCS_Forecast_{branch_name.replace(' ','_')}_{datetime.now().strftime('%Y%m%d')}.html"
+        response.headers['Content-Disposition'] = f'attachment; filename="{filename_str}"'
+        return response
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"PDF render error: {str(e)}"}), 500
+
+
+# ============================================================
 #    API — PDF EXPORT (Executive Report Only, Month-Based)
 # ============================================================
+# ── Colour palette (flat, business) ───────────────────────────
+C_DARK    = colors.HexColor('#1E293B')   # headings
+C_MID     = colors.HexColor('#334155')   # body text
+C_MUTED   = colors.HexColor('#64748B')   # sub-labels
+C_LIGHT   = colors.HexColor('#F1F5F9')   # row alt / header bg
+C_BLUE    = colors.HexColor('#2563EB')   # accent / KPI
+C_TEAL    = colors.HexColor('#0D9488')   # positive
+C_RED     = colors.HexColor('#DC2626')   # negative
+C_AMBER   = colors.HexColor('#D97706')   # warning
+C_WHITE   = colors.white
+C_BORDER  = colors.HexColor('#CBD5E1')   # table borders
+C_HDRROW  = colors.HexColor('#1E293B')   # table header bg
+ 
+ 
+def _styles():
+    base = getSampleStyleSheet()
+ 
+    def add(name, **kw):
+        if name not in base:
+            base.add(ParagraphStyle(name=name, **kw))
+        return base[name]
+ 
+    add('RPT_Title',
+        fontName='Helvetica-Bold', fontSize=16,
+        textColor=C_DARK, spaceAfter=2, leading=20)
+    add('RPT_Sub',
+        fontName='Helvetica', fontSize=9,
+        textColor=C_MUTED, spaceAfter=0, leading=12)
+    add('RPT_SectionH',
+        fontName='Helvetica-Bold', fontSize=10,
+        textColor=C_DARK, spaceBefore=12, spaceAfter=4, leading=13)
+    add('RPT_Body',
+        fontName='Helvetica', fontSize=9,
+        textColor=C_MID, spaceAfter=3, leading=13)
+    add('RPT_BodySm',
+        fontName='Helvetica', fontSize=8,
+        textColor=C_MUTED, spaceAfter=2, leading=11)
+    add('RPT_Mono',
+        fontName='Courier', fontSize=8.5,
+        textColor=C_MID, spaceAfter=2, leading=12)
+    add('RPT_Bold',
+        fontName='Helvetica-Bold', fontSize=9,
+        textColor=C_DARK, spaceAfter=3, leading=13)
+    add('RPT_AI',
+        fontName='Helvetica', fontSize=9,
+        textColor=C_MID, spaceAfter=4, leading=14,
+        leftIndent=10)
+    add('RPT_Bullet',
+        fontName='Helvetica', fontSize=9,
+        textColor=C_MID, spaceAfter=3, leading=13,
+        leftIndent=16, bulletIndent=6)
+    return base
+ 
+ 
+def _table_style(has_header=True, stripe=True):
+    cmds = [
+        ('FONTNAME',  (0, 0), (-1, -1), 'Helvetica'),
+        ('FONTSIZE',  (0, 0), (-1, -1), 8.5),
+        ('TEXTCOLOR', (0, 0), (-1, -1), C_MID),
+        ('VALIGN',    (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING',    (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('LEFTPADDING',   (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING',  (0, 0), (-1, -1), 6),
+        ('GRID',      (0, 0), (-1, -1), 0.4, C_BORDER),
+    ]
+    if has_header:
+        cmds += [
+            ('BACKGROUND', (0, 0), (-1, 0), C_HDRROW),
+            ('TEXTCOLOR',  (0, 0), (-1, 0), C_WHITE),
+            ('FONTNAME',   (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE',   (0, 0), (-1, 0), 8.5),
+        ]
+    if stripe:
+        # stripe every even data row
+        cmds.append(('ROWBACKGROUNDS', (0, 1 if has_header else 0), (-1, -1),
+                     [C_WHITE, C_LIGHT]))
+    return TableStyle(cmds)
+ 
+ 
+def _section(title, story, styles):
+    story.append(Spacer(1, 6))
+    story.append(HRFlowable(width='100%', thickness=0.5, color=C_BORDER, spaceAfter=3))
+    story.append(Paragraph(title, styles['RPT_SectionH']))
+ 
+ 
+def _bar_cell(pct, bar_color=C_BLUE, width_pts=80):
+    """Return a mini text-based bar (ASCII-style using underscores)."""
+    filled = int(pct / 100 * 12)
+    bar = '█' * filled + '░' * (12 - filled)
+    return f'<font color="#{bar_color.hexval()[1:] if hasattr(bar_color,"hexval") else "2563EB"}">{bar}</font>'
+ 
+ 
+# ── PAGE TEMPLATE (header + footer) ───────────────────────────
+def _make_on_page(branch_label, month_label, now_str):
+    def on_page(canvas, doc):
+        canvas.saveState()
+        w, h = A4
+        # Header bar
+        canvas.setFillColor(C_DARK)
+        canvas.rect(0, h - 28*mm, w, 28*mm, fill=1, stroke=0)
+        # Accent line
+        canvas.setFillColor(C_BLUE)
+        canvas.rect(0, h - 29.5*mm, w, 1.5*mm, fill=1, stroke=0)
+ 
+        canvas.setFillColor(C_WHITE)
+        canvas.setFont('Helvetica-Bold', 13)
+        canvas.drawString(14*mm, h - 14*mm, '☕  Mini Coffee Shop — Executive Sales Report')
+        canvas.setFont('Helvetica', 8)
+        canvas.drawString(14*mm, h - 20*mm, f'{branch_label}  ·  {month_label}  ·  Confidential — Internal Use Only')
+        canvas.drawRightString(w - 14*mm, h - 20*mm, f'Generated: {now_str}')
+ 
+        # Footer
+        canvas.setFillColor(C_MUTED)
+        canvas.setFont('Helvetica', 7.5)
+        canvas.drawString(14*mm, 8*mm, 'MCS Analytics v1.0 — Internal Use Only')
+        canvas.drawCentredString(w / 2, 8*mm, f'Page {doc.page}')
+        canvas.drawRightString(w - 14*mm, 8*mm, f'{branch_label}  ·  {month_label}')
+        canvas.restoreState()
+    return on_page
+ 
+ 
 @app.route('/api/export-pdf')
 @login_required
 def api_export_pdf():
     branch_filter = request.args.get('branch',    'all')
     date_from     = request.args.get('date_from', None)
     date_to       = request.args.get('date_to',   None)
-
+ 
     if not date_from or not date_to:
         return jsonify({"status": "error", "message": "date_from and date_to are required."}), 400
-
+ 
+    # ── Fetch / global cache report data ──────────────────────
     try:
-        report_data = _build_report_data(branch_filter, date_from, date_to)
+        cache_key = f"{branch_filter}_{date_from}_{date_to}"
+        if cache_key in REPORT_CACHE:
+            report_data = REPORT_CACHE[cache_key]
+        else:
+            report_data = _build_report_data(branch_filter, date_from, date_to)
+            REPORT_CACHE[cache_key] = report_data
     except Exception as e:
         return jsonify({"status": "error", "message": f"Data error: {str(e)}"}), 500
-
+ 
+    # ── Derived labels ─────────────────────────────────────────
     branch_label = branch_filter if branch_filter != 'all' else 'All Branches'
     now_str      = datetime.now().strftime('%d %b %Y, %I:%M %p')
-    today        = datetime.now().strftime('%A, %d %B %Y')
-
     try:
         month_label = datetime.strptime(date_from, '%Y-%m-%d').strftime('%B %Y')
         month_key   = datetime.strptime(date_from, '%Y-%m-%d').strftime('%Y-%m')
     except Exception:
         month_label = date_from
         month_key   = date_from[:7]
-
-    # ─────────────────────────────────────────────────────────
-    #   SECTION 2 — Monthly Revenue Trend Table
-    # ─────────────────────────────────────────────────────────
-    mt = report_data.get('monthly_trend', {})
-    mt_labels   = mt.get('labels',   [])
-    mt_keys     = mt.get('keys',     [])
-    mt_branches = mt.get('branches', [])
-    mt_by_b     = mt.get('by_branch', {})
-
-    slice_n    = min(6, len(mt_labels))
-    start_idx  = len(mt_labels) - slice_n
-    rec_labels = mt_labels[start_idx:]
-    rec_keys   = mt_keys[start_idx:]
-
-    monthly_table_html = ""
-    if rec_labels:
-        header_cols = "".join([f"<th style='text-align:right;'>{b}</th>" for b in mt_branches])
-        monthly_table_html = f"""
-        <table>
-            <thead>
-                <tr>
-                    <th>Month</th>
-                    {header_cols}
-                    <th style='text-align:right;'>Total</th>
-                </tr>
-            </thead>
-            <tbody>"""
-        for i, lbl in enumerate(rec_labels):
-            real_idx  = start_idx + i
-            total_row = sum(mt_by_b.get(b, [0]*len(mt_labels))[real_idx] for b in mt_branches)
-            is_curr   = (rec_keys[i] == month_key)
-            row_style = "background:#EFF6FF;font-weight:700;" if is_curr else ("background:#F8FAFC;" if i%2 else "")
-            branch_cells = "".join([
-                f"<td style='text-align:right;font-family:monospace;padding:5px 8px;'>"
-                f"RM {mt_by_b.get(b,[0]*len(mt_labels))[real_idx]:,.2f}</td>"
-                for b in mt_branches
-            ])
-            curr_marker = " ◀" if is_curr else ""
-            monthly_table_html += f"""
-                <tr style='{row_style}'>
-                    <td style='font-family:monospace;padding:5px 8px;'>{lbl}{curr_marker}</td>
-                    {branch_cells}
-                    <td style='text-align:right;font-family:monospace;font-weight:700;color:#3B82F6;padding:5px 8px;'>RM {total_row:,.2f}</td>
-                </tr>"""
-        monthly_table_html += "</tbody></table>"
-        monthly_table_html += "<div style='font-size:9px;color:#94A3B8;margin-top:3px;'>◀ Highlighted = selected reporting month.</div>"
-
-    # ─────────────────────────────────────────────────────────
-    #   SECTION 3 — KPI Grid
-    # ─────────────────────────────────────────────────────────
-    aov_val      = report_data.get('aov', 0)
-    daily_avg    = report_data.get('daily_average', 0)
-    period_txns  = report_data.get('period_txns', 0)
-    days_in_p    = max(len(report_data.get('daily', [])), 1)
-    avg_daily_t  = round(period_txns / days_in_p, 1)
-
-    # ─────────────────────────────────────────────────────────
-    #   SECTION 4 — Predicted vs Actual (Prophet in-sample)
-    # ─────────────────────────────────────────────────────────
-    pva_rows      = report_data.get('predicted_vs_actual', [])
-    pva_total_p   = report_data.get('pva_total_predicted', 0)
-    pva_total_a   = report_data.get('pva_total_actual',    0)
-    pva_mape      = report_data.get('pva_mape',            0)
-    pva_in_range  = report_data.get('pva_within_range',    0)
-    pva_days      = report_data.get('pva_days_with_data',  0)
-    pva_max_val   = max(
-        (max(r.get('yhat', 0) or 0, r.get('actual', 0) or 0) for r in pva_rows),
-        default=1
+ 
+    # ── Build PDF with ReportLab ───────────────────────────────
+    buf    = BytesIO()
+    styles = _styles()
+    M      = 14 * mm
+ 
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=M, rightMargin=M,
+        topMargin=34*mm, bottomMargin=18*mm,
     )
-
-    pva_table_rows_html = ""
-    for i, r in enumerate(pva_rows):
-        has_actual = r['actual'] is not None
-        var        = r.get('variance')
-        var_pct    = r.get('variance_pct')
-        in_range   = r.get('in_range')
-        hbadge     = ' 🎉' if r.get('is_holiday') else ''
-        row_bg     = '#F8FAFC' if i % 2 else 'white'
-
-        # Variance colour
-        if var is not None:
-            var_color = '#059669' if var >= 0 else '#DC2626'
-            var_str   = f"{'+'if var>=0 else ''}RM {abs(var):,.2f} ({'+'if var_pct>=0 else ''}{var_pct}%)"
-        else:
-            var_color = '#94A3B8'
-            var_str   = '—'
-
-        actual_str = f"RM {r['actual']:,.2f}" if has_actual else '<span style="color:#94A3B8;font-size:9px;">No data</span>'
-        range_badge = ''
-        if has_actual and in_range is not None:
-            range_badge = (
-                '<span style="background:#ECFDF5;color:#065F46;border-radius:3px;font-size:8px;padding:1px 4px;">✓ On Target</span>'
-                if in_range else
-                '<span style="background:#FEF2F2;color:#991B1B;border-radius:3px;font-size:8px;padding:1px 4px;">⚠ Off Range</span>'
-            )
-
-        pct_of_max = round(((r.get('yhat', 0) or 0) / pva_max_val) * 100, 1)
-        act_pct    = round(((r.get('actual', 0) or 0) / pva_max_val) * 100, 1) if has_actual else 0
-
-        pva_table_rows_html += f"""
-        <tr style="background:{row_bg};">
-            <td style="font-family:monospace;padding:5px 8px;font-size:9px;">{r['ds']}</td>
-            <td style="padding:5px 8px;font-size:9px;">{r['day_name']}{hbadge}</td>
-            <td style="padding:5px 8px;width:80px;">
-                <div style="background:#E2E8F0;border-radius:2px;height:5px;margin-bottom:2px;overflow:hidden;">
-                    <div style="width:{pct_of_max}%;height:100%;background:#93C5FD;border-radius:2px;"></div>
-                </div>
-                <div style="background:#E2E8F0;border-radius:2px;height:5px;overflow:hidden;">
-                    <div style="width:{act_pct}%;height:100%;background:#10B981;border-radius:2px;"></div>
-                </div>
-            </td>
-            <td style="text-align:right;font-family:monospace;padding:5px 8px;color:#3B82F6;font-size:9px;">RM {r.get('yhat',0):,.2f}</td>
-            <td style="text-align:right;font-family:monospace;padding:5px 8px;font-size:9px;">{actual_str}</td>
-            <td style="text-align:right;font-family:monospace;padding:5px 8px;color:{var_color};font-size:9px;">{var_str}</td>
-            <td style="padding:5px 8px;font-size:8px;">{range_badge}</td>
-        </tr>"""
-
-    if pva_table_rows_html:
-        pva_section_html = f"""
-        <div style="font-size:9px;color:#64748B;margin-bottom:6px;line-height:1.6;">
-            <span style="display:inline-block;width:12px;height:6px;background:#93C5FD;border-radius:2px;margin-right:3px;"></span>Predicted &nbsp;
-            <span style="display:inline-block;width:12px;height:6px;background:#10B981;border-radius:2px;margin-right:3px;"></span>Actual
-        </div>
-        <table>
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Day</th>
-                    <th style="width:80px;">Volume</th>
-                    <th style="text-align:right;">Predicted (RM)</th>
-                    <th style="text-align:right;">Actual (RM)</th>
-                    <th style="text-align:right;">Variance</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-            <tbody>{pva_table_rows_html}</tbody>
-        </table>
-        <div class="three-col" style="margin-top:8px;">
-            <div class="insight-box">
-                <strong>📊 Model Accuracy (MAPE):</strong><br>
-                {pva_mape}% avg error across {pva_days} days
-            </div>
-            <div class="insight-box" style="background:#ECFDF5;border-color:#6EE7B7;color:#065F46;">
-                <strong>🎯 Within Forecast Range:</strong><br>
-                {pva_in_range} of {pva_days} days on target
-            </div>
-            <div class="insight-box" style="background:#FFFBEB;border-color:#FDE68A;color:#92400E;">
-                <strong>📈 Predicted vs Actual:</strong><br>
-                RM {pva_total_p:,.2f} vs RM {pva_total_a:,.2f}
-            </div>
-        </div>"""
+ 
+    story = []
+ 
+    # ── Helpers ────────────────────────────────────────────────
+    def P(text, style='RPT_Body'):
+        return Paragraph(text, styles[style])
+ 
+    def num(n, dp=2):
+        return f'{float(n or 0):,.{dp}f}'
+ 
+    def pct_bar(pct, width=60):
+        """Tiny visual bar using filled chars."""
+        filled = max(0, min(12, int((pct or 0) / 100 * 12)))
+        return '█' * filled + '░' * (12 - filled)
+ 
+    # ─────────────────────────────────────────────────────────
+    #   SECTION 1 — EXECUTIVE SUMMARY
+    # ─────────────────────────────────────────────────────────
+    _section('1.  Executive Summary', story, styles)
+ 
+    rd            = report_data
+    period_rev    = rd.get('period_revenue', 0)
+    period_txns   = rd.get('period_txns', 0)
+    daily_avg     = rd.get('daily_average', 0)
+    aov           = rd.get('aov', 0)
+    trend_label   = rd.get('trend_label', 'N/A')
+    top_branch    = rd.get('top_branch', 'N/A')
+    peak_hour     = rd.get('peak_hour', 'N/A')
+    peak_day      = rd.get('peak_day', 'N/A')
+    days_in_p     = max(len(rd.get('daily', [])), 1)
+    avg_daily_t   = round(period_txns / days_in_p, 1)
+ 
+    kpi_data = [
+        ['Metric', 'Value', 'Metric', 'Value'],
+        ['Total Revenue',      f'RM {num(period_rev)}',  'Sales Volume',      f'{int(period_txns):,} orders'],
+        ['Daily Average',      f'RM {num(daily_avg)}',   'Avg Order Value',   f'RM {num(aov)}'],
+        ['Period vs Prior',    trend_label,               'Top Branch',        top_branch],
+        ['Peak Hour',          peak_hour,                 'Peak Day',          peak_day],
+        ['Reporting Period',   f'{date_from} to {date_to}', 'Avg Daily Orders', str(avg_daily_t)],
+    ]
+ 
+    kpi_tbl = Table(kpi_data, colWidths=[45*mm, 45*mm, 45*mm, 45*mm])
+    kpi_tbl.setStyle(TableStyle([
+        ('BACKGROUND',    (0, 0), (-1, 0), C_HDRROW),
+        ('TEXTCOLOR',     (0, 0), (-1, 0), C_WHITE),
+        ('FONTNAME',      (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTNAME',      (0, 1), (-1, -1), 'Helvetica'),
+        ('FONTNAME',      (0, 1), (0, -1), 'Helvetica-Bold'),  # left label col bold
+        ('FONTNAME',      (2, 1), (2, -1), 'Helvetica-Bold'),  # right label col bold
+        ('FONTSIZE',      (0, 0), (-1, -1), 8.5),
+        ('TEXTCOLOR',     (0, 1), (-1, -1), C_MID),
+        ('TEXTCOLOR',     (1, 1), (1, -1), C_BLUE),
+        ('TEXTCOLOR',     (3, 1), (3, -1), C_BLUE),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [C_WHITE, C_LIGHT]),
+        ('GRID',          (0, 0), (-1, -1), 0.4, C_BORDER),
+        ('TOPPADDING',    (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('LEFTPADDING',   (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING',  (0, 0), (-1, -1), 6),
+        ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    story.append(KeepTogether([kpi_tbl]))
+    story.append(Spacer(1, 4))
+    story.append(P('⚠  Profit & COGS data not available from POS logs. Revenue figures represent gross sales only.',
+                   'RPT_BodySm'))
+ 
+    # ─────────────────────────────────────────────────────────
+    #   SECTION 2 — MONTHLY REVENUE TREND
+    # ─────────────────────────────────────────────────────────
+    mt         = rd.get('monthly_trend', {})
+    mt_labels  = mt.get('labels',   [])
+    mt_keys    = mt.get('keys',     [])
+    mt_branches= mt.get('branches', [])
+    mt_by_b    = mt.get('by_branch', {})
+ 
+    slice_n   = min(6, len(mt_labels))
+    start_idx = len(mt_labels) - slice_n
+    rec_labels= mt_labels[start_idx:]
+    rec_keys  = mt_keys[start_idx:]
+ 
+    _section(f'2.  Revenue Trend — Last {slice_n} Months', story, styles)
+ 
+    if rec_labels:
+        hdr = ['Month'] + mt_branches + ['Total']
+        rows = [hdr]
+        for i, lbl in enumerate(rec_labels):
+            ri       = start_idx + i
+            is_curr  = (rec_keys[i] == month_key)
+            total_r  = sum(mt_by_b.get(b, [0]*len(mt_labels))[ri] for b in mt_branches)
+            row      = [f'{"► " if is_curr else ""}{lbl}']
+            row     += [f'RM {num(mt_by_b.get(b,[0]*len(mt_labels))[ri])}' for b in mt_branches]
+            row     += [f'RM {num(total_r)}']
+            rows.append(row)
+ 
+        n_cols   = len(hdr)
+        col_w    = [30*mm] + [None]*(n_cols-2) + [30*mm]
+        avail    = 180*mm - 30*mm - 30*mm
+        mid_w    = avail / max(n_cols - 2, 1)
+        col_w[1:-1] = [mid_w] * (n_cols - 2)
+ 
+        mt_tbl = Table(rows, colWidths=col_w)
+        mt_style = _table_style()
+        # highlight current month rows
+        for i, k in enumerate(rec_keys):
+            if k == month_key:
+                mt_style.add('BACKGROUND', (0, i+1), (-1, i+1), colors.HexColor('#EFF6FF'))
+                mt_style.add('FONTNAME',   (0, i+1), (-1, i+1), 'Helvetica-Bold')
+                mt_style.add('TEXTCOLOR',  (-1, i+1), (-1, i+1), C_BLUE)
+        # right-align numeric cols
+        for c in range(1, n_cols):
+            mt_style.add('ALIGN', (c, 0), (c, -1), 'RIGHT')
+        mt_tbl.setStyle(mt_style)
+        story.append(KeepTogether([mt_tbl]))
+        story.append(P('► Highlighted row = selected reporting month.', 'RPT_BodySm'))
+ 
+    # ─────────────────────────────────────────────────────────
+    #   SECTION 3 — DAILY SALES vs PREDICTED (PvA)
+    # ─────────────────────────────────────────────────────────
+    _section(f'3.  Daily Sales — Predicted vs Actual ({month_label})', story, styles)
+ 
+    pva_rows     = rd.get('predicted_vs_actual', [])
+    pva_total_p  = rd.get('pva_total_predicted', 0)
+    pva_total_a  = rd.get('pva_total_actual', 0)
+    pva_mape     = rd.get('pva_mape', 0)
+    pva_in_range = rd.get('pva_within_range', 0)
+    pva_days     = rd.get('pva_days_with_data', 0)
+ 
+    # PvA summary row
+    pva_sum = [
+        ['Total Predicted', f'RM {num(pva_total_p)}',
+         'Total Actual', f'RM {num(pva_total_a)}',
+         'MAPE', f'{pva_mape}%',
+         'On Target', f'{pva_in_range} / {pva_days} days']
+    ]
+    pva_sum_tbl = Table(pva_sum, colWidths=[30*mm, 30*mm, 25*mm, 30*mm, 18*mm, 20*mm, 20*mm, 28*mm])
+    pva_sum_tbl.setStyle(TableStyle([
+        ('BACKGROUND',    (0, 0), (-1, -1), C_LIGHT),
+        ('FONTNAME',      (0, 0), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE',      (0, 0), (-1, -1), 8.5),
+        ('TEXTCOLOR',     (0, 0), (-1, -1), C_DARK),
+        ('GRID',          (0, 0), (-1, -1), 0.4, C_BORDER),
+        ('TOPPADDING',    (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('LEFTPADDING',   (0, 0), (-1, -1), 5),
+        ('RIGHTPADDING',  (0, 0), (-1, -1), 5),
+        ('ALIGN',         (1, 0), (1, -1), 'RIGHT'),
+        ('ALIGN',         (3, 0), (3, -1), 'RIGHT'),
+        ('ALIGN',         (5, 0), (5, -1), 'RIGHT'),
+        ('ALIGN',         (7, 0), (7, -1), 'RIGHT'),
+    ]))
+    story.append(pva_sum_tbl)
+    story.append(Spacer(1, 4))
+ 
+    if pva_rows:
+        pva_hdr = ['Date', 'Day', 'Predicted (RM)', 'Actual (RM)', 'Variance', 'Var %', 'Status']
+        pva_body = [pva_hdr]
+        for r in pva_rows:
+            has_act = r['actual'] is not None
+            var     = r.get('variance')
+            var_pct = r.get('variance_pct')
+            status  = ''
+            if has_act and r.get('in_range') is not None:
+                status = 'On Target' if r['in_range'] else 'Off Range'
+            holiday_flag = ' 🎉' if r.get('is_holiday') else ''
+            pva_body.append([
+                r['ds'],
+                r['day_name'] + holiday_flag,
+                num(r.get('yhat', 0)),
+                num(r['actual']) if has_act else '—',
+                (f"+{num(var)}" if var and var >= 0 else num(var)) if var is not None else '—',
+                (f"+{var_pct}%" if var_pct and var_pct >= 0 else f"{var_pct}%") if var_pct is not None else '—',
+                status,
+            ])
+ 
+        pva_tbl = Table(pva_body, colWidths=[22*mm, 16*mm, 30*mm, 28*mm, 28*mm, 18*mm, 22*mm])
+        pva_style = _table_style()
+        for i, r in enumerate(pva_rows, start=1):
+            var = r.get('variance')
+            if var is not None:
+                col = C_TEAL if var >= 0 else C_RED
+                pva_style.add('TEXTCOLOR', (4, i), (5, i), col)
+        for c in [2, 3, 4, 5]:
+            pva_style.add('ALIGN', (c, 0), (c, -1), 'RIGHT')
+        pva_tbl.setStyle(pva_style)
+        story.append(KeepTogether([pva_tbl]))
     else:
-        pva_section_html = """
-        <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;
-             padding:14px;text-align:center;color:#94A3B8;font-size:10px;">
-            No forecast data found for this period. Run the AI Forecast engine first,
-            then select a past month to compare predictions against actual sales.
-        </div>"""
-
+        story.append(P('No forecast data found for this period. Run the AI Forecast engine first.', 'RPT_BodySm'))
+ 
     # ─────────────────────────────────────────────────────────
-    #   SECTION 5 — Product / Regional / Category / Payment
+    #   SECTION 4 — PRODUCT PERFORMANCE
     # ─────────────────────────────────────────────────────────
-    top_prod_rows = ""
-    for i, p in enumerate(report_data.get('top_products', [])):
-        top_prod_rows += f"""
-        <tr style="background:{'#F8FAFC' if i%2 else 'white'};">
-            <td style="padding:5px 8px;">
-                <span style="display:inline-block;width:18px;height:18px;border-radius:50%;
-                      background:#3B82F6;color:white;font-size:9px;font-weight:700;
-                      text-align:center;line-height:18px;">{i+1}</span> {p['product_name']}
-            </td>
-            <td style="text-align:right;font-family:monospace;padding:5px 8px;">{int(p['qty']):,}</td>
-            <td style="text-align:right;font-family:monospace;padding:5px 8px;">RM {p['revenue']:,.2f}</td>
-            <td style="text-align:right;padding:5px 8px;">
-                <div style="background:#E2E8F0;border-radius:3px;height:5px;overflow:hidden;">
-                    <div style="width:{p['pct']}%;height:100%;background:linear-gradient(90deg,#3B82F6,#60A5FA);border-radius:3px;"></div>
-                </div>
-            </td>
-            <td style="text-align:right;padding:5px 8px;color:#64748B;">{p['pct']}%</td>
-        </tr>"""
-
-    bot_prod_rows = ""
-    for i, p in enumerate(report_data.get('bottom_products', [])):
-        bot_prod_rows += f"""
-        <tr style="background:{'#F8FAFC' if i%2 else 'white'};">
-            <td style="padding:5px 8px;color:#EF4444;">{p['product_name']}</td>
-            <td style="text-align:right;font-family:monospace;padding:5px 8px;">{int(p['qty']):,}</td>
-            <td style="text-align:right;font-family:monospace;padding:5px 8px;">RM {p['revenue']:,.2f}</td>
-        </tr>"""
-
-    regional_rows = ""
-    br_max = report_data.get('branch_max_rev', 1)
-    br_colors = ['#3B82F6', '#F59E0B', '#10B981', '#8B5CF6']
-    for i, r in enumerate(report_data.get('regional_breakdown', [])):
-        pct = round((r['rev'] / br_max) * 100, 1)
-        is_top = r['branch_name'] == report_data.get('top_branch', '')
-        regional_rows += f"""
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px;font-size:10px;">
-            <div style="width:100px;flex-shrink:0;font-weight:{'700' if is_top else '400'};color:#334155;">
-                {'⭐ ' if is_top else ''}{r['branch_name']}
-            </div>
-            <div style="flex:1;background:#E2E8F0;border-radius:4px;height:10px;overflow:hidden;">
-                <div style="width:{pct}%;height:100%;background:{br_colors[i%4]};border-radius:4px;"></div>
-            </div>
-            <div style="width:75px;text-align:right;font-family:monospace;font-weight:600;color:#1E293B;">RM {r['rev']:,.2f}</div>
-        </div>"""
-
-    cat_total = sum(c['revenue'] for c in report_data.get('category_breakdown', [])) or 1
-    cat_rows  = ""
-    for i, c in enumerate(report_data.get('category_breakdown', [])):
-        bw = round((c['revenue'] / cat_total) * 100, 1)
-        cat_rows += f"""
-        <tr style="background:{'#F8FAFC' if i%2 else 'white'};">
-            <td style="padding:5px 8px;">{c['product_category']}</td>
-            <td style="text-align:right;font-family:monospace;padding:5px 8px;">RM {c['revenue']:,.2f}</td>
-            <td style="text-align:right;padding:5px 8px;">{c['pct']}%</td>
-            <td style="padding:5px 8px;width:70px;">
-                <div style="background:#E2E8F0;border-radius:3px;height:6px;overflow:hidden;">
-                    <div style="width:{bw}%;height:100%;background:linear-gradient(90deg,#10B981,#34D399);border-radius:3px;"></div>
-                </div>
-            </td>
-        </tr>"""
-
-    pay_total  = sum(p['txn_count'] for p in report_data.get('payment_breakdown', [])) or 1
-    pay_colors = ['#3B82F6', '#F59E0B', '#10B981', '#8B5CF6']
-    pay_rows   = ""
-    for i, p in enumerate(report_data.get('payment_breakdown', [])):
-        bw = round((p['txn_count'] / pay_total) * 100, 1)
-        pay_rows += f"""
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;font-size:10px;">
-            <div style="width:100px;flex-shrink:0;color:#334155;">{p['payment_method']}</div>
-            <div style="flex:1;background:#E2E8F0;border-radius:4px;height:8px;overflow:hidden;">
-                <div style="width:{bw}%;height:100%;background:{pay_colors[i%4]};border-radius:4px;"></div>
-            </div>
-            <div style="width:40px;text-align:right;font-family:monospace;font-weight:600;color:#1E293B;">{p['pct']}%</div>
-        </div>"""
-
+    story.append(PageBreak())
+    _section('4.  Product Performance', story, styles)
+ 
+    top_prods = rd.get('top_products', [])
+    bot_prods = rd.get('bottom_products', [])
+ 
+    if top_prods:
+        story.append(P('Top-Selling Products (by quantity)', 'RPT_Bold'))
+        top_hdr = ['#', 'Product', 'Units Sold', 'Revenue (RM)', 'Share %', 'Bar']
+        top_body = [top_hdr]
+        for i, p in enumerate(top_prods, 1):
+            top_body.append([
+                str(i),
+                p['product_name'],
+                f"{int(p['qty']):,}",
+                num(p['revenue']),
+                f"{p['pct']}%",
+                pct_bar(float(p['pct'] or 0)),
+            ])
+        top_tbl = Table(top_body, colWidths=[8*mm, 55*mm, 25*mm, 32*mm, 20*mm, 42*mm])
+        ts = _table_style()
+        ts.add('ALIGN', (0, 0), (0, -1), 'CENTER')
+        for c in [2, 3, 4]:
+            ts.add('ALIGN', (c, 0), (c, -1), 'RIGHT')
+        ts.add('FONTNAME', (5, 1), (5, -1), 'Courier')
+        ts.add('FONTSIZE', (5, 1), (5, -1), 7)
+        ts.add('TEXTCOLOR', (5, 1), (5, -1), C_BLUE)
+        top_tbl.setStyle(ts)
+        story.append(KeepTogether([top_tbl]))
+        story.append(Spacer(1, 6))
+ 
+    if bot_prods:
+        story.append(P('Underperforming Products — Bottom 3 (by quantity)', 'RPT_Bold'))
+        bot_hdr = ['Product', 'Units Sold', 'Revenue (RM)']
+        bot_body = [bot_hdr] + [
+            [p['product_name'], f"{int(p['qty']):,}", num(p['revenue'])]
+            for p in bot_prods
+        ]
+        bot_tbl = Table(bot_body, colWidths=[100*mm, 35*mm, 45*mm])
+        bs = _table_style()
+        bs.add('TEXTCOLOR', (0, 1), (0, -1), C_RED)
+        for c in [1, 2]:
+            bs.add('ALIGN', (c, 0), (c, -1), 'RIGHT')
+        bot_tbl.setStyle(bs)
+        story.append(KeepTogether([bot_tbl]))
+ 
     # ─────────────────────────────────────────────────────────
-    #   SECTION 6 — Pipeline: Hourly + Day-of-Week
+    #   SECTION 5 — REGIONAL & CATEGORY BREAKDOWN
     # ─────────────────────────────────────────────────────────
-    hourly_data   = report_data.get('hourly_breakdown', [])
-    hourly_max    = max((h['txns'] for h in hourly_data), default=1)
-    peak_hour_val = report_data.get('peak_hour', 'N/A')
-
-    hourly_rows = ""
-    for h in hourly_data:
-        bw     = round((h['txns'] / hourly_max) * 100, 1)
-        isPeak = peak_hour_val.startswith(h['hour'][:2])
-        hourly_rows += f"""
-        <tr style="background:{'#EFF6FF' if isPeak else 'white'};">
-            <td style="font-family:monospace;padding:4px 8px;font-size:9px;">{'⭐ ' if isPeak else ''}{h['hour']}</td>
-            <td style="padding:4px 8px;">
-                <div style="background:#E2E8F0;border-radius:3px;height:5px;overflow:hidden;">
-                    <div style="width:{bw}%;height:100%;background:{'#1D4ED8' if isPeak else '#93C5FD'};border-radius:3px;"></div>
-                </div>
-            </td>
-            <td style="text-align:right;font-family:monospace;padding:4px 8px;font-size:9px;">{h['txns']:,}</td>
-            <td style="text-align:right;font-family:monospace;padding:4px 8px;font-size:9px;color:#64748B;">RM {h['revenue']:,.2f}</td>
-        </tr>"""
-
-    dow_data    = report_data.get('dow_breakdown', [])
-    dow_max     = max((d['txns'] for d in dow_data), default=1)
-    peak_day_v  = report_data.get('peak_day', 'N/A')
-    dow_rows    = ""
-    for d in dow_data:
-        bw     = round((d['txns'] / dow_max) * 100, 1)
-        isPeak = (d['day'] == peak_day_v)
-        dow_rows += f"""
-        <tr style="background:{'#ECFDF5' if isPeak else 'white'};">
-            <td style="padding:4px 8px;font-size:9px;">{'⭐ ' if isPeak else ''}{d['day']}</td>
-            <td style="padding:4px 8px;">
-                <div style="background:#E2E8F0;border-radius:3px;height:5px;overflow:hidden;">
-                    <div style="width:{bw}%;height:100%;background:{'#059669' if isPeak else '#6EE7B7'};border-radius:3px;"></div>
-                </div>
-            </td>
-            <td style="text-align:right;font-family:monospace;padding:4px 8px;font-size:9px;">{d['txns']:,}</td>
-            <td style="text-align:right;font-family:monospace;padding:4px 8px;font-size:9px;color:#64748B;">RM {d['revenue']:,.2f}</td>
-        </tr>"""
-
+    _section('5.  Regional & Category Breakdown', story, styles)
+ 
+    reg_data = rd.get('regional_breakdown', [])
+    cat_data = rd.get('category_breakdown', [])
+    pay_data = rd.get('payment_breakdown', [])
+ 
+    if reg_data:
+        story.append(P('Branch Performance', 'RPT_Bold'))
+        reg_hdr  = ['Branch', 'Revenue (RM)', 'Transactions', 'Bar']
+        reg_body = [reg_hdr]
+        br_max   = rd.get('branch_max_rev', 1) or 1
+        for r in reg_data:
+            is_top = r['branch_name'] == top_branch
+            reg_body.append([
+                ('★ ' if is_top else '') + r['branch_name'],
+                num(r['rev']),
+                f"{int(r['txns']):,}",
+                pct_bar(r['rev'] / br_max * 100),
+            ])
+        reg_tbl = Table(reg_body, colWidths=[55*mm, 40*mm, 35*mm, 52*mm])
+        rs = _table_style()
+        rs.add('ALIGN', (1, 0), (2, -1), 'RIGHT')
+        rs.add('FONTNAME', (3, 1), (3, -1), 'Courier')
+        rs.add('FONTSIZE', (3, 1), (3, -1), 7)
+        rs.add('TEXTCOLOR', (3, 1), (3, -1), C_BLUE)
+        reg_tbl.setStyle(rs)
+        story.append(KeepTogether([reg_tbl]))
+        story.append(Spacer(1, 6))
+ 
+    if cat_data:
+        story.append(P('Revenue by Product Category', 'RPT_Bold'))
+        cat_hdr  = ['Category', 'Revenue (RM)', 'Share %', 'Bar']
+        cat_body = [cat_hdr] + [
+            [c['product_category'], num(c['revenue']), f"{c['pct']}%", pct_bar(float(c['pct'] or 0))]
+            for c in cat_data
+        ]
+        cat_tbl = Table(cat_body, colWidths=[60*mm, 40*mm, 22*mm, 60*mm])
+        cs = _table_style()
+        cs.add('ALIGN', (1, 0), (2, -1), 'RIGHT')
+        cs.add('FONTNAME', (3, 1), (3, -1), 'Courier')
+        cs.add('FONTSIZE', (3, 1), (3, -1), 7)
+        cs.add('TEXTCOLOR', (3, 1), (3, -1), C_TEAL)
+        cat_tbl.setStyle(cs)
+        story.append(KeepTogether([cat_tbl]))
+        story.append(Spacer(1, 6))
+ 
+    if pay_data:
+        story.append(P('Payment Method Breakdown', 'RPT_Bold'))
+        pay_hdr  = ['Payment Method', 'Transactions', 'Share %', 'Bar']
+        pay_body = [pay_hdr] + [
+            [p['payment_method'], f"{int(p['txn_count']):,}", f"{p['pct']}%", pct_bar(float(p['pct'] or 0))]
+            for p in pay_data
+        ]
+        pay_tbl = Table(pay_body, colWidths=[60*mm, 35*mm, 22*mm, 65*mm])
+        ps = _table_style()
+        ps.add('ALIGN', (1, 0), (2, -1), 'RIGHT')
+        ps.add('FONTNAME', (3, 1), (3, -1), 'Courier')
+        ps.add('FONTSIZE', (3, 1), (3, -1), 7)
+        ps.add('TEXTCOLOR', (3, 1), (3, -1), colors.HexColor('#D97706'))
+        pay_tbl.setStyle(ps)
+        story.append(KeepTogether([pay_tbl]))
+ 
     # ─────────────────────────────────────────────────────────
-    #   SECTION 7 — AI Recommendations
+    #   SECTION 6 — TRANSACTION FLOW (Hourly + Day-of-Week)
     # ─────────────────────────────────────────────────────────
-    ai_html = report_data.get('ai_insight', 'N/A').replace('\n', '<br>').replace('**', '')
-    top_prods_list = report_data.get('top_products', [])
-
+    _section('6.  Transaction Flow by Time', story, styles)
+ 
+    hourly_data = rd.get('hourly_breakdown', [])
+    dow_data    = rd.get('dow_breakdown', [])
+    hourly_max  = max((h['txns'] for h in hourly_data), default=1) or 1
+    dow_max     = max((d['txns'] for d in dow_data),    default=1) or 1
+ 
+    if hourly_data:
+        story.append(P('Hourly Transaction Volume', 'RPT_Bold'))
+        hr_hdr  = ['Hour', 'Transactions', 'Revenue (RM)', 'Activity']
+        hr_body = [hr_hdr]
+        for h in hourly_data:
+            is_peak = peak_hour.startswith(h['hour'][:2])
+            hr_body.append([
+                ('★ ' if is_peak else '') + h['hour'],
+                f"{h['txns']:,}",
+                num(h['revenue']),
+                pct_bar(h['txns'] / hourly_max * 100),
+            ])
+        hr_tbl = Table(hr_body, colWidths=[28*mm, 30*mm, 36*mm, 88*mm])
+        hs = _table_style()
+        hs.add('ALIGN', (1, 0), (2, -1), 'RIGHT')
+        hs.add('FONTNAME', (3, 1), (3, -1), 'Courier')
+        hs.add('FONTSIZE', (3, 1), (3, -1), 7)
+        hs.add('TEXTCOLOR', (3, 1), (3, -1), C_BLUE)
+        hr_tbl.setStyle(hs)
+        story.append(KeepTogether([hr_tbl]))
+        story.append(Spacer(1, 6))
+ 
+    if dow_data:
+        story.append(P('Day-of-Week Revenue Pattern', 'RPT_Bold'))
+        dow_hdr  = ['Day', 'Transactions', 'Revenue (RM)', 'Activity']
+        dow_body = [dow_hdr]
+        for d in dow_data:
+            is_peak = (d['day'] == peak_day)
+            dow_body.append([
+                ('★ ' if is_peak else '') + d['day'],
+                f"{d['txns']:,}",
+                num(d['revenue']),
+                pct_bar(d['txns'] / dow_max * 100),
+            ])
+        dow_tbl = Table(dow_body, colWidths=[30*mm, 30*mm, 36*mm, 86*mm])
+        ds = _table_style()
+        ds.add('ALIGN', (1, 0), (2, -1), 'RIGHT')
+        ds.add('FONTNAME', (3, 1), (3, -1), 'Courier')
+        ds.add('FONTSIZE', (3, 1), (3, -1), 7)
+        ds.add('TEXTCOLOR', (3, 1), (3, -1), C_TEAL)
+        dow_tbl.setStyle(ds)
+        story.append(KeepTogether([dow_tbl]))
+ 
     # ─────────────────────────────────────────────────────────
-    #   RENDER FULL PDF HTML
+    #   SECTION 7 — AI RECOMMENDATIONS
     # ─────────────────────────────────────────────────────────
-    html_doc = f"""<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>MCS Executive Report — {branch_label} — {month_label}</title>
-<style>
-  @page {{ size: A4 portrait; margin: 15mm 12mm; }}
-  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-  body {{ font-family: Arial, sans-serif; font-size: 10.5px; color: #1E293B; width: 100%; }}
-
-  /* ── Page break control ───────────────────────────────── */
-  .page-break {{ page-break-before: always; break-before: page; }}
-  .no-break   {{ page-break-inside: avoid; break-inside: avoid; }}
-  .keep-with-next {{ page-break-after: avoid; break-after: avoid; }}
-
-  .header {{ background: linear-gradient(135deg,#1E2A3A,#2A3B52); padding: 28px 36px 22px; color: white; position:relative;overflow:hidden; }}
-  .header::after {{ content:'';position:absolute;right:-40px;top:-40px;width:180px;height:180px;border-radius:50%;background:rgba(59,130,246,.12); }}
-  .brand {{ display:flex;align-items:center;gap:10px;margin-bottom:14px; }}
-  .brand-icon {{ width:36px;height:36px;background:linear-gradient(135deg,#F59E0B,#D97706);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:18px; }}
-  .accent {{ height:4px;background:linear-gradient(90deg,#F59E0B,#3B82F6,#10B981); }}
-  .body {{ padding:24px 36px; }}
-
-  .section-title {{
-    font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;
-    border-left:3px solid #3B82F6;padding-left:7px;margin:18px 0 10px;color:#1E2A3A;
-  }}
-
-  .kpi-5col {{ display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:4px; }}
-  .kpi-4col {{ display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:4px; }}
-  .kpi-box {{ border:1px solid #E2E8F0;border-radius:7px;padding:10px 12px;background:#F8FAFC;position:relative;overflow:hidden; }}
-  .kpi-box::before {{ content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:7px 7px 0 0; }}
-  .kpi-box.k-blue::before   {{ background:#3B82F6; }}
-  .kpi-box.k-amber::before  {{ background:#F59E0B; }}
-  .kpi-box.k-teal::before   {{ background:#10B981; }}
-  .kpi-box.k-cyan::before   {{ background:#06B6D4; }}
-  .kpi-box.k-purple::before {{ background:#8B5CF6; }}
-  .kpi-label {{ font-size:8px;color:#64748B;text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px; }}
-  .kpi-value {{ font-size:14px;font-weight:700;color:#1E293B;font-family:monospace; }}
-  .kpi-sub   {{ font-size:8px;color:#94A3B8;margin-top:2px; }}
-
-  table {{ width:100%;border-collapse:collapse;font-size:10px; }}
-  thead th {{ background:#1E2A3A;color:white;padding:6px 8px;text-align:left;font-size:9px;letter-spacing:.4px; }}
-  tbody td {{ padding:5px 8px;border-bottom:1px solid #E2E8F0;color:#334155; }}
-
-  .two-col   {{ display:grid;grid-template-columns:1fr 1fr;gap:14px; }}
-  .three-col {{ display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px; }}
-
-  .insight-box {{
-    background:#EFF6FF;border:1px solid #BFDBFE;border-radius:6px;
-    padding:9px 11px;font-size:10px;color:#1E40AF;line-height:1.6;margin-bottom:6px;
-  }}
-  .insight-box.teal  {{ background:#ECFDF5;border-color:#6EE7B7;color:#065F46; }}
-  .insight-box.amber {{ background:#FFFBEB;border-color:#FDE68A;color:#92400E; }}
-  .insight-box.red   {{ background:#FEF2F2;border-color:#FECACA;color:#991B1B; }}
-  .insight-box.slate {{ background:#F8FAFC;border-color:#CBD5E1;color:#475569; }}
-
-  .ai-box {{ background:linear-gradient(135deg,#F8FAFC,#EFF6FF);border:1px solid #BFDBFE;border-radius:7px;padding:12px 14px; }}
-
-  .footer {{ padding:10px 36px;background:#F8FAFC;border-top:1px solid #E2E8F0;display:flex;justify-content:space-between;font-size:8px;color:#94A3B8; }}
-  .data-note {{ background:#FFFBEB;border:1px solid #FDE68A;border-radius:5px;padding:7px 10px;font-size:9px;color:#92400E;margin-top:6px; }}
-
-  /* ── Print media overrides ────────────────────────────── */
-  @media print {{
-    @page {{ size: A4 portrait; margin: 12mm 10mm; }}
-    body {{ width: 100%; font-size: 10px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }}
-    .header {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }}
-    .page-break {{ page-break-before: always; break-before: page; }}
-    .no-break   {{ page-break-inside: avoid; break-inside: avoid; }}
-    .section-title {{ page-break-after: avoid; break-after: avoid; }}
-    table {{ page-break-inside: auto; }}
-    tr {{ page-break-inside: avoid; break-inside: avoid; }}
-    .footer {{ position: running(footer); }}
-  }}
-</style>
-</head>
-<body>
-
-<!-- ═══════════════════════════════════════════════════════
-     PAGE 1
-═══════════════════════════════════════════════════════ -->
-
-<!-- HEADER -->
-<div class="header no-break">
-  <div class="brand">
-    <div class="brand-icon">☕</div>
-    <div>
-      <div style="font-size:14px;font-weight:700;">Mini Coffee Shop</div>
-      <div style="font-size:9px;opacity:.6;">AI-Powered Analytics System</div>
-    </div>
-  </div>
-  <div style="display:flex;justify-content:space-between;align-items:flex-end;position:relative;z-index:1;">
-    <div>
-      <div style="font-size:20px;font-weight:700;">Executive Sales Report</div>
-      <div style="font-size:10px;opacity:.7;margin-top:3px;">{branch_label} · {month_label} · {today}</div>
-    </div>
-    <div style="text-align:right;font-size:9px;opacity:.7;line-height:1.7;">
-      Generated: {now_str}<br>
-      Reporting Period: {date_from} – {date_to}<br>
-      Confidential — Internal Use Only
-    </div>
-  </div>
-</div>
-<div class="accent"></div>
-
-<div class="body">
-
-<!-- ══ SECTION 1: EXECUTIVE SUMMARY ══════════════════════════ -->
-<div class="section-title keep-with-next">1. Executive Summary</div>
-<div class="kpi-5col no-break">
-  <div class="kpi-box k-blue">
-    <div class="kpi-label">Total Revenue</div>
-    <div class="kpi-value">RM {report_data['period_revenue']:,.2f}</div>
-    <div class="kpi-sub">{report_data['trend_label']}</div>
-  </div>
-  <div class="kpi-box k-amber">
-    <div class="kpi-label">Sales Volume</div>
-    <div class="kpi-value">{report_data['period_txns']:,}</div>
-    <div class="kpi-sub">Orders placed</div>
-  </div>
-  <div class="kpi-box k-teal">
-    <div class="kpi-label">Daily Average</div>
-    <div class="kpi-value">RM {daily_avg:,.2f}</div>
-    <div class="kpi-sub">Revenue per day</div>
-  </div>
-  <div class="kpi-box k-cyan">
-    <div class="kpi-label">Avg Order Value</div>
-    <div class="kpi-value">RM {aov_val:,.2f}</div>
-    <div class="kpi-sub">Per transaction</div>
-  </div>
-  <div class="kpi-box k-purple">
-    <div class="kpi-label">Top Branch</div>
-    <div class="kpi-value" style="font-size:11px;margin-top:3px;">{report_data['top_branch']}</div>
-    <div class="kpi-sub">Highest revenue</div>
-  </div>
-</div>
-<div class="data-note no-break">
-  ⚠ Profit &amp; COGS data is not available from POS transaction logs. Revenue figures represent gross sales only.
-</div>
-
-<!-- ══ SECTION 2: REVENUE & SALES VOLUME TREND ═══════════════ -->
-<div class="section-title keep-with-next">2. Revenue &amp; Sales Volume — Last {slice_n} Months</div>
-<div class="no-break">
-{monthly_table_html if monthly_table_html else '<div style="color:#94A3B8;font-size:9px;padding:8px 0;">Insufficient monthly history.</div>'}
-</div>
-
-<!-- ══ SECTION 3: KEY PERFORMANCE INDICATORS ═════════════════ -->
-<div class="section-title keep-with-next">3. Key Performance Indicators</div>
-<div class="kpi-4col no-break">
-  <div class="kpi-box k-blue">
-    <div class="kpi-label">Avg Deal Size (AOV)</div>
-    <div class="kpi-value">RM {aov_val:,.2f}</div>
-    <div class="kpi-sub">Revenue ÷ Transactions</div>
-  </div>
-  <div class="kpi-box k-teal">
-    <div class="kpi-label">Avg Daily Orders</div>
-    <div class="kpi-value">{avg_daily_t}</div>
-    <div class="kpi-sub">Transactions per day</div>
-  </div>
-  <div class="kpi-box k-amber">
-    <div class="kpi-label">Peak Hour</div>
-    <div class="kpi-value" style="font-size:11px;">{report_data['peak_hour']}</div>
-    <div class="kpi-sub">Highest transaction volume</div>
-  </div>
-  <div class="kpi-box k-purple">
-    <div class="kpi-label">Peak Day</div>
-    <div class="kpi-value" style="font-size:11px;">{report_data['peak_day']}</div>
-    <div class="kpi-sub">Most active weekday</div>
-  </div>
-</div>
-<div class="insight-box slate no-break" style="margin-top:6px;">
-  <strong>Period-over-Period:</strong> {report_data['trend_label']} &nbsp;|&nbsp;
-  <strong>Active Days:</strong> {days_in_p} &nbsp;|&nbsp;
-  <strong>Avg Revenue/Day:</strong> RM {daily_avg:,.2f}
-</div>
-
-</div><!-- /.body page 1 -->
-
-<!-- ═══════════════════════════════════════════════════════
-     PAGE 2 — PREDICTED VS ACTUAL + SEGMENT BREAKDOWN
-═══════════════════════════════════════════════════════ -->
-<div class="page-break"></div>
-
-<div class="body" style="padding-top:20px;">
-
-<!-- ══ SECTION 4: PREDICTED VS ACTUAL (PROPHET IN-SAMPLE) ════ -->
-<div class="section-title keep-with-next">4. Daily Sales Trend ({month_label})</div>
-<div class="no-break">
-{pva_section_html}
-</div>
-
-</div><!-- /.body page 2 -->
-
-<!-- ═══════════════════════════════════════════════════════
-     PAGE 3 — SEGMENTS, PIPELINE & AI
-═══════════════════════════════════════════════════════ -->
-<div class="page-break"></div>
-<div class="body">
-
-<!-- ══ SECTION 5: SEGMENT BREAKDOWN ══════════════════════════ -->
-<div class="section-title keep-with-next">5. Segment Breakdown — Product, Region &amp; Category</div>
-
-<div class="two-col no-break" style="margin-bottom:12px;">
-  <div>
-    <div style="font-size:9px;font-weight:700;color:#1E293B;margin-bottom:6px;">🏆 Top-Selling Products</div>
-    {'<table><thead><tr><th>Product</th><th style="text-align:right;">Units</th><th style="text-align:right;">Revenue</th><th style="width:60px;">Bar</th><th style="text-align:right;">Share</th></tr></thead><tbody>' + top_prod_rows + '</tbody></table>' if top_prod_rows else '<div style="color:#94A3B8;font-size:9px;">No product data</div>'}
-  </div>
-  <div>
-    <div style="font-size:9px;font-weight:700;color:#EF4444;margin-bottom:6px;">⚠ Underperforming Products (Bottom 3)</div>
-    {'<table><thead><tr><th>Product</th><th style="text-align:right;">Units</th><th style="text-align:right;">Revenue</th></tr></thead><tbody>' + bot_prod_rows + '</tbody></table>' if bot_prod_rows else '<div style="color:#94A3B8;font-size:9px;">No data</div>'}
-    <div class="insight-box red" style="margin-top:8px;font-size:9px;">
-      <strong>Action:</strong> Bundle underperformers with top sellers or run targeted promos.
-    </div>
-  </div>
-</div>
-
-<div class="two-col no-break">
-  <div>
-    <div style="font-size:9px;font-weight:700;color:#1E293B;margin-bottom:8px;">📍 Regional Performance (By Branch)</div>
-    {regional_rows if regional_rows else '<div style="color:#94A3B8;font-size:9px;">No branch data</div>'}
-    <div style="margin-top:10px;font-size:9px;font-weight:700;color:#1E293B;margin-bottom:8px;">💳 Payment Method Breakdown</div>
-    {pay_rows if pay_rows else '<div style="color:#94A3B8;font-size:9px;">No payment data</div>'}
-  </div>
-  <div>
-    <div style="font-size:9px;font-weight:700;color:#1E293B;margin-bottom:6px;">🗂 Revenue by Product Category</div>
-    {'<table><thead><tr><th>Category</th><th style="text-align:right;">Revenue</th><th style="text-align:right;">Share</th><th style="width:60px;">Bar</th></tr></thead><tbody>' + cat_rows + '</tbody></table>' if cat_rows else '<div style="color:#94A3B8;font-size:9px;">No category data</div>'}
-  </div>
-</div>
-
-<!-- ══ SECTION 6: SALES PIPELINE HEALTH ══════════════════════ -->
-<div class="section-title keep-with-next">6. Sales Pipeline Health — Transaction Flow by Time</div>
-<div class="two-col no-break">
-  <div>
-    <div style="font-size:9px;font-weight:700;color:#1E293B;margin-bottom:6px;">⏰ Hourly Transaction Volume</div>
-    {'<table><thead><tr><th>Hour</th><th>Activity</th><th style="text-align:right;">Orders</th><th style="text-align:right;">Revenue</th></tr></thead><tbody>' + hourly_rows + '</tbody></table>' if hourly_rows else '<div style="color:#94A3B8;font-size:9px;padding:8px 0;">No hourly data</div>'}
-  </div>
-  <div>
-    <div style="font-size:9px;font-weight:700;color:#1E293B;margin-bottom:6px;">📅 Day-of-Week Revenue Pattern</div>
-    {'<table><thead><tr><th>Day</th><th>Activity</th><th style="text-align:right;">Orders</th><th style="text-align:right;">Revenue</th></tr></thead><tbody>' + dow_rows + '</tbody></table>' if dow_rows else '<div style="color:#94A3B8;font-size:9px;padding:8px 0;">No data</div>'}
-    <div class="insight-box teal" style="margin-top:8px;font-size:9px;">
-      ⭐ <strong>Peak Hour:</strong> {report_data['peak_hour']}
-      &nbsp;|&nbsp;
-      ⭐ <strong>Peak Day:</strong> {report_data['peak_day']}<br>
-      Maximise staff coverage at these windows to capture full revenue potential.
-    </div>
-  </div>
-</div>
-
-<!-- ══ SECTION 7: ACTIONABLE RECOMMENDATIONS ════════════════ -->
-<div class="section-title keep-with-next" style="margin-top:20px;">7. AI-Powered Actionable Recommendations</div>
-<div class="ai-box no-break">
-  <div style="display:flex;align-items:center;gap:7px;margin-bottom:7px;font-weight:700;font-size:11px;">
-    <span style="background:linear-gradient(135deg,#3B82F6,#8B5CF6);color:white;padding:2px 7px;border-radius:3px;font-size:8px;">GEMINI AI</span>
-    Strategic Recommendations for {month_label}
-  </div>
-  <div style="font-size:10px;color:#334155;line-height:1.7;">{ai_html}</div>
-</div>
-
-<div class="two-col no-break" style="margin-top:12px;">
-  <div>
-    <div style="font-size:9px;font-weight:700;color:#1E293B;margin-bottom:6px;">📌 Key Findings</div>
-    <div style="font-size:10px;line-height:1.9;color:#334155;">
-      ● Revenue trend: <strong>{report_data['trend_label']}</strong><br>
-      ● Top branch: <strong>{report_data['top_branch']}</strong><br>
-      ● Avg order value: <strong>RM {aov_val:,.2f}</strong><br>
-      ● Busiest window: <strong>{report_data['peak_hour']} · {report_data['peak_day']}</strong><br>
-      ● Best product: <strong>{top_prods_list[0]['product_name'] if top_prods_list else 'N/A'}</strong> ({top_prods_list[0]['qty'] if top_prods_list else 0} units)
-    </div>
-  </div>
-  <div>
-    <div style="font-size:9px;font-weight:700;color:#1E293B;margin-bottom:6px;">✅ Recommended Actions</div>
-    <div style="font-size:10px;line-height:1.9;color:#334155;">
-      ✓ Deploy extra baristas during <strong>{report_data['peak_hour']}</strong><br>
-      ✓ Pre-stock inventory before <strong>{report_data['peak_day']}</strong> each week<br>
-      ✓ Bundle slow movers with <strong>{top_prods_list[0]['product_name'] if top_prods_list else 'top sellers'}</strong><br>
-      ✓ Run 2PM–4PM afternoon deals to lift off-peak volume<br>
-      ✓ Incentivise cashless payments to cut cash-handling overhead
-    </div>
-  </div>
-</div>
-
-</div><!-- /.body page 3 -->
-
-<div class="footer">
-  <div>Mini Coffee Shop · MCS Analytics v1.0 · {month_label}</div>
-  <div>Generated {now_str} · Confidential — Internal Use Only</div>
-  <div>Page 3 of 3</div>
-</div>
-</body>
-</html>"""
-
-    try:
-        from weasyprint import HTML as WP_HTML
-        pdf_bytes = WP_HTML(string=html_doc).write_pdf()
-        response  = make_response(pdf_bytes)
-        response.headers['Content-Type']        = 'application/pdf'
-        filename_str = f"MCS_Executive_Report_{branch_filter.replace(' ','_')}_{month_key}.pdf"
-        response.headers['Content-Disposition'] = f'attachment; filename="{filename_str}"'
-        return response
-
-    except ImportError:
-        response = make_response(html_doc)
-        response.headers['Content-Type']        = 'text/html; charset=utf-8'
-        filename_str = f"MCS_Executive_Report_{branch_filter.replace(' ','_')}_{month_key}.html"
-        response.headers['Content-Disposition'] = f'attachment; filename="{filename_str}"'
-        return response
-
-    except Exception as e:
-        return jsonify({"status": "error", "message": f"PDF render error: {str(e)}"}), 500
+    story.append(PageBreak())
+    _section('7.  AI-Powered Actionable Recommendations', story, styles)
+ 
+    ai_text = rd.get('ai_insight', 'AI insight temporarily unavailable.')
+ 
+    story.append(P(f'<b>Branch:</b> {branch_label}  |  <b>Period:</b> {month_label}  |  <b>Revenue:</b> RM {num(period_rev)}', 'RPT_Body'))
+    story.append(Spacer(1, 6))
+ 
+    # Parse AI text into lines and render cleanly
+    for line in ai_text.replace('\r\n', '\n').split('\n'):
+        line = line.strip()
+        if not line:
+            story.append(Spacer(1, 3))
+            continue
+        # Numbered action items → bullet style
+        if line and line[0].isdigit() and len(line) > 2 and line[1] in '.):':
+            story.append(Paragraph(f'• {line}', styles['RPT_Bullet']))
+        elif line.startswith('•') or line.startswith('-'):
+            story.append(Paragraph(line, styles['RPT_Bullet']))
+        else:
+            story.append(Paragraph(line, styles['RPT_AI']))
+ 
+    story.append(Spacer(1, 8))
+ 
+    # Key findings summary table
+    top_prods_list = rd.get('top_products', [])
+    findings = [
+        ['Finding', 'Detail'],
+        ['Revenue Trend',      trend_label],
+        ['Top Branch',         top_branch],
+        ['Avg Order Value',    f'RM {num(aov)}'],
+        ['Busiest Window',     f'{peak_hour}  ·  {peak_day}'],
+        ['Best Product',       f"{top_prods_list[0]['product_name']} ({int(top_prods_list[0]['qty']):,} units)" if top_prods_list else 'N/A'],
+        ['Period Revenue',     f'RM {num(period_rev)} across {int(period_txns):,} transactions'],
+    ]
+    fin_tbl = Table(findings, colWidths=[55*mm, 127*mm])
+    fin_tbl.setStyle(TableStyle([
+        ('BACKGROUND',    (0, 0), (-1, 0), C_HDRROW),
+        ('TEXTCOLOR',     (0, 0), (-1, 0), C_WHITE),
+        ('FONTNAME',      (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTNAME',      (0, 1), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME',      (1, 1), (1, -1), 'Helvetica'),
+        ('FONTSIZE',      (0, 0), (-1, -1), 8.5),
+        ('TEXTCOLOR',     (0, 1), (0, -1), C_DARK),
+        ('TEXTCOLOR',     (1, 1), (1, -1), C_MID),
+        ('ROWBACKGROUNDS',(0, 1), (-1, -1), [C_WHITE, C_LIGHT]),
+        ('GRID',          (0, 0), (-1, -1), 0.4, C_BORDER),
+        ('TOPPADDING',    (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('LEFTPADDING',   (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING',  (0, 0), (-1, -1), 6),
+        ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    story.append(KeepTogether([fin_tbl]))
+ 
+    # ── Build & stream PDF ─────────────────────────────────────
+    on_page = _make_on_page(branch_label, month_label, now_str)
+    doc.build(story, onFirstPage=on_page, onLaterPages=on_page)
+ 
+    pdf_bytes = buf.getvalue()
+    response  = make_response(pdf_bytes)
+    response.headers['Content-Type']        = 'application/pdf'
+    filename_str = f"MCS_Executive_Report_{branch_filter.replace(' ','_')}_{month_key}.pdf"
+    response.headers['Content-Disposition'] = f'attachment; filename="{filename_str}"'
+    return response
 
 
 # ============================================================
