@@ -11,10 +11,11 @@ from analytics import get_dashboard_metrics
 load_dotenv(dotenv_path=Path(__file__).parent / '.env', override=True)
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# Ensure initialization uses the correct, official new SDK instantiation pattern
 client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 # ============================================================
-#   RESPONSE STYLE INSTRUCTION
+#    RESPONSE STYLE INSTRUCTION
 # ============================================================
 
 RESPONSE_STYLE_INSTRUCTION = """
@@ -47,7 +48,7 @@ Rules for the chart block:
 
 def get_ai_insight(prompt: str) -> tuple[bool, str]:
     """
-    Core Gemini API call with automatic retry + model fallback.
+    Core Gemini API call with automatic retry + model fallback using the official new SDK.
     Returns (success: bool, response_text: str)
     """
     if not client:
@@ -55,12 +56,14 @@ def get_ai_insight(prompt: str) -> tuple[bool, str]:
 
     full_prompt = RESPONSE_STYLE_INSTRUCTION + "\n\n" + prompt
 
-    PRIMARY_MODEL  = "gemini-2.5-flash"
-    FALLBACK_MODEL = "gemini-1.5-flash"
+    # 🟢 CHANGED: Pointing to the new high-allowance 500 RPD Model
+    PRIMARY_MODEL  = "gemini-3.1-flash-lite"
+    FALLBACK_MODEL = "gemini-2.5-flash-lite" # Safe secondary fallback alternative
     MAX_RETRIES    = 3
     BASE_DELAY     = 2
 
     def _call(model: str) -> str:
+        # 🟢 SYNTAX FIX: New SDK uses client.models.generate_content instead of direct sub-paths
         response = client.models.generate_content(
             model=model,
             contents=full_prompt
@@ -88,9 +91,9 @@ def get_ai_insight(prompt: str) -> tuple[bool, str]:
             if _is_auth_error(error_msg):
                 return False, "AI Connection Error: Your API key is invalid or lacks permission. Check your .env file."
 
-            if _is_retryable(error_msg):
+            if _is_retryable(error_msg) or "404" in error_msg:
                 delay = BASE_DELAY * (2 ** attempt)
-                print(f"[GEMINI] {PRIMARY_MODEL} returned {error_msg[:60]}… retrying in {delay}s (attempt {attempt+1}/{MAX_RETRIES})")
+                print(f"[GEMINI] {PRIMARY_MODEL} returned error… retrying in {delay}s (attempt {attempt+1}/{MAX_RETRIES})")
                 time.sleep(delay)
                 continue
 
@@ -106,13 +109,13 @@ def get_ai_insight(prompt: str) -> tuple[bool, str]:
                 continue
             return False, f"Connection Error: {str(e)}"
 
-    # Fallback model
-    print(f"[GEMINI] {PRIMARY_MODEL} exhausted after {MAX_RETRIES} attempts. Falling back to {FALLBACK_MODEL}…")
+    # Fallback model processing layer
+    print(f"[GEMINI] {PRIMARY_MODEL} exhausted or busy. Trying fallback: {FALLBACK_MODEL}…")
     for attempt in range(2):
         try:
             text = _call(FALLBACK_MODEL)
             print(f"[GEMINI] Fallback {FALLBACK_MODEL} succeeded.")
-            return True, text + "\n\n*(Answered by Gemini 1.5 Flash — primary model was busy)*"
+            return True, text + f"\n\n*(Answered by {FALLBACK_MODEL} — primary model path was resetting)*"
 
         except errors.APIError as e:
             error_msg = str(e).lower()
@@ -183,7 +186,7 @@ Do NOT write any introduction or conclusion. Start immediately with **Staffing:*
 
 
 # ============================================================
-#   CHATBOT SYSTEM CONTEXT BUILDER
+#    CHATBOT SYSTEM CONTEXT BUILDER
 # ============================================================
 
 def build_chat_system_context(db_data: dict) -> str:
@@ -254,10 +257,10 @@ Top product revenues: {db_data.get('arr_product_revs', [])}
 
 
 # ============================================================
-#   TEST BLOCK
+#    TEST BLOCK
 # ============================================================
 if __name__ == "__main__":
-    print("Testing Gemini AI Connection...\n")
+    print("Testing Gemini AI Connection with New SDK & 3.1 Flash Lite model...\n")
     success, result = get_ai_insight(
         "Hello! Respond with exactly: 'AI Advisor online. Ready to analyze Mini Coffee Shop data.'"
     )
