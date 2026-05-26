@@ -187,14 +187,20 @@
             <div style="font-size:1rem;font-weight:600;color:#0F172A;" id="personaName">—</div>
             <div style="font-size:.8rem;color:#334155;" id="personaDesc">—</div>
         </div>
-        <div class="ms-auto d-flex align-items-center gap-3">
-            <span class="trend-badge trend-flat" id="trendBadge">
+                <div class="ms-auto d-flex align-items-center gap-2">
+            <span class="trend-badge trend-flat" id="trendBadge" style="margin-right:8px;">
                 <i class="fa-solid fa-minus"></i> Calculating…
             </span>
             <button class="btn-outline-custom"
                     style="background:white;border-color:#CBD5E1;color:#334155;font-size:.78rem;padding:.4rem .9rem;"
                     onclick="downloadChart('forecastChart','forecast_chart')">
-                <i class="fa-solid fa-image"></i> Export
+                <i class="fa-solid fa-image"></i> Export Graph
+            </button>
+            <button class="btn-amber-custom"
+                    id="downloadPdfBtn"
+                    style="font-size:.78rem;padding:.45rem .9rem;border-radius:var(--radius-md);"
+                    onclick="downloadForecastPDF()">
+                <i class="fa-solid fa-file-pdf"></i> Export Management PDF
             </button>
         </div>
     </div>
@@ -1005,6 +1011,30 @@ function renderTable(forecast) {
             </td>
         </tr>`;
     }).join('');
+}
+
+/* ============================================================
+   MANAGEMENT REPORT PDF EXPORT MANAGER LOOP
+============================================================ */
+function downloadForecastPDF() {
+    const sel = document.getElementById('branchSelect');
+    const branchId = sel.value;
+    const branchName = sel.options[sel.selectedIndex].dataset.name;
+    const pdfBtn = document.getElementById('downloadPdfBtn');
+
+    pdfBtn.disabled = true;
+    pdfBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Compiling PDF…';
+
+    // Directly request the backend generation endpoint
+    const exportUrl = `/api/export-forecast-pdf?branch_id=${branchId}&branch_name=${encodeURIComponent(branchName)}`;
+    
+    window.location.href = exportUrl;
+
+    // Graceful reset button status after download trigger
+    setTimeout(() => {
+        pdfBtn.disabled = false;
+        pdfBtn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> Export Management PDF';
+    }, 2500);
 }
 </script>
 {% endblock %}

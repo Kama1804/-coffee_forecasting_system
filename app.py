@@ -905,7 +905,376 @@ def api_forecast():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# ============================================================
+#    API — AI FORECAST PDF REPORT GENERATOR (SINGLE-PAGE MIRROR)
+# ============================================================
+@app.route('/api/preview-forecast')
+@login_required
+def api_preview_forecast():
+    branch_id   = request.args.get('branch_id',   1,           type=int)
+    branch_name = request.args.get('branch_name', 'Putrajaya', type=str)
+    try:
+        from forecast_engine import ForecastEngine
+        engine = ForecastEngine()
+        success, result = engine.generate_7_day_forecast(branch_id, branch_name)
+        if not success:
+            return jsonify({"status": "error", "message": result}), 500
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Engine failure: {str(e)}"}), 500
 
+    html_document = _build_forecast_html(branch_id, branch_name, result)
+    response = make_response(html_document)
+    response.headers['Content-Type'] = 'text/html; charset=utf-8'
+    return response
+
+
+@app.route('/api/export-forecast-pdf')
+@login_required
+def api_export_forecast_pdf():
+    branch_id   = request.args.get('branch_id',   1,           type=int)
+    branch_name = request.args.get('branch_name', 'Putrajaya', type=str)
+    try:
+        from forecast_engine import ForecastEngine
+        engine = ForecastEngine()
+        success, result = engine.generate_7_day_forecast(branch_id, branch_name)
+        if not success:
+            return jsonify({"status": "error", "message": result}), 500
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Engine failure: {str(e)}"}), 500
+
+    html_document = _build_forecast_html(branch_id, branch_name, result)
+    safe_name = branch_name.replace(" ", "_")
+    try:
+        from weasyprint import HTML as WP_HTML
+        pdf_bytes = WP_HTML(string=html_document).write_pdf()
+        response = make_response(pdf_bytes)
+        response.headers['Content-Type']        = 'application/pdf'
+        response.headers['Content-Disposition'] = f'attachment; filename="Forecast_Report_{safe_name}.pdf"'
+        return response
+    except ImportError:
+        response = make_response(html_document)
+        response.headers['Content-Type']        = 'text/html; charset=utf-8'
+        response.headers['Content-Disposition'] = f'attachment; filename="Forecast_Report_{safe_name}.html"'
+        return response
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+def _build_forecast_html(branch_id, branch_name, result):
+    mape          = result['mape']
+    rmse          = result['rmse']
+    accuracy      = result['accuracy']
+    persona_desc  = result['persona']
+    forecast_list = result['forecast']
+    hourly_list   = result['hourly']
+    wbt_list      = result['weather_by_time']
+
+    now_str    = datetime.now().strftime('%d %b %Y, %I:%M %p')
+    today_str  = datetime.now().strftime('%A, %d %B %Y')
+    outlet_icon = '🎓' if branch_name == 'Puncak Alam' else '🏢'
+    acc_color   = '#16A34A' if accuracy >= 85 else ('#D97706' if accuracy >= 70 else '#DC2626')
+
+    # ── 1. 7-Day Forecast Rows
+    DAY_NAMES    = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
+    WEATHER_ICON = {'Sunny': '☀️', 'Cloudy': '⛅', 'Rainy': '🌧️'}
+    PILL = ('<span style="display:inline-block;padding:1px 6px;border-radius:10px;'
+            'font-size:7.5px;font-weight:600;font-family:Arial,sans-serif;'
+            'margin-right:2px;{style}">{label}</span>')
+
+    forecast_rows = ''
+    total_7day_rev = 0.0
+    for r in forecast_list:
+        dt       = datetime.strptime(r['ds'], '%Y-%m-%d')
+        day_name = DAY_NAMES[dt.weekday()]
+        is_sun   = (dt.weekday() == 6)
+
+        row_bg = '#FFF5F5' if r['is_holiday'] else ('#FFFDF0' if dt.weekday() in (5,6) else '#ffffff')
+
+        if is_sun:
+            badge_style = 'background:#F1F5F9;color:#94A3B8;'
+        elif r['is_holiday']:
+            badge_style = 'background:#FEE2E2;color:#991B1B;'
+        elif dt.weekday() in (5, 6):
+            badge_style = 'background:#FEF3C7;color:#92400E;'
+        else:
+            badge_style = 'background:#EEF2FF;color:#3730A3;'
+
+        day_badge = (f'<span style="display:inline-block;padding:1px 6px;border-radius:3px;'
+                     f'font-size:8px;font-weight:700;font-family:Arial,sans-serif;{badge_style}">'
+                     f'{day_name[:3]}</span>')
+
+        flags = []
+        if r['is_holiday']:
+            flags.append(PILL.format(style='background:#FEE2E2;color:#991B1B;',  label='🏖 Holiday'))
+        if r['is_friday']:
+            flags.append(PILL.format(style='background:#DBEAFE;color:#1E40AF;',  label='🎉 Promo'))
+        if r.get('season'):
+            flags.append(PILL.format(style='background:#F3E8FF;color:#6B21A8;',  label='🎁 Season'))
+        if is_sun:
+            flags.append(PILL.format(style='background:#F1F5F9;color:#94A3B8;',  label='🔒 Closed'))
+        elif dt.weekday() in (5, 6):
+            flags.append(PILL.format(style='background:#FEF3C7;color:#92400E;',  label='Weekend'))
+        flags_html = ''.join(flags) or '—'
+
+        if is_sun:
+            rev_main  = '<span style="color:#9CA3AF;font-style:italic;font-size:8.5px;">Closed</span>'
+            rev_lower = rev_upper = '—'
+        else:
+            total_7day_rev += r['yhat']
+            rev_main  = (f'<span style="font-weight:700;color:#1A1A2E;font-size:9.5px;'
+                         f'font-family:\'Courier New\',monospace;">RM {r["yhat"]:,.2f}</span>')
+            rev_lower = (f'<span style="color:#9CA3AF;font-size:8.5px;'
+                         f'font-family:\'Courier New\',monospace;">{r["yhat_lower"]:,.2f}</span>')
+            rev_upper = (f'<span style="color:#9CA3AF;font-size:8.5px;'
+                         f'font-family:\'Courier New\',monospace;">{r["yhat_upper"]:,.2f}</span>')
+
+        weather_icon = WEATHER_ICON.get(r['weather'], '🌡️')
+        forecast_rows += f"""
+        <tr style="background-color:{row_bg};">
+            <td style="padding:6px 8px;border-bottom:1px solid #F3F4F6;font-family:'Courier New',monospace;font-size:9px;color:#374151;">{r['ds']}</td>
+            <td style="padding:6px 8px;border-bottom:1px solid #F3F4F6;">{day_badge}</td>
+            <td style="padding:6px 8px;border-bottom:1px solid #F3F4F6;font-size:9px;color:#374151;">{weather_icon} {r['weather']}</td>
+            <td style="padding:6px 8px;border-bottom:1px solid #F3F4F6;">{flags_html}</td>
+            <td style="padding:6px 8px;border-bottom:1px solid #F3F4F6;text-align:right;">{rev_main}</td>
+            <td style="padding:6px 8px;border-bottom:1px solid #F3F4F6;text-align:right;">{rev_lower}</td>
+            <td style="padding:6px 8px;border-bottom:1px solid #F3F4F6;text-align:right;">{rev_upper}</td>
+        </tr>"""
+
+    # ── 2. Hourly Peak Rows
+    hourly_rows = ''
+    top_hours   = hourly_list[:6]
+    max_hour_rev = max((h['revenue'] for h in top_hours), default=1)
+    for h in top_hours:
+        bar_w = int((h['revenue'] / max_hour_rev) * 100)
+        hourly_rows += f"""
+        <tr>
+            <td style="padding:5px 6px;border-bottom:1px solid #F3F4F6;font-family:'Courier New',monospace;font-size:9px;color:#374151;white-space:nowrap;">{h['hour']:02d}:00</td>
+            <td style="padding:5px 6px;border-bottom:1px solid #F3F4F6;width:80px;">
+                <div style="background:#E5E7EB;height:5px;border-radius:3px;overflow:hidden;">
+                    <div style="background:#C8922A;height:100%;width:{bar_w}%;border-radius:3px;"></div>
+                </div>
+            </td>
+            <td style="padding:5px 6px;border-bottom:1px solid #F3F4F6;text-align:right;font-family:'Courier New',monospace;font-size:9px;font-weight:700;color:#1A1A2E;">RM {h['revenue']:,.0f}</td>
+        </tr>"""
+
+    # ── 3. Weather × Shift Rows
+    wbt_rows     = ''
+    top_wbt      = wbt_list[:3]
+    max_wbt      = max((w['count'] for w in top_wbt), default=1)
+    WBT_COLOR    = {'Sunny': '#C8922A', 'Cloudy': '#6B7280', 'Rainy': '#374151'}
+    for w in top_wbt:
+        bar_w     = int((w['count'] / max_wbt) * 100)
+        bar_color = WBT_COLOR.get(w['weather'], '#6B7280')
+        wbt_rows += f"""
+        <tr>
+            <td style="padding:5px 6px;border-bottom:1px solid #F3F4F6;font-size:9px;font-weight:600;color:#374151;">{w['shift']}</td>
+            <td style="padding:5px 6px;border-bottom:1px solid #F3F4F6;font-size:9px;color:#6B7280;">{w['weather']}</td>
+            <td style="padding:5px 6px;border-bottom:1px solid #F3F4F6;width:70px;">
+                <div style="background:#E5E7EB;height:5px;border-radius:3px;overflow:hidden;">
+                    <div style="background:{bar_color};height:100%;width:{bar_w}%;border-radius:3px;"></div>
+                </div>
+            </td>
+            <td style="padding:5px 6px;border-bottom:1px solid #F3F4F6;text-align:right;font-family:'Courier New',monospace;font-size:9px;font-weight:700;color:#1A1A2E;">{w['count']:,}</td>
+        </tr>"""
+
+    # ── 4. Full HTML Document
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sales Forecast Report — {branch_name}</title>
+<style>
+@page {{ size: A4 portrait; margin: 13mm 11mm 11mm 11mm; }}
+*, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
+body {{
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 10px;
+    color: #1A1A2E;
+    background: #ffffff;
+    line-height: 1.55;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}}
+.sans {{ font-family: Arial, Helvetica, sans-serif; }}
+
+/* Header */
+.rpt-header {{ border-bottom: 3px solid #1A1A2E; padding-bottom: 10px; margin-bottom: 13px; }}
+.rpt-brand  {{ font-family: Arial, sans-serif; font-size: 7.5px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #C8922A; margin-bottom: 3px; }}
+.rpt-title  {{ font-size: 18px; font-weight: bold; color: #1A1A2E; letter-spacing: -0.3px; line-height: 1.15; }}
+.rpt-byline {{ font-family: Arial, sans-serif; font-size: 8.5px; color: #9CA3AF; font-style: italic; margin-top: 2px; }}
+.rpt-badge  {{ display: inline-block; background: #1A1A2E; color: #fff; font-family: Arial, sans-serif; font-size: 7px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; padding: 2px 8px; border-radius: 3px; margin-top: 5px; }}
+
+/* Executive summary band */
+.exec-band       {{ background: #FDFAF4; border-left: 4px solid #C8922A; padding: 8px 12px; border-radius: 0 4px 4px 0; margin-bottom: 13px; }}
+.exec-band-label {{ font-family: Arial, sans-serif; font-size: 7.5px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #C8922A; margin-bottom: 3px; }}
+.exec-band-text  {{ font-size: 9.5px; color: #374151; font-style: italic; line-height: 1.45; }}
+
+/* KPI strip */
+.kpi-table {{ width: 100%; border-collapse: separate; border-spacing: 6px 0; margin-bottom: 13px; }}
+.kpi-cell  {{ width: 25%; background: #F9FAFB; border: 1px solid #E5E7EB; border-top: 3px solid #1A1A2E; padding: 8px 10px 9px; vertical-align: top; border-radius: 0 0 4px 4px; }}
+.kpi-cell.amber  {{ border-top-color: #C8922A; }}
+.kpi-cell.green  {{ border-top-color: #16A34A; }}
+.kpi-cell.purple {{ border-top-color: #7C3AED; }}
+.kpi-lbl  {{ font-family: Arial, sans-serif; font-size: 7.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #6B7280; margin-bottom: 5px; }}
+.kpi-val  {{ font-family: Arial, sans-serif; font-size: 15px; font-weight: 700; color: #1A1A2E; line-height: 1; }}
+.kpi-note {{ font-family: Arial, sans-serif; font-size: 7.5px; color: #9CA3AF; margin-top: 3px; }}
+
+/* Section headings */
+.section-head  {{ border-bottom: 1.5px solid #E5E7EB; padding-bottom: 5px; margin-bottom: 8px; margin-top: 13px; }}
+.section-title {{ font-family: Arial, sans-serif; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px; color: #1A1A2E; }}
+.section-sub   {{ font-family: Arial, sans-serif; font-size: 8px; color: #9CA3AF; font-style: italic; margin-top: 1px; }}
+
+/* Forecast table */
+.fc-table {{ width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; font-size: 9px; margin-bottom: 13px; }}
+.fc-table thead tr {{ background: #1A1A2E; color: #ffffff; }}
+.fc-table th {{ padding: 6px 8px; text-align: left; font-size: 7.5px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; white-space: nowrap; }}
+.fc-table th.r {{ text-align: right; }}
+.fc-table td   {{ padding: 6px 8px; border-bottom: 1px solid #F3F4F6; vertical-align: middle; }}
+.fc-table td.r {{ text-align: right; }}
+.fc-table tbody tr:last-child td {{ border-bottom: none; }}
+.fc-table tfoot td {{ background: #F9FAFB; border-top: 1.5px solid #D1D5DB; font-family: Arial, sans-serif; font-size: 9px; font-weight: 700; color: #1A1A2E; padding: 6px 8px; }}
+
+/* Split layout */
+.split-table {{ width: 100%; border-collapse: separate; border-spacing: 8px 0; margin-bottom: 13px; }}
+.split-cell  {{ width: 50%; vertical-align: top; }}
+.mini-card   {{ background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 4px; padding: 8px 10px; }}
+.mini-table  {{ width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; font-size: 9px; }}
+.mini-table td {{ padding: 5px 6px; border-bottom: 1px solid #F3F4F6; color: #374151; vertical-align: middle; }}
+.mini-table tr:last-child td {{ border-bottom: none; }}
+
+/* Disclaimer + footer */
+.disclaimer {{ background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 4px; padding: 8px 10px; font-family: Arial, sans-serif; font-size: 8px; color: #64748B; line-height: 1.45; margin-bottom: 10px; }}
+.rpt-footer {{ border-top: 1.5px solid #E5E7EB; padding-top: 7px; }}
+.footer-row {{ width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; font-size: 7.5px; color: #9CA3AF; }}
+.page-badge {{ display: inline-block; background: #F1F5F9; border: 1px solid #E2E8F0; border-radius: 3px; padding: 2px 8px; font-size: 7px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #6B7280; }}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="rpt-header">
+    <table style="width:100%;border-collapse:collapse;">
+        <tr>
+            <td style="vertical-align:bottom;">
+                <div class="rpt-brand">Mini Coffee Shop &middot; Management Intelligence</div>
+                <div class="rpt-title">7-Day Sales Forecast Report</div>
+                <div class="rpt-byline">AI-Assisted Revenue Projection &mdash; Prophet Multiplicative Seasonal Model</div>
+            </td>
+            <td style="vertical-align:top;text-align:right;padding-left:12px;">
+                <div style="font-family:Arial,sans-serif;font-size:13px;font-weight:700;color:#1A1A2E;">{outlet_icon} {branch_name} Outlet</div>
+                <div style="font-family:Arial,sans-serif;font-size:8.5px;color:#6B7280;margin-top:2px;">Period: {today_str}</div>
+                <div><span class="rpt-badge">Confidential &mdash; Internal Use Only</span></div>
+            </td>
+        </tr>
+    </table>
+</div>
+
+<!-- EXECUTIVE SUMMARY -->
+<div class="exec-band">
+    <div class="exec-band-label">Outlet Profile &amp; Executive Summary</div>
+    <div class="exec-band-text"><strong>{branch_name}:</strong> {persona_desc}</div>
+</div>
+
+<!-- KPI STRIP -->
+<table class="kpi-table">
+    <tr>
+        <td class="kpi-cell green">
+            <div class="kpi-lbl">Forecast Accuracy</div>
+            <div class="kpi-val" style="color:{acc_color};">{accuracy}%</div>
+            <div class="kpi-note">Overall model confidence</div>
+        </td>
+        <td class="kpi-cell amber">
+            <div class="kpi-lbl">Mean Abs. % Error</div>
+            <div class="kpi-val">{mape}%</div>
+            <div class="kpi-note">Lower is better</div>
+        </td>
+        <td class="kpi-cell">
+            <div class="kpi-lbl">Root Mean Sq. Error</div>
+            <div class="kpi-val" style="font-size:12px;">RM&nbsp;{rmse:,.2f}</div>
+            <div class="kpi-note">Avg. residual deviation</div>
+        </td>
+        <td class="kpi-cell purple">
+            <div class="kpi-lbl">7-Day Revenue Total</div>
+            <div class="kpi-val" style="color:#7C3AED;font-size:12px;">RM&nbsp;{total_7day_rev:,.2f}</div>
+            <div class="kpi-note">Projected gross intake</div>
+        </td>
+    </tr>
+</table>
+
+<!-- 7-DAY FORECAST TABLE -->
+<div class="section-head">
+    <div class="section-title">7-Day Predictive Revenue Breakdown</div>
+    <div class="section-sub">Daily projected revenue with confidence intervals, weather context, and operational flags</div>
+</div>
+<table class="fc-table">
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Day</th>
+            <th>Weather</th>
+            <th>Flags &amp; Events</th>
+            <th class="r">Expected Revenue</th>
+            <th class="r">Lower Bound</th>
+            <th class="r">Upper Bound</th>
+        </tr>
+    </thead>
+    <tbody>{forecast_rows}</tbody>
+    <tfoot>
+        <tr>
+            <td colspan="4">7-Day Projected Total</td>
+            <td style="text-align:right;color:#7C3AED;">RM&nbsp;{total_7day_rev:,.2f}</td>
+            <td colspan="2"></td>
+        </tr>
+    </tfoot>
+</table>
+
+<!-- SPLIT: HOURLY + WEATHER×SHIFT -->
+<table class="split-table">
+    <tr>
+        <td class="split-cell">
+            <div class="section-head" style="margin-top:0;">
+                <div class="section-title">&#9201; Peak Hour Revenue Profile</div>
+                <div class="section-sub">Top trading hours by estimated revenue</div>
+            </div>
+            <div class="mini-card">
+                <table class="mini-table"><tbody>{hourly_rows}</tbody></table>
+            </div>
+        </td>
+        <td class="split-cell">
+            <div class="section-head" style="margin-top:0;">
+                <div class="section-title">&#9925; Weather &times; Shift Density</div>
+                <div class="section-sub">Historical transaction frequency by shift &amp; condition</div>
+            </div>
+            <div class="mini-card">
+                <table class="mini-table"><tbody>{wbt_rows}</tbody></table>
+            </div>
+        </td>
+    </tr>
+</table>
+
+<!-- DISCLAIMER -->
+<div class="disclaimer">
+    <strong>&#8505; Disclaimer:</strong> This report was automatically generated by the Mini Coffee Shop
+    Forecasting System using Meta Prophet with multiplicative seasonality and Malaysian public holiday
+    regressors. Projections are statistical estimates and should be reviewed alongside operational context
+    before making business decisions. Confidence intervals reflect model uncertainty, not guaranteed
+    performance ranges.
+</div>
+
+<!-- FOOTER -->
+<div class="rpt-footer">
+    <table class="footer-row">
+        <tr>
+            <td>Generated: {now_str} &nbsp;&middot;&nbsp; Branch: {branch_name} &nbsp;&middot;&nbsp; Engine: Prophet AI Core (Multiplicative)</td>
+            <td style="text-align:right;"><span class="page-badge">Page 1 of 1</span></td>
+        </tr>
+    </table>
+</div>
+
+</body>
+</html>"""
+    
 # ============================================================
 #    API — AVAILABLE REPORT MONTHS (for month picker disabling)
 # ============================================================
