@@ -24,7 +24,7 @@ MY_PUBLIC_HOLIDAYS = [
     ("2025-09-16", "Malaysia Day"),
     ("2025-10-02", "Deepavali"),
     ("2025-12-25", "Christmas Day"),
-    
+
     # 2026 Base Events
     ("2026-01-01", "New Year's Day"),
     ("2026-02-01", "Federal Territory Day"),
@@ -37,7 +37,7 @@ MY_PUBLIC_HOLIDAYS = [
     ("2026-10-21", "Deepavali"),
     ("2026-12-25", "Christmas Day"),
 
-    # ✅ ADDED: 2027 Future Events (Accurate Lunar/Calendar Shifting)
+    # 2027 Future Events
     ("2027-01-01", "New Year's Day"),
     ("2027-02-01", "Federal Territory Day"),
     ("2027-02-06", "Chinese New Year"),
@@ -58,7 +58,7 @@ MY_SEASONS = [
     ("2026-11-14", "2026-12-31", "Year-End School Holidays"),
     ("2026-02-18", "2026-03-19", "Ramadan"),
 
-    # ✅ ADDED: 2027 Future School Terms & Ramadan Window
+    # 2027 Future School Terms & Ramadan Window
     ("2027-02-07", "2027-03-08", "Ramadan 2027"),
     ("2027-03-13", "2027-03-21", "School Holidays March 2027"),
     ("2027-05-29", "2027-06-13", "School Holidays June 2027"),
@@ -87,101 +87,172 @@ class ForecastEngine:
 
     # ----------------------------------------------------------------
     def _build_promo_and_closure_maps(self):
-        """Builds static lookup maps for custom operational rules across 2025-2027"""
+        """
+        Returns:
+          closed_dates : set of date strings where the shop is CLOSED
+          promo_dates  : dict of date_str -> plain-English promo label
+                         Guaranteed to span exactly promo_window_days of open business days.
+        """
         closed_dates = set()
-        promo_dates = {}
+        promo_dates  = {}
 
         events = {
-            "Raya_Fitri_2025": ("2025-03-31", 3, 3),
-            "Raya_Adha_2025":  ("2025-06-07", 3, 3),
-            "Raya_Fitri_2026": ("2026-03-21", 3, 3),
-            "Raya_Adha_2026":  ("2026-05-27", 3, 3),
-            "CNY_2025":        ("2025-01-29", 0, 2),
-            "Deepavali_2025":  ("2025-10-02", 0, 2),
-            "CNY_2026":        ("2026-02-17", 0, 2),
-            "Deepavali_2026":  ("2026-10-21", 0, 2),
-
-            # ✅ ADDED: 2027 Festive Closures & Promotional Rules
-            "Raya_Fitri_2027": ("2027-03-10", 3, 3),
-            "Raya_Adha_2027":  ("2027-05-17", 3, 3),
-            "CNY_2027":        ("2027-02-06", 0, 2),
-            "Deepavali_2027":  ("2027-11-08", 0, 2)
+            # Hari Raya Aidilfitri
+            "Raya_Fitri_2025": ("2025-03-31", 3, 3, "Post-Raya Campaign"),
+            "Raya_Fitri_2026": ("2026-03-21", 3, 3, "Post-Raya Campaign"),
+            "Raya_Fitri_2027": ("2027-03-10", 3, 3, "Post-Raya Campaign"),
+            # Hari Raya Aidiladha
+            "Raya_Adha_2025":  ("2025-06-07", 3, 3, "Post-Raya Campaign"),
+            "Raya_Adha_2026":  ("2026-05-27", 3, 3, "Post-Raya Campaign"),
+            "Raya_Adha_2027":  ("2027-05-17", 3, 3, "Post-Raya Campaign"),
+            # Chinese New Year
+            "CNY_2025":        ("2025-01-29", 0, 2, "CNY Festive Campaign"), # Fixed to 0 closure per your true rule
+            "CNY_2026":        ("2026-02-17", 0, 2, "CNY Festive Campaign"), # Fixed to 0 closure per your true rule
+            "CNY_2027":        ("2027-02-06", 0, 2, "CNY Festive Campaign"),
+            # Deepavali
+            "Deepavali_2025":  ("2025-10-02", 0, 2, "Deepavali Campaign"),   # Fixed to 0 closure per your true rule
+            "Deepavali_2026":  ("2026-10-21", 0, 2, "Deepavali Campaign"),   # Fixed to 0 closure per your true rule
+            "Deepavali_2027":  ("2027-11-08", 0, 2, "Deepavali Campaign"),
         }
 
-        for name, (start_str, close_w, promo_w) in events.items():
+        for name, (start_str, close_w, promo_w, label) in events.items():
             base_dt = datetime.strptime(start_str, "%Y-%m-%d")
-            
+
+            # 1. Map Complete Closure Window
             for c in range(close_w):
                 c_date = (base_dt + timedelta(days=c)).strftime("%Y-%m-%d")
                 closed_dates.add(c_date)
+
+            # 2. Map Promo Window sequentially across active OPEN days only
+            current_dt = base_dt + timedelta(days=close_w)
+            promos_assigned = 0
+            
+            while promos_assigned < promo_w:
+                date_str = current_dt.strftime("%Y-%m-%d")
+                is_sunday = (current_dt.weekday() == 6)
+                is_shut = date_str in closed_dates
                 
-            start_promo_offset = close_w
-            for p in range(promo_w):
-                p_date = (base_dt + timedelta(days=start_promo_offset + p)).strftime("%Y-%m-%d")
-                label = "3-Day Post-Raya Campaign" if "Raya" in name else "2-Day Festive Promo"
-                promo_dates[p_date] = label
+                # Only apply promo if the shop is physically open
+                if not is_sunday and not is_shut:
+                    promo_dates[date_str] = label
+                    promos_assigned += 1
+                    
+                current_dt += timedelta(days=1)
 
         return closed_dates, promo_dates
+
+    # ----------------------------------------------------------------
+    def _resolve_promos(self, promo_dates: dict, closed_dates: set) -> dict:
+        """
+        Carry forward any promo that lands on a closed day (festive closure
+        OR Sunday) to the next open day.  Returns a new dict with adjusted
+        date keys.
+        """
+        resolved = {}
+        for date_str, label in promo_dates.items():
+            candidate = datetime.strptime(date_str, "%Y-%m-%d")
+            # Shift forward until we land on an open day
+            for _ in range(14):   # safety cap — never infinite loop
+                c_str   = candidate.strftime("%Y-%m-%d")
+                is_sun  = (candidate.weekday() == 6)   # Python weekday: 6=Sunday
+                is_shut = c_str in closed_dates
+                if not is_sun and not is_shut:
+                    break
+                candidate += timedelta(days=1)
+            resolved[candidate.strftime("%Y-%m-%d")] = label
+        return resolved
 
     # ----------------------------------------------------------------
     def _build_holidays_df(self):
         records = []
         for ds, name in MY_PUBLIC_HOLIDAYS:
-            records.append({'holiday': name, 'ds': pd.Timestamp(ds), 'lower_window': 0, 'upper_window': 0})
+            records.append({'holiday': name, 'ds': pd.Timestamp(ds),
+                            'lower_window': 0, 'upper_window': 0})
         for start, end, name in MY_SEASONS:
             for d in pd.date_range(start=start, end=end, freq='D'):
-                records.append({'holiday': name, 'ds': d, 'lower_window': 0, 'upper_window': 0})
+                records.append({'holiday': name, 'ds': d,
+                                'lower_window': 0, 'upper_window': 0})
         return pd.DataFrame(records)
 
     # ----------------------------------------------------------------
     def _add_promotion_features(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
         df['friday_promo'] = (df['ds'].dt.dayofweek == 4).astype(int)
-        _, promo_map = self._build_promo_and_closure_maps()
-        df['seasonal_promo'] = df['ds'].dt.strftime('%Y-%m-%d').isin(promo_map).astype(int)
+        _, raw_promo_map = self._build_promo_and_closure_maps()
+        df['seasonal_promo'] = df['ds'].dt.strftime('%Y-%m-%d').isin(raw_promo_map).astype(int)
         return df
 
     # ----------------------------------------------------------------
-    def _get_historical_data(self, branch_id: int):
+    def _get_historical_data(self, branch_id: str):
         conn = sqlite3.connect(self.db_path)
-        df = pd.read_sql_query("SELECT sale_date, weather_condition, total_revenue FROM sales_transaction WHERE branch_id = ?", conn, params=(branch_id,))
+        query = """
+            SELECT transaction_date, weather_condition, Total_Bill_MYR
+            FROM sales_transaction
+            WHERE branch_id = ? AND Total_Bill_MYR > 0
+        """
+        df = pd.read_sql_query(query, conn, params=(branch_id.upper().strip(),))
         conn.close()
-        if df.empty: return None
+        if df.empty:
+            return None
 
-        dominant = (df.groupby(['sale_date', 'weather_condition']).size().reset_index(name='cnt').sort_values('cnt', ascending=False).drop_duplicates('sale_date')[['sale_date', 'weather_condition']])
-        daily_rev = df.groupby('sale_date')['total_revenue'].sum().reset_index()
-        daily_df  = pd.merge(daily_rev, dominant, on='sale_date').rename(columns={'sale_date': 'ds', 'total_revenue': 'y'})
-        daily_df['weather_encoded'] = daily_df['weather_condition'].map(self.weather_weights).fillna(0)
+        dominant = (df.groupby(['transaction_date', 'weather_condition']).size()
+                    .reset_index(name='cnt').sort_values('cnt', ascending=False)
+                    .drop_duplicates('transaction_date')[['transaction_date', 'weather_condition']])
+
+        daily_rev = df.groupby('transaction_date')['Total_Bill_MYR'].sum().reset_index()
+        daily_df  = pd.merge(daily_rev, dominant, on='transaction_date').rename(
+            columns={'transaction_date': 'ds', 'Total_Bill_MYR': 'y'})
+        daily_df['weather_encoded'] = daily_df['weather_condition'].map(
+            self.weather_weights).fillna(0)
         daily_df['ds'] = pd.to_datetime(daily_df['ds'])
         daily_df = self._add_promotion_features(daily_df)
-        
         daily_df['is_weekday'] = (daily_df['ds'].dt.dayofweek < 5).astype(int)
         daily_df['is_weekend'] = (daily_df['ds'].dt.dayofweek >= 5).astype(int)
         return daily_df.sort_values('ds').reset_index(drop=True)
 
     # ----------------------------------------------------------------
-    def _get_hourly_data(self, branch_id: int) -> list:
+    def _get_hourly_data(self, branch_id: str) -> list:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        cursor.execute("SELECT CAST(substr(transaction_time, 1, instr(transaction_time, ':')-1) AS INTEGER) as hr, SUM(total_revenue) as rev, COUNT(*) as txns FROM sales_transaction WHERE branch_id = ? AND instr(transaction_time, ':') > 0 GROUP BY hr ORDER BY hr ASC", (branch_id,))
+        cursor.execute(
+            "SELECT Hour, SUM(Total_Bill_MYR) as rev, COUNT(*) as txns "
+            "FROM sales_transaction WHERE branch_id = ? "
+            "GROUP BY Hour ORDER BY Hour ASC",
+            (branch_id.upper().strip(),))
         rows = cursor.fetchall()
         conn.close()
-        return [{'hour': r[0], 'revenue': round(r[1], 2), 'transactions': r[2]} for r in rows if r[0] is not None]
+        return [{'hour': int(r[0]), 'revenue': round(r[1], 2), 'transactions': r[2]}
+                for r in rows if r[0] is not None]
 
     # ----------------------------------------------------------------
-    def _get_weather_by_time(self, branch_id: int) -> list:
+    def _get_weather_by_time(self, branch_id: str) -> list:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        cursor.execute("SELECT CASE WHEN CAST(substr(transaction_time, 1, 2) AS INTEGER) BETWEEN 9 AND 11 THEN 'Morning' WHEN CAST(substr(transaction_time, 1, 2) AS INTEGER) BETWEEN 12 AND 16 THEN 'Afternoon' ELSE 'Evening' END as shift, weather_condition, COUNT(*) as cnt FROM sales_transaction WHERE branch_id = ? GROUP BY shift, weather_condition", (branch_id,))
+        cursor.execute("""
+            SELECT CASE
+                WHEN CAST(Hour AS INTEGER) BETWEEN 9 AND 11 THEN 'Morning'
+                WHEN CAST(Hour AS INTEGER) BETWEEN 12 AND 16 THEN 'Afternoon'
+                ELSE 'Evening'
+            END as shift, weather_condition, COUNT(*) as cnt
+            FROM sales_transaction WHERE branch_id = ?
+            GROUP BY shift, weather_condition
+        """, (branch_id.upper().strip(),))
         rows = cursor.fetchall()
         conn.close()
         return [{'shift': r[0], 'weather': r[1], 'count': r[2]} for r in rows]
 
     # ----------------------------------------------------------------
-    def _get_forecast_vs_actual(self, branch_id: int, model, df: pd.DataFrame, fit_cols: list) -> list:
-        hist = df.tail(90).copy().reset_index(drop=True)
+    def _get_forecast_vs_actual(self, model, df: pd.DataFrame, fit_cols: list) -> list:
+        hist   = df.tail(90).copy().reset_index(drop=True)
         fitted = model.predict(hist[fit_cols]).reset_index(drop=True)
-        return [{'ds': hist.loc[i, 'ds'].strftime('%Y-%m-%d'), 'predicted': round(max(0.0, float(fitted.loc[i, 'yhat'])), 2), 'actual': round(float(hist.loc[i, 'y']), 2)} for i in range(len(hist))]
+        return [
+            {
+                'ds':        hist.loc[i, 'ds'].strftime('%Y-%m-%d'),
+                'predicted': round(max(0.0, float(fitted.loc[i, 'yhat'])), 2),
+                'actual':    round(float(hist.loc[i, 'y']), 2)
+            }
+            for i in range(len(hist))
+        ]
 
     # ----------------------------------------------------------------
     def _calculate_metrics(self, model, df: pd.DataFrame) -> tuple:
@@ -195,13 +266,15 @@ class ForecastEngine:
     # ================================================================
     #    MAIN GENERATE FORECAST
     # ================================================================
-    def generate_7_day_forecast(self, branch_id: int, branch_name: str) -> tuple:
-        persona = BRANCH_PERSONAS.get(branch_name, BRANCH_PERSONAS["Putrajaya"])
-        closed_set, promo_map = self._build_promo_and_closure_maps()
+    def generate_7_day_forecast(self, branch_id: str, branch_name: str) -> tuple:
+        branch_id = str(branch_id).upper().strip()
+        persona   = BRANCH_PERSONAS.get(branch_name, BRANCH_PERSONAS["Putrajaya"])
+
+        closed_set, resolved_promo_map = self._build_promo_and_closure_maps()
 
         df = self._get_historical_data(branch_id)
         if df is None or df.empty:
-            return False, f"No historical data found for {branch_name}."
+            return False, f"No historical data found for {branch_name} ({branch_id})."
 
         holidays_df = self._build_holidays_df()
 
@@ -209,14 +282,14 @@ class ForecastEngine:
             daily_seasonality=False, yearly_seasonality=False, weekly_seasonality=True,
             interval_width=0.95, seasonality_mode='multiplicative', holidays=holidays_df
         )
-        
         m.add_regressor('weather_encoded', standardize=True)
         m.add_regressor('friday_promo',    standardize=False, prior_scale=5.0)
         m.add_regressor('seasonal_promo',  standardize=False, prior_scale=5.0)
         m.add_regressor('is_weekday',      standardize=False)
         m.add_regressor('is_weekend',      standardize=False)
 
-        fit_cols = ['ds', 'y', 'weather_encoded', 'friday_promo', 'seasonal_promo', 'is_weekday', 'is_weekend']
+        fit_cols = ['ds', 'y', 'weather_encoded', 'friday_promo',
+                    'seasonal_promo', 'is_weekday', 'is_weekend']
         m.fit(df[fit_cols])
 
         mape, rmse, accuracy = self._calculate_metrics(m, df[fit_cols])
@@ -226,93 +299,162 @@ class ForecastEngine:
 
         future       = m.make_future_dataframe(periods=7)
         future['ds'] = pd.to_datetime(future['ds'])
-        
+
         if 'weather_encoded' in future.columns:
             future = future.drop(columns=['weather_encoded'])
-            
         future = pd.merge(future, df[['ds', 'weather_encoded']], on='ds', how='left')
         future = self._add_promotion_features(future)
 
         future_weather_labels = {}
         for idx, row in future.iterrows():
             if pd.isna(row['weather_encoded']):
-                date_str = row['ds'].strftime('%Y-%m-%d')
+                date_str  = row['ds'].strftime('%Y-%m-%d')
                 condition = branch_future_weather.get(date_str, 'Cloudy')
                 future.at[idx, 'weather_encoded'] = self.weather_weights.get(condition, 0)
-                future_weather_labels[date_str] = condition
+                future_weather_labels[date_str]   = condition
 
         future['weather_encoded'] = future['weather_encoded'].fillna(0)
         future['is_weekday']      = (future['ds'].dt.dayofweek < 5).astype(int)
         future['is_weekend']      = (future['ds'].dt.dayofweek >= 5).astype(int)
 
-        forecast = m.predict(future)
-        last_hist_date = df['ds'].max()
-        
-        conn = sqlite3.connect(self.db_path)
+        forecast         = m.predict(future)
+        last_hist_date   = df['ds'].max()
+        holiday_date_set = {h[0] for h in MY_PUBLIC_HOLIDAYS}
+
+        conn   = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
+
+        mix_df = pd.read_sql_query("""
+            SELECT product_id, product_detail,
+                   SUM(transaction_qty) as total_qty,
+                   SUM(Total_Bill_MYR) as total_rev
+            FROM sales_transaction
+            WHERE branch_id = ? AND transaction_date >= date('now', '-30 day')
+            GROUP BY product_id, product_detail
+        """, conn, params=(branch_id,))
+
+        total_hist_rev = mix_df['total_rev'].sum() if not mix_df.empty else 1
+        if total_hist_rev == 0:
+            total_hist_rev = 1
+        mix_df['qty_per_rm'] = mix_df['total_qty'] / total_hist_rev
+
         cursor.execute("DELETE FROM sales_forecast WHERE branch_id = ?", (branch_id,))
 
-        fore_payload = []
+        fore_payload              = []
+        all_7_day_predicted_items = []
+
         for _, row in forecast.iterrows():
             date_str = row['ds'].strftime('%Y-%m-%d')
             is_future = row['ds'] > last_hist_date
-            
-            is_sunday = (row['ds'].dayofweek == 6)
-            is_closed_holiday = date_str in closed_set
-            
-            if is_sunday or is_closed_holiday:
-                adj_yhat = 0.0
+
+            # ── Closed-day logic ─────────────────────────────────────────
+            is_sunday          = (row['ds'].dayofweek == 6)   # Python: 6=Sunday
+            is_festive_closure = date_str in closed_set
+            is_closed          = is_sunday or is_festive_closure
+
+            if is_closed:
+                adj_yhat   = 0.0
                 yhat_lower = 0.0
                 yhat_upper = 0.0
             else:
                 adj_yhat = max(0.0, row['yhat'])
-                if date_str in {h[0] for h in MY_PUBLIC_HOLIDAYS}:
+                if date_str in holiday_date_set:
                     adj_yhat = max(0.0, adj_yhat * (1 + persona['holiday_effect']))
                 yhat_lower = max(0.0, row['yhat_lower'])
                 yhat_upper = max(0.0, row['yhat_upper'])
 
             cursor.execute("""
-                INSERT INTO sales_forecast (forecast_date, branch_id, predicted_revenue, lower_bound_revenue, upper_bound_revenue)
+                INSERT INTO sales_forecast
+                    (forecast_date, branch_id, predicted_revenue,
+                     lower_bound_revenue, upper_bound_revenue)
                 VALUES (?, ?, ?, ?, ?)
-            """, (date_str, branch_id, round(adj_yhat, 2), round(yhat_lower, 2), round(yhat_upper, 2)))
+            """, (date_str, branch_id,
+                  round(adj_yhat, 2), round(yhat_lower, 2), round(yhat_upper, 2)))
 
             if is_future and len(fore_payload) < 7:
-                weather   = future_weather_labels.get(date_str, 'Cloudy')
-                is_friday = (row['ds'].dayofweek == 4)
-                season    = promo_map.get(date_str, None)
-                
-                is_holiday_active = date_str in {h[0] for h in MY_PUBLIC_HOLIDAYS}
-                
-                if is_closed_holiday:
-                    promo_list = ["Shop Closed: Festive Milestone"]
-                elif season:
-                    promo_list = [season]
-                elif is_friday:
-                    promo_list = ["Friday: 20% off all Lattes"]
+                is_friday          = (row['ds'].dayofweek == 4)   # Python: 4=Friday
+                is_holiday_active  = date_str in holiday_date_set
+
+                # ── Build promotion list ──────────────────────────────────
+                if is_festive_closure:
+                    # Shop is shut for a festive event — label it clearly
+                    event_name = next(
+                        (name for ds, name in MY_PUBLIC_HOLIDAYS if ds == date_str),
+                        "Festive Holiday"
+                    )
+                    promo_list = [f"Shop Closed — {event_name}"]
+                elif is_sunday:
+                    promo_list = []   # Sunday closed label shown via UI flag
                 else:
                     promo_list = []
-                
+                    # Use the RESOLVED promo map (already skipped closed days)
+                    resolved_label = resolved_promo_map.get(date_str)
+                    if resolved_label:
+                        promo_list.append(resolved_label)
+                    if is_friday:
+                        promo_list.append("Friday Promo — 20% off Lattes")
+
+                # ── Weather: blank out for closed days ────────────────────
+                if is_closed:
+                    weather = None      # signals "no weather" to frontend
+                else:
+                    weather = future_weather_labels.get(date_str, 'Cloudy')
+
+                # ── Ingredient items for open days only ───────────────────
+                day_items = []
+                if adj_yhat > 0:
+                    for _, m_row in mix_df.iterrows():
+                        pred_qty = int(round(m_row['qty_per_rm'] * adj_yhat))
+                        if pred_qty > 0:
+                            item = {
+                                'product_id':     m_row['product_id'],
+                                'product_detail': m_row['product_detail'],
+                                'quantity':       pred_qty
+                            }
+                            day_items.append(item)
+                            all_7_day_predicted_items.append(item)
+
                 fore_payload.append({
-                    'ds':           date_str,
-                    'yhat':         round(adj_yhat, 2),
-                    'yhat_lower':   round(yhat_lower, 2),
-                    'yhat_upper':   round(yhat_upper, 2),
-                    'weather':      weather,
-                    'is_holiday':   is_holiday_active,
-                    'is_friday':    is_friday,
-                    'season':       season,
-                    'promotions':   promo_list
+                    'ds':              date_str,
+                    'yhat':            round(adj_yhat, 2),
+                    'yhat_lower':      round(yhat_lower, 2),
+                    'yhat_upper':      round(yhat_upper, 2),
+                    'weather':         weather,        # None = closed
+                    'is_holiday':      is_holiday_active,
+                    'is_friday':       is_friday,
+                    'is_closed':       is_closed,
+                    'is_festive_close':is_festive_closure,
+                    'promotions':      promo_list,
+                    'predicted_items': day_items
                 })
 
         conn.commit()
         conn.close()
 
-        hist_payload = [{'ds': r['ds'].strftime('%Y-%m-%d'), 'y': round(r['y'], 2), 'weather': r['weather_condition']} for _, r in df.tail(90).iterrows()]
+        hist_payload = [
+            {
+                'ds':      r['ds'].strftime('%Y-%m-%d'),
+                'y':       round(r['y'], 2),
+                'weather': r['weather_condition']
+            }
+            for _, r in df.tail(90).iterrows()
+        ]
         hourly = self._get_hourly_data(branch_id)
         wbt    = self._get_weather_by_time(branch_id)
-        fva    = self._get_forecast_vs_actual(branch_id, m, df, fit_cols)
+        fva    = self._get_forecast_vs_actual(m, df, fit_cols)
+
+        from analytics import calculate_ingredient_demand
+        seven_day_ingredient_demand = calculate_ingredient_demand(all_7_day_predicted_items)
 
         return True, {
-            'mape': mape, 'rmse': rmse, 'accuracy': accuracy, 'persona': persona['description'],
-            'historical': hist_payload, 'forecast': fore_payload, 'hourly': hourly, 'forecast_vs_actual': fva, 'weather_by_time': wbt
+            'mape':             mape,
+            'rmse':             rmse,
+            'accuracy':         accuracy,
+            'persona':          persona['description'],
+            'historical':       hist_payload,
+            'forecast':         fore_payload,
+            'hourly':           hourly,
+            'forecast_vs_actual': fva,
+            'weather_by_time':  wbt,
+            'ingredient_demand': seven_day_ingredient_demand
         }

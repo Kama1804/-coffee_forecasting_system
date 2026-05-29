@@ -2,24 +2,27 @@ import pandas as pd
 import sqlite3
 import os
 import requests
+import json
 from datetime import datetime
+from analytics import process_sales_dataframe, bulk_insert_sales
 
 class ETLPipeline:
     def __init__(self, filepath):
         self.filepath = filepath
         self.df = None
         
-        # Exact target schema required by the core analytics engine
+        # New 17-column Enterprise Schema
         self.required_columns = [
-            'Transaction_ID', 'Date', 'Time', 'Outlet', 'Category', 
-            'Product_Name', 'Quantity_Sold', 'Unit_Price_RM', 
-            'Total_Revenue_RM', 'Payment_Method'
+            'Transaction_ID', 'Timestamp', 'Register_ID', 'Cashier_Name', 
+            'Store_ID', 'Item_Name', 'Item_Category', 'Quantity_Sold', 
+            'Modifiers', 'Order_Type', 'Gross_Sales', 'Discount_Amount', 
+            'Promo_Code', 'Discount_Reason', 'Tax_Amount', 'Net_Sales', 'Payment_Type'
         ]
 
     def _enrich_weather(self, df):
         BRANCH_COORDS = {
-            'Putrajaya':   {'lat': 2.9264, 'lon': 101.6964},
-            'Puncak Alam': {'lat': 3.2353, 'lon': 101.4243}
+            'STB-PJ1': {'lat': 2.9264, 'lon': 101.6964},
+            'FT-PA1':  {'lat': 3.2353, 'lon': 101.4243}
         }
 
         def map_weather_code(code):
@@ -32,11 +35,14 @@ class ETLPipeline:
             else:
                 return 'Cloudy'
 
-        def fetch_weather(date_str, branch):
-            coords = BRANCH_COORDS.get(branch)
+        def fetch_weather(date_str, branch_id):
+            coords = BRANCH_COORDS.get(branch_id)
             if not coords:
                 return 'Cloudy'
-            if date_str > datetime.today().strftime('%Y-%m-%d'):
+            try:
+                if datetime.strptime(date_str, '%Y-%m-%d').date() > datetime.today().date():
+                    return 'Cloudy'
+            except Exception:
                 return 'Cloudy'
 
             try:
@@ -61,75 +67,97 @@ class ETLPipeline:
                 return 'Cloudy'  
 
         weather_cache = {}
-        unique_pairs  = df[['Date', 'Outlet']].drop_duplicates()
+        unique_pairs  = df[['transaction_date', 'branch_id']].drop_duplicates()
 
         print(f"[ETL LOG] Fetching weather for {len(unique_pairs)} discrete vectors...")
 
         for _, row in unique_pairs.iterrows():
-            key = (row['Date'], row['Outlet'])
+            key = (row['transaction_date'], row['branch_id'])
             if key not in weather_cache:
-                weather_cache[key] = fetch_weather(row['Date'], row['Outlet'])
+                weather_cache[key] = fetch_weather(row['transaction_date'], row['branch_id'])
 
-        df['Weather_Condition'] = df.apply(
-            lambda r: weather_cache.get((r['Date'], r['Outlet']), 'Cloudy'), axis=1
+        df['weather_condition'] = df.apply(
+            lambda r: weather_cache.get((r['transaction_date'], r['branch_id']), 'Cloudy'), axis=1
         )
+        return df
+
+    def _enrich_holidays(self, df):
+        # Expanded multi-year public holiday index mapping (covering 2025 and 2026 operational windows)
+        MY_HOLIDAYS = [
+            '2025-01-01', '2025-02-01', '2025-05-01', '2025-08-31', '2025-09-16', '2025-12-25',
+            '2026-01-01', '2026-02-01', '2026-02-17', '2026-02-18', '2026-05-01', '2026-08-31', '2026-09-16', '2026-12-25'
+        ]
+        df['is_public_holiday'] = df['transaction_date'].isin(MY_HOLIDAYS).astype(int)
         return df
 
     def process_data(self):
         try:
-            self.df = pd.read_csv(self.filepath)
-            if self.df.empty:
+            raw_df = pd.read_csv(self.filepath)
+            if raw_df.empty:
                 return False, "Upload Failed: The uploaded CSV file contains no data rows."
 
-            self.df.columns = self.df.columns.str.strip().str.title()
+            # Header Cleanup with Title Case preservation
+            raw_df.columns = raw_df.columns.str.strip().str.title()
             
-            header_mapping = {
-                'Transaction_Id': 'Transaction_ID',     
-                'Transactionid': 'Transaction_ID',
-                'Sale_Date': 'Date',
-                'Sales_Date': 'Date',
-                'Transaction_Time': 'Time',
-                'Outlet_Name': 'Outlet',
-                'Product_Category': 'Category',
-                'Unit_Price': 'Unit_Price_RM',
-                'Unit_Price_Rm': 'Unit_Price_RM',       
-                'Total_Revenue': 'Total_Revenue_RM',
-                'Total_Revenue_Rm': 'Total_Revenue_RM'   
+          
+            column_mapping = {
+                'Transaction_Id': 'Transaction_ID',
+                'Register_Id': 'Register_ID',
+                'Store_Id': 'Store_ID',
+                'Item_Name': 'Item_Name',
+                'Item_Category': 'Item_Category',
+                'Quantity_Sold': 'Quantity_Sold',
+                'Gross_Sales': 'Gross_Sales',
+                'Discount_Amount': 'Discount_Amount',
+                'Promo_Code': 'Promo_Code',
+                'Discount_Reason': 'Discount_Reason',
+                'Tax_Amount': 'Tax_Amount',
+                'Net_Sales': 'Net_Sales',
+                'Payment_Type': 'Payment_Type'
             }
-            self.df = self.df.rename(columns=header_mapping)
+            raw_df = raw_df.rename(columns=column_mapping)
             
-            missing_cols = [col for col in self.required_columns if col not in self.df.columns]
+            missing_cols = [col for col in self.required_columns if col not in raw_df.columns]
             if missing_cols:
                 return False, f"Upload Failed. Missing required columns: {', '.join(missing_cols)}"
 
-            # ✅ SELF-HEALING UPGRADE: Automatically drop internal row collisions inside the uploaded file
-            self.df = self.df.drop_duplicates(subset=['Transaction_ID'], keep='first')
+            # Text Standardization (Forcing alignment on value items to avoid data fragmentation)
+            raw_df['Store_ID'] = raw_df['Store_ID'].astype(str).str.strip().str.upper()
+            raw_df['Payment_Type'] = raw_df['Payment_Type'].astype(str).str.strip().str.upper()
+            raw_df['Item_Name'] = raw_df['Item_Name'].astype(str).str.strip()
+            raw_df['Item_Category'] = raw_df['Item_Category'].astype(str).str.strip()
 
-            self.df = self.df.dropna(subset=['Transaction_ID', 'Date', 'Time', 'Product_Name'])
+            # Bad Rows Removal (Dropping negative or zero values in financial transaction items)
+            raw_df = raw_df[raw_df['Quantity_Sold'] > 0]
+            raw_df = raw_df[raw_df['Gross_Sales'] > 0]
+            raw_df = raw_df[raw_df['Net_Sales'] > 0]
 
-            parsed_dates = pd.to_datetime(self.df['Date'], dayfirst=True, errors='coerce')
-            self.df['Time'] = pd.to_datetime(self.df['Time'], format='%H:%M', errors='coerce').dt.strftime('%H:%M')
-            self.df['Date'] = parsed_dates.dt.strftime('%Y-%m-%d')
-            self.df = self.df.dropna(subset=['Date', 'Time'])
+            # Drop missing values and duplicates based on unique Transaction_ID
+            raw_df = raw_df.dropna(subset=['Transaction_ID', 'Timestamp', 'Store_ID', 'Item_Name'])
+            raw_df = raw_df.drop_duplicates(subset=['Transaction_ID'], keep='first')
 
-            self.df['Quantity_Sold'] = pd.to_numeric(self.df['Quantity_Sold'], errors='coerce').fillna(1).astype(int)
-            self.df['Unit_Price_RM'] = pd.to_numeric(self.df['Unit_Price_RM'], errors='coerce')
-            self.df = self.df.dropna(subset=['Unit_Price_RM'])
-            
-            self.df['Total_Revenue_RM'] = self.df['Quantity_Sold'] * self.df['Unit_Price_RM']
-            self.df = self.df[self.df['Total_Revenue_RM'] > 0]
+            if raw_df.empty:
+                return False, "Upload Failed: Cleaning steps removed all rows (invalid business metric profiles detected)."
 
-            self.df['Outlet'] = self.df['Outlet'].astype(str).str.strip().str.title()
-            self.df['Category'] = self.df['Category'].astype(str).str.strip().str.title()
-            self.df['Product_Name'] = self.df['Product_Name'].astype(str).str.strip().str.title()
-            self.df['Payment_Method'] = self.df['Payment_Method'].astype(str).str.strip().str.upper()
+            # Safety Interceptor for Weather API
+            try:
+                raw_df['transaction_date'] = raw_df['Timestamp'].str.split('T').str[0]
+                if raw_df['transaction_date'].str.contains('-').sum() == 0:
+                    raw_df['transaction_date'] = pd.to_datetime(raw_df['Timestamp']).dt.strftime('%Y-%m-%d')
+            except Exception:
+                return False, "Upload Failed: Unable to parse dates from Timestamp formatting profile."
 
-            self.df = self.df[self.df['Outlet'].isin(['Putrajaya', 'Puncak Alam'])]
+            # Transformation using Analytics Engine (Returns 23-column schema layout)
+            self.df = process_sales_dataframe(raw_df)
+
+            # Filtering for valid branches
+            self.df = self.df[self.df['branch_id'].isin(['FT-PA1', 'STB-PJ1'])]
             if self.df.empty:
-                return False, "Upload Failed: No transactions matched valid branch domains."
+                return False, "Upload Failed: No transactions matched valid branch domains (FT-PA1, STB-PJ1)."
 
-            self.df['Weather_Condition'] = None
+            # Enrichments (Guaranteed clean text dates are passed downstream here)
             self.df = self._enrich_weather(self.df)
+            self.df = self._enrich_holidays(self.df)
 
             return True, "Data successfully processed, normalized, and validated via ETL pipeline."
 
@@ -141,46 +169,13 @@ class ETLPipeline:
             if self.df is None or self.df.empty:
                 return False, "No data available to save."
 
-            branch_mapping = {'Putrajaya': 1, 'Puncak Alam': 2}
-            self.df['branch_id'] = self.df['Outlet'].map(branch_mapping)
+            success, message = bulk_insert_sales(self.df, db_path)
+            return success, message
 
-            self.df = self.df.dropna(subset=['branch_id'])
-            self.df['branch_id'] = self.df['branch_id'].astype(int)
-
-            db_df = self.df.rename(columns={
-                'Transaction_ID': 'txn_reference',
-                'Date': 'sale_date',
-                'Time': 'transaction_time',
-                'Category': 'product_category',
-                'Product_Name': 'product_name',
-                'Quantity_Sold': 'quantity_sold',
-                'Unit_Price_RM': 'unit_price',
-                'Total_Revenue_RM': 'total_revenue',
-                'Payment_Method': 'payment_method',
-                'Weather_Condition': 'weather_condition'
-            })
-
-            columns_to_keep = [
-                'txn_reference', 'sale_date', 'transaction_time', 'branch_id',
-                'product_category', 'product_name', 'quantity_sold', 
-                'unit_price', 'total_revenue', 'payment_method', 'weather_condition'
-            ]
-            db_df = db_df[columns_to_keep]
-
-            # ✅ LOCK RESOLUTION UPGRADE: Extension timeout extended to 30s to bypass external locks cleanly
-            conn = sqlite3.connect(db_path, timeout=30.0)
-            db_df.to_sql('sales_transaction', conn, if_exists='append', index=False)
-            conn.commit()
-            conn.close()
-
-            return True, f"Successfully inserted {len(db_df)} records into the database."
-
-        except sqlite3.IntegrityError as e:
-            print(f"[SQL ERROR] Integrity Error Triggered: {e}")
+        except sqlite3.IntegrityError:
             return False, "Database Rejection: Double ingestion alert. These transaction IDs are already registered."
         except Exception as e:
-            print(f"[DB ERROR] General DB Failure: {e}")
             error_msg = str(e)
             if "locked" in error_msg.lower():
-                return False, "Database is currently locked by an external file-viewer process. Please close DB Browser and retry upload."
+                return False, "Database is currently locked. Please close any DB browsers and retry."
             return False, f"Execution failed: {error_msg}"

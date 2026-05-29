@@ -1,8 +1,9 @@
-from flask import Flask, render_template, request, flash, redirect, url_for, session, jsonify, make_response
+from flask import Flask, render_template, request, flash, redirect, url_for, session, jsonify, make_response, Response
 import os
 import sqlite3
 import time
 import io
+import json
 from functools import wraps
 from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
@@ -11,8 +12,10 @@ from dotenv import load_dotenv
 # Core Module Dependencies
 from init_db import initialize_database
 from etl_pipeline import ETLPipeline
-from gemini_agent import get_ai_insight, build_chat_system_context
+from gemini_agent import get_ai_insight, build_chat_system_context, stream_ai_insight, build_slim_context, fast_kpi_bypass
 from forecast_engine import ForecastEngine, MY_PUBLIC_HOLIDAYS, MY_SEASONS
+from analytics import (get_dashboard_metrics, calculate_ingredient_demand, 
+                       revenue_decline_and_product_mix_profiler, weather_payday_cross_tabulation, SKU_MAPPING)
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.units import mm
@@ -56,6 +59,9 @@ if not os.path.exists(DB_PATH):
 else:
     print("Database found. System ready.")
 
+# Helper tool to convert database SKU codes back to friendly menu names for frontend charts
+REVERSE_SKU_LOOKUP = {v: k.title() for k, v in SKU_MAPPING.items()}
+
 # ============================================================
 #    HELPERS
 # ============================================================
@@ -67,20 +73,28 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
-def build_where(branch_filter, time_filter, max_date, alias='s', branch_alias='b'):
+def build_where(branch_filter, time_filter, max_date, temp_filter='all', alias='s'):
     conds, params = [], []
     if branch_filter != 'all':
-        conds.append(f"{branch_alias}.branch_name = ?")
+        conds.append(f"{alias}.store_location = ?")
         params.append(branch_filter)
     if time_filter == 'current_week':
-        conds.append(f"{alias}.sale_date >= date(?, '-7 days')")
+        conds.append(f"{alias}.transaction_date >= date(?, '-7 days')")
         params.append(max_date)
     elif time_filter.startswith('year_'):
-        conds.append(f"strftime('%Y', {alias}.sale_date) = ?")
+        conds.append(f"strftime('%Y', {alias}.transaction_date) = ?")
         params.append(time_filter.split('_')[1])
     elif time_filter.startswith('month_'):
-        conds.append(f"strftime('%Y-%m', {alias}.sale_date) = ?")
+        conds.append(f"strftime('%Y-%m', {alias}.transaction_date) = ?")
         params.append(time_filter.split('_')[1])
+    
+    if temp_filter == 'ICED':
+        conds.append(f"{alias}.product_detail LIKE ?")
+        params.append("%ICED%")
+    elif temp_filter == 'HOT':
+        conds.append(f"{alias}.product_detail NOT LIKE ?")
+        params.append("%ICED%")
+
     where = ("WHERE " + " AND ".join(conds)) if conds else ""
     return where, params
 
@@ -188,15 +202,15 @@ def upload_file():
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) as total FROM sales_transaction")
         total = cursor.fetchone()['total']
-        cursor.execute("SELECT MIN(sale_date) as first, MAX(sale_date) as last FROM sales_transaction")
+        cursor.execute("SELECT MIN(transaction_date) as first, MAX(transaction_date) as last FROM sales_transaction")
         dates = cursor.fetchone()
         cursor.execute("SELECT COUNT(DISTINCT product_category) as cats FROM sales_transaction")
         cats  = cursor.fetchone()['cats']
+        
         cursor.execute("""
-            SELECT b.branch_name, COUNT(*) as cnt
-            FROM sales_transaction s
-            JOIN branch b ON s.branch_id = b.branch_id
-            GROUP BY b.branch_name
+            SELECT store_location, COUNT(*) as cnt
+            FROM sales_transaction
+            GROUP BY store_location
         """)
         branches = cursor.fetchall()
         conn.close()
@@ -205,7 +219,7 @@ def upload_file():
             'date_from':     dates['first'] or 'N/A',
             'date_to':       dates['last']  or 'N/A',
             'categories':    cats,
-            'branches':      [{'name': r['branch_name'], 'count': r['cnt']} for r in branches]
+            'branches':      [{'name': r['store_location'], 'count': r['cnt']} for r in branches]
         }
     except Exception:
         profile = None
@@ -238,12 +252,12 @@ def api_dashboard_filters():
         conn   = get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT DISTINCT strftime('%Y', sale_date) as yr "
+            "SELECT DISTINCT strftime('%Y', transaction_date) as yr "
             "FROM sales_transaction ORDER BY yr DESC"
         )
         years = [r['yr'] for r in cursor.fetchall() if r['yr']]
         cursor.execute(
-            "SELECT DISTINCT strftime('%Y-%m', sale_date) as mo "
+            "SELECT DISTINCT strftime('%Y-%m', transaction_date) as mo "
             "FROM sales_transaction ORDER BY mo DESC"
         )
         months = [r['mo'] for r in cursor.fetchall() if r['mo']]
@@ -261,28 +275,28 @@ def api_dashboard_filters():
 def api_kpis():
     branch_filter = request.args.get('branch', 'all')
     time_filter   = request.args.get('time',   'all')
+    temp_filter   = request.args.get('temp',   'all')
 
     try:
         conn   = get_db_connection()
         cursor = conn.cursor()
 
-        cursor.execute("SELECT MAX(sale_date) as max_d FROM sales_transaction")
+        cursor.execute("SELECT MAX(transaction_date) as max_d FROM sales_transaction")
         max_date = cursor.fetchone()['max_d'] or datetime.today().strftime('%Y-%m-%d')
 
-        where, params = build_where(branch_filter, time_filter, max_date)
-        join = "JOIN branch b ON s.branch_id = b.branch_id"
+        where, params = build_where(branch_filter, time_filter, max_date, temp_filter)
 
         cursor.execute(f"""
-            SELECT COALESCE(SUM(s.total_revenue), 0) as rev,
-                   COALESCE(SUM(s.quantity_sold), 0) as vol,
+            SELECT COALESCE(SUM(s.Total_Bill_MYR), 0) as rev,
+                   COALESCE(SUM(s.transaction_qty), 0) as vol,
                    COUNT(s.transaction_id)           as txns
-            FROM sales_transaction s {join} {where}
+            FROM sales_transaction s {where}
         """, params)
         metrics = cursor.fetchone()
 
         cursor.execute(f"""
-            SELECT COUNT(DISTINCT s.sale_date) as active_days
-            FROM sales_transaction s {join} {where}
+            SELECT COUNT(DISTINCT s.transaction_date) as active_days
+            FROM sales_transaction s {where}
         """, params)
         day_row     = cursor.fetchone()
         active_days = day_row['active_days'] or 1
@@ -295,14 +309,13 @@ def api_kpis():
         prev_mo = cursor.fetchone()['prev_mo']
 
         cursor.execute("""
-            SELECT b.branch_name, SUM(s.total_revenue) as rev
-            FROM sales_transaction s
-            JOIN branch b ON s.branch_id = b.branch_id
-            WHERE strftime('%Y-%m', s.sale_date) = ?
-            GROUP BY b.branch_name ORDER BY rev DESC LIMIT 1
+            SELECT store_location, SUM(Total_Bill_MYR) as rev
+            FROM sales_transaction
+            WHERE strftime('%Y-%m', transaction_date) = ?
+            GROUP BY store_location ORDER BY rev DESC LIMIT 1
         """, [prev_mo])
         tb         = cursor.fetchone()
-        top_branch = tb['branch_name'] if tb else 'N/A'
+        top_branch = tb['store_location'] if tb else 'N/A'
 
         try:
             prev_dt    = datetime.strptime(prev_mo + '-01', '%Y-%m-%d')
@@ -311,16 +324,16 @@ def api_kpis():
             prev_label = prev_mo
 
         cursor.execute("""
-            SELECT COALESCE(SUM(total_revenue), 0) as curr
+            SELECT COALESCE(SUM(Total_Bill_MYR), 0) as curr
             FROM sales_transaction
-            WHERE strftime('%Y-%m', sale_date) = strftime('%Y-%m', ?)
+            WHERE strftime('%Y-%m', transaction_date) = strftime('%Y-%m', ?)
         """, [max_date])
         curr_mo_rev = cursor.fetchone()['curr']
 
         cursor.execute("""
-            SELECT COALESCE(SUM(total_revenue), 0) as prev
+            SELECT COALESCE(SUM(Total_Bill_MYR), 0) as prev
             FROM sales_transaction
-            WHERE strftime('%Y-%m', sale_date) = ?
+            WHERE strftime('%Y-%m', transaction_date) = ?
         """, [prev_mo])
         prev_mo_rev = cursor.fetchone()['prev']
 
@@ -331,13 +344,13 @@ def api_kpis():
             trend_label = f"vs {prev_label}"
 
         cursor.execute(f"""
-            SELECT s.sale_date, SUM(s.total_revenue) as rev
-            FROM sales_transaction s {join} {where}
-            GROUP BY s.sale_date
-            ORDER BY s.sale_date DESC LIMIT 7
+            SELECT s.transaction_date, SUM(s.Total_Bill_MYR) as rev
+            FROM sales_transaction s {where}
+            GROUP BY s.transaction_date
+            ORDER BY s.transaction_date DESC LIMIT 7
         """, params)
         spark_rows      = cursor.fetchall()
-        sparkline_dates = [r['sale_date'] for r in reversed(spark_rows)]
+        sparkline_dates = [r['transaction_date'] for r in reversed(spark_rows)]
         sparkline_revs  = [round(r['rev'], 2) for r in reversed(spark_rows)]
 
         conn.close()
@@ -362,30 +375,30 @@ def api_kpis():
 
 
 # ============================================================
-#    API — CHARTS DATA
+#    API — CHARTS DATA (REFACTORED LABEL TRANSLATIONS)
 # ============================================================
 @app.route('/api/charts')
 @login_required
 def api_charts():
     branch_filter = request.args.get('branch', 'all')
     time_filter   = request.args.get('time',   'all')
+    temp_filter   = request.args.get('temp',   'all')
 
     try:
         conn   = get_db_connection()
         cursor = conn.cursor()
 
-        cursor.execute("SELECT MAX(sale_date) as max_d FROM sales_transaction")
+        cursor.execute("SELECT MAX(transaction_date) as max_d FROM sales_transaction")
         max_date = cursor.fetchone()['max_d'] or datetime.today().strftime('%Y-%m-%d')
 
-        where, params = build_where(branch_filter, time_filter, max_date)
-        join = "JOIN branch b ON s.branch_id = b.branch_id"
+        where, params = build_where(branch_filter, time_filter, max_date, temp_filter)
 
         use_monthly = (time_filter == 'all' or time_filter.startswith('year_'))
-        date_col    = "strftime('%Y-%m', s.sale_date)" if use_monthly else "s.sale_date"
+        date_col    = "strftime('%Y-%m', s.transaction_date)" if use_monthly else "s.transaction_date"
 
         cursor.execute(f"""
-            SELECT {date_col} as period, SUM(s.total_revenue) as rev
-            FROM sales_transaction s {join} {where}
+            SELECT {date_col} as period, SUM(s.Total_Bill_MYR) as rev
+            FROM sales_transaction s {where}
             GROUP BY period ORDER BY period ASC
         """, params)
         trend_rows = cursor.fetchall()
@@ -403,59 +416,62 @@ def api_charts():
                 trend_labels.append(p)
 
         cursor.execute(f"""
-            SELECT s.product_category as cat, SUM(s.total_revenue) as rev
-            FROM sales_transaction s {join} {where}
+            SELECT s.product_category as cat, SUM(s.Total_Bill_MYR) as rev
+            FROM sales_transaction s {where}
             GROUP BY cat ORDER BY rev DESC
         """, params)
         cat_rows = cursor.fetchall()
 
+        # 🟢 CHANGED: Clean SKU-to-Menu-Name resolution mapping loop to keep charts clear
         cursor.execute(f"""
-            SELECT s.product_name, SUM(s.quantity_sold) as qty
-            FROM sales_transaction s {join} {where}
-            GROUP BY s.product_name ORDER BY qty DESC LIMIT 5
+            SELECT s.product_id, SUM(s.transaction_qty) as qty
+            FROM sales_transaction s {where}
+            GROUP BY s.product_id ORDER BY qty DESC LIMIT 5
         """, params)
         top_prods = cursor.fetchall()
+        top_prod_labels = [REVERSE_SKU_LOOKUP.get(r['product_id'], r['product_id']) for r in top_prods]
 
         cursor.execute(f"""
-            SELECT s.product_name, SUM(s.quantity_sold) as qty
-            FROM sales_transaction s {join} {where}
-            GROUP BY s.product_name ORDER BY qty ASC LIMIT 3
+            SELECT s.product_id, SUM(s.transaction_qty) as qty
+            FROM sales_transaction s {where}
+            GROUP BY s.product_id ORDER BY qty ASC LIMIT 3
         """, params)
         weak_prods = cursor.fetchall()
+        weak_prod_labels = [REVERSE_SKU_LOOKUP.get(r['product_id'], r['product_id']) for r in weak_prods]
 
         cursor.execute(f"""
             SELECT s.payment_method, COUNT(*) as cnt
-            FROM sales_transaction s {join} {where}
+            FROM sales_transaction s {where}
             GROUP BY s.payment_method ORDER BY cnt DESC
         """, params)
         pay_rows = cursor.fetchall()
 
         cursor.execute(f"""
             SELECT
-                CASE strftime('%w', s.sale_date)
+                CASE strftime('%w', s.transaction_date)
                     WHEN '0' THEN 'Sun' WHEN '1' THEN 'Mon'
                     WHEN '2' THEN 'Tue' WHEN '3' THEN 'Wed'
                     WHEN '4' THEN 'Thu' WHEN '5' THEN 'Fri'
                     WHEN '6' THEN 'Sat'
-                END as day_name,
-                strftime('%w', s.sale_date) as day_num,
-                CAST(substr(s.transaction_time, 1, 2) AS INTEGER) as hour,
+                END as d_name,
+                strftime('%w', s.transaction_date) as d_num,
+                CAST(s.Hour AS INTEGER) as hr,
                 COUNT(*) as txn_count
-            FROM sales_transaction s {join} {where}
-            GROUP BY day_num, hour ORDER BY day_num ASC, hour ASC
+            FROM sales_transaction s {where}
+            GROUP BY d_num, hr ORDER BY d_num ASC, hr ASC
         """, params)
         heat_rows = cursor.fetchall()
 
         cursor.execute("""
-            SELECT DISTINCT b.branch_name FROM branch b ORDER BY b.branch_name
+            SELECT DISTINCT store_location FROM sales_transaction ORDER BY store_location
         """)
-        all_branches = [r['branch_name'] for r in cursor.fetchall()]
+        all_branches = [r['store_location'] for r in cursor.fetchall() if r['store_location']]
 
-        cursor.execute("""
-            SELECT DISTINCT strftime('%Y-%m', sale_date) as period
-            FROM sales_transaction
+        cursor.execute(f"""
+            SELECT DISTINCT strftime('%Y-%m', s.transaction_date) as period
+            FROM sales_transaction s {where}
             ORDER BY period ASC
-        """)
+        """, params)
         all_month_periods = [r['period'] for r in cursor.fetchall()]
 
         all_month_labels = []
@@ -469,18 +485,17 @@ def api_charts():
         monthly_by_branch = {b: [0] * len(all_month_periods) for b in all_branches}
         period_idx_map = {p: i for i, p in enumerate(all_month_periods)}
 
-        cursor.execute("""
-            SELECT strftime('%Y-%m', s.sale_date) as period,
-                   b.branch_name,
-                   SUM(s.total_revenue) as rev
-            FROM sales_transaction s
-            JOIN branch b ON s.branch_id = b.branch_id
-            GROUP BY period, b.branch_name
+        cursor.execute(f"""
+            SELECT strftime('%Y-%m', s.transaction_date) as period,
+                   s.store_location,
+                   SUM(s.Total_Bill_MYR) as rev
+            FROM sales_transaction s {where}
+            GROUP BY period, s.store_location
             ORDER BY period ASC
-        """)
+        """, params)
         for r in cursor.fetchall():
-            if r['period'] in period_idx_map and r['branch_name'] in monthly_by_branch:
-                monthly_by_branch[r['branch_name']][period_idx_map[r['period']]] = round(r['rev'], 2)
+            if r['period'] in period_idx_map and r['store_location'] in monthly_by_branch:
+                monthly_by_branch[r['store_location']][period_idx_map[r['period']]] = round(r['rev'], 2)
 
         conn.close()
 
@@ -503,25 +518,54 @@ def api_charts():
                 "data":   [round(r['rev'], 2) for r in cat_rows]
             },
             "products": {
-                "labels": [r['product_name'] for r in top_prods],
+                "labels": top_prod_labels,
                 "data":   [r['qty'] for r in top_prods]
             },
             "top_products": {
-                "labels": [r['product_name'] for r in top_prods],
+                "labels": top_prod_labels,
                 "data":   [r['qty'] for r in top_prods]
             },
             "weak_products": {
-                "labels": [r['product_name'] for r in weak_prods],
+                "labels": weak_prod_labels,
                 "data":   [r['qty'] for r in weak_prods]
             },
             "payment": {
-                "labels": [r['payment_method'] for r in pay_rows],
+                "labels": [str(r['payment_method']).upper() for r in pay_rows],
                 "data":   [r['cnt'] for r in pay_rows]
             },
             "heatmap": [
-                {'day': r['day_name'], 'hour': r['hour'], 'value': r['txn_count']}
+                {'day': r['d_name'], 'hour': r['hr'], 'value': r['txn_count']}
                 for r in heat_rows
             ]
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ============================================================
+#    API — DIAGNOSTICS DATA
+# ============================================================
+@app.route('/api/diagnostics')
+@login_required
+def api_diagnostics():
+    branch_filter = request.args.get('branch', 'all')
+    time_filter   = request.args.get('time',   'all')
+    temp_filter   = request.args.get('temp',   'all')
+
+    try:
+        conn   = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT MAX(transaction_date) as max_d FROM sales_transaction")
+        max_date = cursor.fetchone()['max_d'] or datetime.today().strftime('%Y-%m-%d')
+        conn.close()
+
+        where, params = build_where(branch_filter, time_filter, max_date, temp_filter)
+        
+        cross_tab = weather_payday_cross_tabulation(where, params)
+        return jsonify({
+            "status": "success",
+            "payday": cross_tab['payday_spend_analysis'],
+            "weather": cross_tab['weather_temperature_impact']
         })
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -540,234 +584,67 @@ FORECAST_CACHE = {}
 
 
 def _fetch_db_context() -> dict:
+    start_all = time.time()
     current_time = time.time()
 
     if GLOBAL_CHAT_CACHE["payload_dict"] and current_time < GLOBAL_CHAT_CACHE["expiry_timestamp"]:
-        print("[CACHE ENGINE] Context served from memory cache.")
         return GLOBAL_CHAT_CACHE["payload_dict"]
-
-    print("[CACHE ENGINE] Cache expired. Querying database...")
 
     conn   = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT COALESCE(SUM(total_revenue),0) FROM sales_transaction")
-    total_rev = cursor.fetchone()[0]
+    cursor.execute("SELECT COALESCE(SUM(Total_Bill_MYR),0), COUNT(*) FROM sales_transaction")
+    row1 = cursor.fetchone()
+    total_rev = row1[0]
+    total_txns = row1[1]
 
-    cursor.execute("SELECT COUNT(*) FROM sales_transaction")
-    total_txns = cursor.fetchone()[0]
-
-    cursor.execute("SELECT MIN(sale_date), MAX(sale_date) FROM sales_transaction")
+    cursor.execute("SELECT MIN(transaction_date), MAX(transaction_date) FROM sales_transaction")
     date_row   = cursor.fetchone()
     date_range = f"{date_row[0]} to {date_row[1]}" if date_row[0] else "N/A"
     max_date   = date_row[1] or datetime.today().strftime('%Y-%m-%d')
 
-    cursor.execute("SELECT COUNT(DISTINCT sale_date) FROM sales_transaction")
+    cursor.execute("SELECT COUNT(DISTINCT transaction_date) FROM sales_transaction")
     days_active = cursor.fetchone()[0] or 1
     daily_avg   = total_rev / days_active
 
-    cursor.execute(
-        "SELECT strftime('%Y-%m', date(?, '-1 month')) as prev_mo, "
-        "       strftime('%Y-%m', ?) as curr_mo",
-        [max_date, max_date]
-    )
-    mo_row   = cursor.fetchone()
-    last_mo  = mo_row['prev_mo']
-    curr_mo  = mo_row['curr_mo']
-
-    try:
-        last_mo_label = datetime.strptime(last_mo + '-01', '%Y-%m-%d').strftime('%B %Y')
-        curr_mo_label = datetime.strptime(curr_mo + '-01', '%Y-%m-%d').strftime('%B %Y')
-    except Exception:
-        last_mo_label = last_mo
-        curr_mo_label = curr_mo
-
     cursor.execute("""
-        SELECT b.branch_name,
-               SUM(s.total_revenue)  as rev,
-               COUNT(*)              as txns,
-               SUM(s.quantity_sold)  as qty,
-               ROUND(SUM(s.total_revenue)/COUNT(DISTINCT s.sale_date),2) as daily_avg
-        FROM sales_transaction s
-        JOIN branch b ON s.branch_id = b.branch_id
-        WHERE strftime('%Y-%m', s.sale_date) = ?
-        GROUP BY b.branch_name ORDER BY rev DESC
-    """, [last_mo])
-    last_mo_rows = cursor.fetchall()
-
-    if last_mo_rows:
-        last_mo_branch_lines = []
-        for r in last_mo_rows:
-            last_mo_branch_lines.append(
-                f"  - {r['branch_name']}: RM {r['rev']:,.2f} revenue | "
-                f"{r['txns']} transactions | {r['qty']} items sold | "
-                f"RM {r['daily_avg']:,.2f} daily avg"
-            )
-        winner = last_mo_rows[0]
-        loser  = last_mo_rows[-1] if len(last_mo_rows) > 1 else None
-        diff   = winner['rev'] - (loser['rev'] if loser else 0)
-        winner_note = (
-            f"  → {winner['branch_name']} led by RM {diff:,.2f} "
-            f"({((diff/loser['rev'])*100):.1f}% more)" if loser and loser['rev'] > 0 else ""
-        )
-        last_mo_branch_summary = "\n".join(last_mo_branch_lines)
-        if winner_note:
-            last_mo_branch_summary += "\n" + winner_note
-    else:
-        last_mo_branch_summary = f"  No data found for {last_mo_label}."
-
-    cursor.execute("""
-        SELECT b.branch_name,
-               SUM(s.total_revenue) as rev,
-               COUNT(*)              as txns,
-               MAX(s.sale_date)     as last_day
-        FROM sales_transaction s
-        JOIN branch b ON s.branch_id = b.branch_id
-        WHERE strftime('%Y-%m', s.sale_date) = ?
-        GROUP BY b.branch_name ORDER BY rev DESC
-    """, [curr_mo])
-    curr_mo_rows = cursor.fetchall()
-
-    if curr_mo_rows:
-        curr_mo_lines = [
-            f"  - {r['branch_name']}: RM {r['rev']:,.2f} | {r['txns']} transactions (up to {r['last_day']})"
-            for r in curr_mo_rows
-        ]
-        curr_mo_branch_summary = "\n".join(curr_mo_lines)
-    else:
-        curr_mo_branch_summary = f"  No data yet for {curr_mo_label}."
-
-    trend_date_clause = "WHERE s.sale_date >= date(?, '-6 months')"
-    trend_params = [max_date]
-
-    cursor.execute(f"""
-        SELECT b.branch_name,
-               strftime('%Y-%m', s.sale_date) as month,
-               SUM(s.total_revenue) as rev,
-               COUNT(*) as txns
-        FROM sales_transaction s
-        JOIN branch b ON s.branch_id = b.branch_id
-        {trend_date_clause}
-        GROUP BY b.branch_name, month
-        ORDER BY b.branch_name, month ASC
-    """, trend_params)
-    monthly_trend_rows = cursor.fetchall()
-
-    monthly_trend_by_branch = {}
-    for r in monthly_trend_rows:
-        bn = r['branch_name']
-        if bn not in monthly_trend_by_branch:
-            monthly_trend_by_branch[bn] = []
-        try:
-            label = datetime.strptime(r['month'] + '-01', '%Y-%m-%d').strftime('%b %Y')
-        except Exception:
-            label = r['month']
-        monthly_trend_by_branch[bn].append(f"{label}: RM {r['rev']:,.2f} ({r['txns']} txns)")
-
-    monthly_trend_lines = []
-    for branch, months in monthly_trend_by_branch.items():
-        monthly_trend_lines.append(f"  {branch}:")
-        monthly_trend_lines += [f"    {m}" for m in months]
-    monthly_trend_summary = "\n".join(monthly_trend_lines) if monthly_trend_lines else "  No trend data."
-
-    cursor.execute("""
-        SELECT b.branch_name, SUM(s.total_revenue) as rev, COUNT(*) as txns
-        FROM sales_transaction s JOIN branch b ON s.branch_id = b.branch_id
-        GROUP BY b.branch_name ORDER BY rev DESC
+        SELECT store_location, CAST(Hour AS INTEGER) as hr, COUNT(*) as cnt
+        FROM sales_transaction GROUP BY store_location, hr ORDER BY store_location, cnt DESC
     """)
-    branch_rows    = cursor.fetchall()
-    branch_summary = "\n".join([
-        f"  - {r['branch_name']}: RM {r['rev']:,.2f} ({r['txns']} transactions) [all-time]"
-        for r in branch_rows
-    ])
-    top_branch = branch_rows[0]['branch_name'] if branch_rows else 'N/A'
+    peak_rows = cursor.fetchall()
+    branch_peaks = {}
+    for r in peak_rows:
+        bid = r['store_location']
+        if bid not in branch_peaks: branch_peaks[bid] = []
+        if len(branch_peaks[bid]) < 3:
+            branch_peaks[bid].append(f"{r['hr']:02d}:00 ({r['cnt']} txns)")
 
     cursor.execute("""
-        SELECT CAST(substr(transaction_time,1,2) AS INTEGER) as hr, COUNT(*) as cnt
-        FROM sales_transaction GROUP BY hr ORDER BY cnt DESC LIMIT 1
-    """)
-    peak_row  = cursor.fetchone()
-    peak_hour = f"{peak_row['hr']:02d}:00–{peak_row['hr']+1:02d}:00" if peak_row else "N/A"
-
-    cursor.execute("""
-        SELECT product_name, SUM(quantity_sold) as qty, SUM(total_revenue) as rev
-        FROM sales_transaction GROUP BY product_name ORDER BY qty DESC LIMIT 3
-    """)
-    top_products_rows = cursor.fetchall()
-    top_products = "\n".join([
-        f"  - {r['product_name']}: {r['qty']} units (RM {r['rev']:,.2f})"
-        for r in top_products_rows
-    ])
-
-    cursor.execute("""
-        SELECT product_category, SUM(total_revenue) as rev
-        FROM sales_transaction GROUP BY product_category ORDER BY rev DESC
-    """)
-    categories = "\n".join([
-        f"  - {r['product_category']}: RM {r['rev']:,.2f}"
-        for r in cursor.fetchall()
-    ])
-
-    cursor.execute("""
-        SELECT weather_condition,
-               COUNT(DISTINCT sale_date) as days,
-               ROUND(SUM(total_revenue)/COUNT(DISTINCT sale_date),2) as avg_rev
-        FROM sales_transaction GROUP BY weather_condition ORDER BY avg_rev DESC
-    """)
-    weather_summary = "\n".join([
-        f"  - {r['weather_condition']}: RM {r['avg_rev']:,.2f} avg/day ({r['days']} days)"
-        for r in cursor.fetchall()
-    ])
-
-    cursor.execute("""
-        SELECT b.branch_name, f.forecast_date, f.predicted_revenue
-        FROM sales_forecast f JOIN branch b ON f.branch_id = b.branch_id
-        WHERE f.forecast_date > (SELECT COALESCE(MAX(sale_date), '1970-01-01') FROM sales_transaction)
-        ORDER BY f.forecast_date ASC
-    """)
-    forecast_rows    = cursor.fetchall()
-    forecast_summary = "\n".join([
-        f"  - {r['branch_name']} {r['forecast_date']}: RM {r['predicted_revenue']:,.2f}"
-        for r in forecast_rows
-    ]) if forecast_rows else "  No forecast generated yet."
+        SELECT store_location, strftime('%Y-%m', transaction_date) as month, SUM(Total_Bill_MYR) as rev
+        FROM sales_transaction
+        WHERE transaction_date >= date(?, '-6 months')
+        GROUP BY store_location, month ORDER BY month ASC
+    """, [max_date])
+    trend_rows = cursor.fetchall()
+    
+    cursor.execute("SELECT product_category, SUM(Total_Bill_MYR) as rev FROM sales_transaction GROUP BY product_category ORDER BY rev DESC")
+    cat_summary = "\n".join([f"  - {r['product_category']}: RM {r['rev']:,.2f}" for r in cursor.fetchall()])
 
     conn.close()
-
-    top_products_list = [r['product_name'] for r in top_products_rows]
-    top_products_rev  = [float(r['rev']) for r in top_products_rows]
-    branch_names_list = [r['branch_name'] for r in branch_rows]
-    branch_rev_list   = [float(r['rev']) for r in branch_rows]
-
-    current_day = datetime.now().day
-    is_payday_window = 25 <= current_day <= 28
-    payday_status_text = (
-        "Currently inside the active monthly PAYDAY window (Expect significantly higher customer purchasing volume)."
-        if is_payday_window else "Standard operating period (Normal baseline consumer spending patterns)."
-    )
+    print(f"[PERF] Super-Fetcher took {time.time() - start_all:.4f}s")
 
     compiled_payload = {
-        'date_range':              date_range,
-        'total_rev':               total_rev,
-        'total_txns':              total_txns,
-        'daily_avg':               daily_avg,
-        'peak_hour':               peak_hour,
-        'top_branch':              top_branch,
-        'branch_summary':          branch_summary,
-        'payday_context':          payday_status_text,
-        'last_mo_label':          last_mo_label,
-        'curr_mo_label':          curr_mo_label,
-        'last_mo_branch_summary': last_mo_branch_summary,
-        'curr_mo_branch_summary': curr_mo_branch_summary,
-        'monthly_trend_summary':  monthly_trend_summary,
-        'top_products':            top_products,
-        'categories':              categories,
-        'weather_summary':         weather_summary,
-        'forecast_summary':        forecast_summary,
-        'arr_products':            top_products_list,
-        'arr_product_revs':        top_products_rev,
-        'arr_branches':            branch_names_list,
-        'arr_branch_revs':         branch_rev_list
+        'date_range': date_range,
+        'total_rev': total_rev,
+        'total_txns': total_txns,
+        'daily_avg': daily_avg,
+        'max_date': max_date,
+        'branch_peaks': branch_peaks,
+        'trend_rows': [dict(r) for r in trend_rows],
+        'categories': cat_summary,
     }
+    
+    compiled_payload['monthly_trend_summary'] = "\n".join([f"{r['store_location']} {r['month']}: RM {r['rev']:,.2f}" for r in compiled_payload['trend_rows']])
 
     GLOBAL_CHAT_CACHE["payload_dict"] = compiled_payload
     GLOBAL_CHAT_CACHE["expiry_timestamp"] = current_time + CACHE_TTL_SECONDS
@@ -790,64 +667,131 @@ def api_chat():
 
     try:
         db_data = _fetch_db_context()
-        base_system_context = build_chat_system_context(db_data)
-
-        temporal_context_extension = f"""
-=== CURRENT MALAYSIAN TEMPORAL CONTEXT ===
-- Current Date & Time: {datetime.now().strftime('%Y-%m-%d %H:%M')}
-- Payday Cycle Status: {db_data.get('payday_context', 'N/A')}
-"""
-
-        chart_rules_extension = f"""
-📊 INTERACTIVE IN-CHAT CHART RULE:
-If the user explicitly asks for a graph, visual breakdown, revenue trend chart, or sales comparison, you MUST generate and append a structured data block at the very end of your response text.
-Format it strictly on its own new line (Do not wrap with markdown code blocks or add spaces inside tags):
-[CHART_DATA={{"type":"bar","labels":["Putrajaya","Puncak Alam"],"values":{db_data['arr_branch_revs']},"title":"All-Time Branch Revenue Comparison"}}]
-
-AVAILABLE CHART PAYLOAD MAPS:
-1. Branch Comparison: type="bar", labels={db_data['arr_branches']}, values={db_data['arr_branch_revs']}, title="All-Time Branch Revenue Comparison"
-2. Top Products: type="bar", labels={db_data['arr_products']}, values={db_data['arr_product_revs']}, title="Top Product Demand Mix"
-3. Revenue Trends: Use "line" chart, populate labels with past months and values from monthly trend data.
-
-Ensure values match context numbers exactly. If the user does not request a visual, do not append any [CHART_DATA] tag.
-"""
-        system_context = f"{base_system_context}\n{temporal_context_extension}\n{chart_rules_extension}"
-
+        bypass_response = fast_kpi_bypass(user_message, db_data)
+        if bypass_response:
+            history_cache = session['chat_history']
+            history_cache.append({"user": user_message, "bot": bypass_response})
+            if len(history_cache) > 4:
+                history_cache.pop(0)
+            session['chat_history'] = history_cache
+            session.modified = True
+            return jsonify({"status": "success", "response": bypass_response})
+            
+        system_context = build_slim_context(db_data, user_message)
     except Exception as e:
         print(f"[CHAT ERROR] Database context failure: {e}")
-        system_context = (
-            "You are the AI Business Advisor for 'Mini Coffee Shop'. "
-            "Database connection is temporarily unavailable. Please retry shortly."
-        )
+        system_context = "You are the AI Business Advisor for 'Mini Coffee Shop'. Database connection is temporarily unavailable."
 
     history_blocks = []
-    for turn in session['chat_history']:
+    for turn in session['chat_history'][-3:]:
         history_blocks.append(f"User: {turn['user']}\nAI: {turn['bot']}")
 
     history_text = "\n\n".join(history_blocks)
 
     final_prompt = f"""{system_context}
 
-=== CONVERSATION HISTORY (last {len(session['chat_history'])} turns) ===
+=== CONVERSATION HISTORY (last {len(history_blocks)} turns) ===
 {history_text if history_text else "(No prior conversation)"}
 
 === INCOMING MESSAGE ===
 User: {user_message}
 AI:"""
 
-    from gemini_agent import get_ai_insight
     success, ai_response = get_ai_insight(final_prompt)
 
     if success:
         history_cache = session['chat_history']
         history_cache.append({"user": user_message, "bot": ai_response})
-        if len(history_cache) > 10:
+        if len(history_cache) > 4:
             history_cache.pop(0)
         session['chat_history'] = history_cache
         session.modified = True
         return jsonify({"status": "success", "response": ai_response})
     else:
         return jsonify({"status": "error", "response": ai_response}), 503
+
+
+@app.route('/api/chat/stream', methods=['POST'])
+@login_required
+def api_chat_stream():
+    data = request.get_json()
+    if not data or not data.get('message', '').strip():
+        return jsonify({"status": "error", "message": "Empty message."}), 400
+
+    user_message = data['message'].strip()
+    if 'chat_history' not in session:
+        session['chat_history'] = []
+
+    try:
+        db_data = _fetch_db_context()
+        bypass_response = fast_kpi_bypass(user_message, db_data)
+        
+        if bypass_response:
+            session['_pending_user_msg'] = user_message
+            session.modified = True
+            
+            def bypass_stream():
+                try:
+                    yield f"data: {json.dumps({'chunk': bypass_response})}\n\n"
+                    yield f"data: {json.dumps({'done': True})}\n\n"
+                except GeneratorExit:
+                    print("[BYPASS LOG] Stream killed early by user client drop.")
+                
+            return Response(
+                bypass_stream(),
+                mimetype='text/event-stream',
+                headers={
+                    'Cache-Control': 'no-cache',
+                    'X-Accel-Buffering': 'no',
+                }
+            )
+
+        system_context = build_slim_context(db_data, user_message)
+    except Exception:
+        system_context = "You are the AI Business Advisor for 'Mini Coffee Shop'. Database temporarily unavailable."
+
+    history_blocks = []
+    for turn in session['chat_history'][-3:]:
+        history_blocks.append(f"User: {turn['user']}\nAI: {turn['bot']}")
+
+    final_prompt = f"""{system_context}
+
+=== CONVERSATION HISTORY ===
+{chr(10).join(history_blocks) if history_blocks else "(No prior conversation)"}
+
+=== INCOMING MESSAGE ===
+User: {user_message}
+AI:"""
+
+    session['_pending_user_msg'] = user_message
+    session.modified = True
+
+    return Response(
+        stream_ai_insight(final_prompt),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no',
+        }
+    )
+
+
+@app.route('/api/chat/save', methods=['POST'])
+@login_required
+def api_chat_save():
+    data = request.get_json()
+    user_msg = session.pop('_pending_user_msg', data.get('user', ''))
+    bot_msg  = data.get('bot', '')
+
+    if user_msg and bot_msg:
+        history = session.get('chat_history', [])
+        history.append({'user': user_msg, 'bot': bot_msg})
+        if len(history) > 4:
+            history.pop(0)
+        session['chat_history'] = history
+        session.modified = True
+
+    return jsonify({"status": "success"})
 
 
 @app.route('/api/chat/clear', methods=['POST'])
@@ -893,10 +837,9 @@ def api_restore_chat():
 @app.route('/api/forecast')
 @login_required
 def api_forecast():
-    branch_id   = request.args.get('branch_id',   1,            type=int)
+    branch_id   = request.args.get('branch_id',   'STB-PJ1',    type=str)
     branch_name = request.args.get('branch_name', 'Putrajaya', type=str)
     try:
-        # Check global cache
         cache_key = f"{branch_id}_{branch_name}"
         if cache_key in FORECAST_CACHE:
             result = FORECAST_CACHE[cache_key]
@@ -906,11 +849,10 @@ def api_forecast():
             if not success:
                 return jsonify({"status": "error", "message": result}), 500
             
-            # Save to global cache
             FORECAST_CACHE[cache_key] = result
 
         return jsonify({
-            "status":              "success",
+            "status":               "success",
             "mape":                result['mape'],
             "rmse":                result['rmse'],
             "accuracy":            result.get('accuracy', 0),
@@ -920,24 +862,24 @@ def api_forecast():
             "hourly":              result.get('hourly', []),
             "forecast_vs_actual": result.get('forecast_vs_actual', []),
             "insample_fit":        result.get('insample_fit', []),
-            "weather_by_time":     result.get('weather_by_time', [])
+            "weather_by_time":     result.get('weather_by_time', []),
+            "ingredient_demand":   result.get('ingredient_demand', {})
         })
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
     
 # ============================================================
-#    API — AVAILABLE REPORT MONTHS (for month picker disabling)
+#    API — AVAILABLE REPORT MONTHS
 # ============================================================
 @app.route('/api/report_months')
 @login_required
 def api_report_months():
-    """Returns all YYYY-MM values that have sales transaction data."""
     try:
         conn   = get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT DISTINCT strftime('%Y-%m', sale_date) as mo "
+            "SELECT DISTINCT strftime('%Y-%m', transaction_date) as mo "
             "FROM sales_transaction ORDER BY mo ASC"
         )
         months = [r['mo'] for r in cursor.fetchall() if r['mo']]
@@ -948,18 +890,17 @@ def api_report_months():
 
 
 # ============================================================
-#    API — REPORT DATA (shared by preview + PDF)
+#    API — REPORT DATA (REFACTORED RELATIONAL STRIPPING)
 # ============================================================
 def _build_report_data(branch_filter, date_from, date_to):
     """
-    Builds the full Executive Report data payload.
-    date_from / date_to must both be provided (YYYY-MM-DD).
+    Builds the full Executive Report data payload from the denormalized warehouse columns.
     """
     conn   = get_db_connection()
     cursor = conn.cursor()
 
-    branch_cond  = "b.branch_name = ?" if branch_filter != 'all' else None
-    date_cond    = "s.sale_date BETWEEN ? AND ?" if date_from and date_to else None
+    branch_cond  = "s.store_location = ?" if branch_filter != 'all' else None
+    date_cond    = "s.transaction_date BETWEEN ? AND ?" if date_from and date_to else None
     conditions   = [c for c in [branch_cond, date_cond] if c]
     where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
@@ -975,20 +916,18 @@ def _build_report_data(branch_filter, date_from, date_to):
 
     # ── Daily data ────────────────────────────────────────────
     cursor.execute(f"""
-        SELECT s.sale_date as date,
-               ROUND(SUM(s.total_revenue), 2) as revenue,
+        SELECT s.transaction_date as date,
+               ROUND(SUM(s.Total_Bill_MYR), 2) as revenue,
                COUNT(*) as txns
         FROM sales_transaction s
-        JOIN branch b ON s.branch_id = b.branch_id
         {where_clause}
-        GROUP BY s.sale_date
-        ORDER BY s.sale_date ASC
+        GROUP BY s.transaction_date
+        ORDER BY s.transaction_date ASC
     """, base_params())
-    daily_data    = [dict(r) for r in cursor.fetchall()]
+    daily_data     = [dict(r) for r in cursor.fetchall()]
     period_revenue = sum(r['revenue'] for r in daily_data)
     period_txns    = sum(r['txns']    for r in daily_data)
 
-    # Calendar days for daily average
     if date_from and date_to:
         try:
             calendar_days = max((
@@ -1013,14 +952,13 @@ def _build_report_data(branch_filter, date_from, date_to):
             prev_from = (fd - timedelta(days=span)).strftime('%Y-%m-%d')
             prev_to   = (fd - timedelta(days=1)).strftime('%Y-%m-%d')
 
-            prev_cond   = ("b.branch_name = ? AND " if branch_filter != 'all' else "") + \
-                          "s.sale_date BETWEEN ? AND ?"
+            prev_cond   = ("s.store_location = ? AND " if branch_filter != 'all' else "") + \
+                          "s.transaction_date BETWEEN ? AND ?"
             prev_params = ([branch_filter] if branch_filter != 'all' else []) + [prev_from, prev_to]
 
             cursor.execute(f"""
-                SELECT COALESCE(SUM(s.total_revenue), 0) as prev_rev
+                SELECT COALESCE(SUM(s.Total_Bill_MYR), 0) as prev_rev
                 FROM sales_transaction s
-                JOIN branch b ON s.branch_id = b.branch_id
                 WHERE {prev_cond}
             """, prev_params)
             prev_rev = cursor.fetchone()['prev_rev']
@@ -1034,9 +972,8 @@ def _build_report_data(branch_filter, date_from, date_to):
 
     # ── Peak hour ──────────────────────────────────────────────
     cursor.execute(f"""
-        SELECT CAST(substr(s.transaction_time, 1, 2) AS INTEGER) as hr, COUNT(*) as cnt
+        SELECT CAST(s.Hour AS INTEGER) as hr, COUNT(*) as cnt
         FROM sales_transaction s
-        JOIN branch b ON s.branch_id = b.branch_id
         {where_clause}
         GROUP BY hr ORDER BY cnt DESC LIMIT 1
     """, base_params())
@@ -1046,11 +983,10 @@ def _build_report_data(branch_filter, date_from, date_to):
 
     # ── Hourly breakdown ───────────────────────────────────────
     cursor.execute(f"""
-        SELECT CAST(substr(s.transaction_time, 1, 2) AS INTEGER) as hr,
+        SELECT CAST(s.Hour AS INTEGER) as hr,
                COUNT(*) as txn_count,
-               ROUND(SUM(s.total_revenue), 2) as revenue
+               ROUND(SUM(s.Total_Bill_MYR), 2) as revenue
         FROM sales_transaction s
-        JOIN branch b ON s.branch_id = b.branch_id
         {where_clause}
         GROUP BY hr ORDER BY hr ASC
     """, base_params())
@@ -1061,14 +997,13 @@ def _build_report_data(branch_filter, date_from, date_to):
 
     # ── Peak day ───────────────────────────────────────────────
     cursor.execute(f"""
-        SELECT CASE strftime('%w', s.sale_date)
+        SELECT CASE strftime('%w', s.transaction_date)
             WHEN '0' THEN 'Sunday'   WHEN '1' THEN 'Monday'
             WHEN '2' THEN 'Tuesday'  WHEN '3' THEN 'Wednesday'
             WHEN '4' THEN 'Thursday' WHEN '5' THEN 'Friday'
             WHEN '6' THEN 'Saturday'
         END as day_name, COUNT(*) as cnt
         FROM sales_transaction s
-        JOIN branch b ON s.branch_id = b.branch_id
         {where_clause}
         GROUP BY day_name ORDER BY cnt DESC LIMIT 1
     """, base_params())
@@ -1078,17 +1013,16 @@ def _build_report_data(branch_filter, date_from, date_to):
     # ── Day-of-week breakdown ──────────────────────────────────
     cursor.execute(f"""
         SELECT
-            CASE strftime('%w', s.sale_date)
+            CASE strftime('%w', s.transaction_date)
                 WHEN '0' THEN 'Sunday'   WHEN '1' THEN 'Monday'
                 WHEN '2' THEN 'Tuesday'  WHEN '3' THEN 'Wednesday'
                 WHEN '4' THEN 'Thursday' WHEN '5' THEN 'Friday'
                 WHEN '6' THEN 'Saturday'
             END as day_name,
-            strftime('%w', s.sale_date) as day_num,
+            strftime('%w', s.transaction_date) as day_num,
             COUNT(*) as txn_count,
-            ROUND(SUM(s.total_revenue), 2) as revenue
+            ROUND(SUM(s.Total_Bill_MYR), 2) as revenue
         FROM sales_transaction s
-        JOIN branch b ON s.branch_id = b.branch_id
         {where_clause}
         GROUP BY day_num ORDER BY day_num ASC
     """, base_params())
@@ -1099,67 +1033,71 @@ def _build_report_data(branch_filter, date_from, date_to):
 
     # ── Top branch ─────────────────────────────────────────────
     cursor.execute(f"""
-        SELECT b.branch_name, SUM(s.total_revenue) as rev
+        SELECT s.store_location, SUM(s.Total_Bill_MYR) as rev
         FROM sales_transaction s
-        JOIN branch b ON s.branch_id = b.branch_id
         {where_clause}
-        GROUP BY b.branch_name ORDER BY rev DESC LIMIT 1
+        GROUP BY s.store_location ORDER BY rev DESC LIMIT 1
     """, base_params())
     tb_row     = cursor.fetchone()
-    top_branch = tb_row['branch_name'] if tb_row else 'N/A'
+    top_branch = tb_row['store_location'] if tb_row else 'N/A'
 
-    # ── Regional breakdown (all branches, period-filtered) ─────
+    # ── Regional breakdown ─────────────────────────────────────
     cursor.execute(f"""
-        SELECT b.branch_name,
-               ROUND(SUM(s.total_revenue), 2) as rev,
+        SELECT s.store_location as branch_name,
+               ROUND(SUM(s.Total_Bill_MYR), 2) as rev,
                COUNT(*) as txns
         FROM sales_transaction s
-        JOIN branch b ON s.branch_id = b.branch_id
         {where_clause}
-        GROUP BY b.branch_name ORDER BY rev DESC
+        GROUP BY s.store_location ORDER BY rev DESC
     """, base_params())
     regional_breakdown = [dict(r) for r in cursor.fetchall()]
     branch_max_rev = max((r['rev'] for r in regional_breakdown), default=1)
 
     # ── Product performance ────────────────────────────────────
+    # 🟢 CHANGED: Rewritten to directly translate SKU IDs to menu string properties cleanly
     cursor.execute(f"""
-        SELECT s.product_name,
-               SUM(s.quantity_sold) as qty,
-               ROUND(SUM(s.total_revenue), 2) as revenue,
-               ROUND(SUM(s.total_revenue) * 100.0 /
-                     NULLIF((SELECT SUM(s2.total_revenue)
+        SELECT s.product_id as product_id,
+               SUM(s.transaction_qty) as qty,
+               ROUND(SUM(s.Total_Bill_MYR), 2) as revenue,
+               ROUND(SUM(s.Total_Bill_MYR) * 100.0 /
+                     NULLIF((SELECT SUM(s2.Total_Bill_MYR)
                              FROM sales_transaction s2
-                             JOIN branch b2 ON s2.branch_id = b2.branch_id
                              {where_clause}), 0), 1) as pct
         FROM sales_transaction s
-        JOIN branch b ON s.branch_id = b.branch_id
         {where_clause}
-        GROUP BY s.product_name ORDER BY qty DESC LIMIT 5
+        GROUP BY s.product_id ORDER BY qty DESC LIMIT 5
     """, base_params() + base_params())
-    top_products = [dict(r) for r in cursor.fetchall()]
+    top_products_raw = [dict(r) for r in cursor.fetchall()]
+    
+    top_products = []
+    for p in top_products_raw:
+        p['product_id'] = REVERSE_SKU_LOOKUP.get(p['product_id'], p['product_id'])
+        top_products.append(p)
 
     cursor.execute(f"""
-        SELECT s.product_name,
-               SUM(s.quantity_sold) as qty,
-               ROUND(SUM(s.total_revenue), 2) as revenue
+        SELECT s.product_id as product_id,
+               SUM(s.transaction_qty) as qty,
+               ROUND(SUM(s.Total_Bill_MYR), 2) as revenue
         FROM sales_transaction s
-        JOIN branch b ON s.branch_id = b.branch_id
         {where_clause}
-        GROUP BY s.product_name ORDER BY qty ASC LIMIT 3
+        GROUP BY s.product_id ORDER BY qty ASC LIMIT 3
     """, base_params())
-    bottom_products = [dict(r) for r in cursor.fetchall()]
+    bottom_products_raw = [dict(r) for r in cursor.fetchall()]
+    
+    bottom_products = []
+    for p in bottom_products_raw:
+        p['product_id'] = REVERSE_SKU_LOOKUP.get(p['product_id'], p['product_id'])
+        bottom_products.append(p)
 
     # ── Category breakdown ─────────────────────────────────────
     cursor.execute(f"""
         SELECT s.product_category,
-               ROUND(SUM(s.total_revenue), 2) as revenue,
-               ROUND(SUM(s.total_revenue) * 100.0 /
-                     NULLIF((SELECT SUM(s2.total_revenue)
+               ROUND(SUM(s.Total_Bill_MYR), 2) as revenue,
+               ROUND(SUM(s.Total_Bill_MYR) * 100.0 /
+                     NULLIF((SELECT SUM(s2.Total_Bill_MYR)
                              FROM sales_transaction s2
-                             JOIN branch b2 ON s2.branch_id = b2.branch_id
                              {where_clause}), 0), 1) as pct
         FROM sales_transaction s
-        JOIN branch b ON s.branch_id = b.branch_id
         {where_clause}
         GROUP BY s.product_category ORDER BY revenue DESC
     """, base_params() + base_params())
@@ -1172,21 +1110,19 @@ def _build_report_data(branch_filter, date_from, date_to):
                ROUND(COUNT(*) * 100.0 /
                      NULLIF((SELECT COUNT(*)
                              FROM sales_transaction s2
-                             JOIN branch b2 ON s2.branch_id = b2.branch_id
                              {where_clause}), 0), 1) as pct
         FROM sales_transaction s
-        JOIN branch b ON s.branch_id = b.branch_id
         {where_clause}
         GROUP BY s.payment_method ORDER BY txn_count DESC
     """, base_params() + base_params())
     payment_breakdown = [dict(r) for r in cursor.fetchall()]
 
-    # ── Monthly trend — ALL months (unfiltered, for Section 2) ─
-    cursor.execute("SELECT DISTINCT branch_name FROM branch ORDER BY branch_name")
-    all_branches = [r[0] for r in cursor.fetchall()]
+    # ── Monthly trend — ALL months ─────────────────────────────
+    cursor.execute("SELECT DISTINCT store_location FROM sales_transaction ORDER BY store_location")
+    all_branches = [r[0] for r in cursor.fetchall() if r[0]]
 
     cursor.execute("""
-        SELECT DISTINCT strftime('%Y-%m', sale_date) as month
+        SELECT DISTINCT strftime('%Y-%m', transaction_date) as month
         FROM sales_transaction ORDER BY month ASC
     """)
     all_month_keys = [r['month'] for r in cursor.fetchall()]
@@ -1199,15 +1135,15 @@ def _build_report_data(branch_filter, date_from, date_to):
 
     by_branch_monthly = {b: [0]*len(all_month_keys) for b in all_branches}
     cursor.execute("""
-        SELECT strftime('%Y-%m', s.sale_date) as month, b.branch_name,
-               SUM(s.total_revenue) as rev
-        FROM sales_transaction s JOIN branch b ON s.branch_id = b.branch_id
-        GROUP BY month, b.branch_name
+        SELECT strftime('%Y-%m', transaction_date) as month, store_location,
+               SUM(Total_Bill_MYR) as rev
+        FROM sales_transaction
+        GROUP BY month, store_location
     """)
     month_idx = {m: i for i, m in enumerate(all_month_keys)}
     for r in cursor.fetchall():
-        if r['month'] in month_idx and r['branch_name'] in by_branch_monthly:
-            by_branch_monthly[r['branch_name']][month_idx[r['month']]] = round(r['rev'], 2)
+        if r['month'] in month_idx and r['store_location'] in by_branch_monthly:
+            by_branch_monthly[r['store_location']][month_idx[r['month']]] = round(r['rev'], 2)
 
     monthly_trend = {
         "labels":    all_month_labels,
@@ -1217,8 +1153,8 @@ def _build_report_data(branch_filter, date_from, date_to):
     }
 
     # ── Forecast data (upcoming 7-day) ────────────────────────
-    fc_conds  = ["b.branch_name = ?"] if branch_filter != 'all' else []
-    fc_conds.append("f.forecast_date > (SELECT COALESCE(MAX(sale_date), '1970-01-01') FROM sales_transaction)")
+    fc_conds  = ["s.store_location = ?"] if branch_filter != 'all' else []
+    fc_conds.append("f.forecast_date > (SELECT COALESCE(MAX(transaction_date), '1970-01-01') FROM sales_transaction)")
     fc_where  = "WHERE " + " AND ".join(fc_conds)
     fc_params = [branch_filter] if branch_filter != 'all' else []
 
@@ -1229,55 +1165,42 @@ def _build_report_data(branch_filter, date_from, date_to):
                    f.lower_bound_revenue as yhat_lower,
                    f.upper_bound_revenue as yhat_upper
             FROM sales_forecast f
-            JOIN branch b ON f.branch_id = b.branch_id
-            {fc_where} ORDER BY f.forecast_date ASC LIMIT 7
+            JOIN sales_transaction s ON f.branch_id = s.branch_id
+            {fc_where} GROUP BY f.forecast_date ORDER BY f.forecast_date ASC LIMIT 7
         """, fc_params)
         forecast_data = [dict(r) for r in cursor.fetchall()]
     except Exception:
-        cursor.execute(f"""
-            SELECT f.forecast_date as ds,
-                   f.predicted_revenue as yhat,
-                   f.predicted_revenue * 0.95 as yhat_lower,
-                   f.predicted_revenue * 1.05 as yhat_upper
-            FROM sales_forecast f
-            JOIN branch b ON f.branch_id = b.branch_id
-            {fc_where} ORDER BY f.forecast_date ASC LIMIT 7
-        """, fc_params)
-        forecast_data = [dict(r) for r in cursor.fetchall()]
+        forecast_data = []
 
-    # ── Holiday tagging ────────────────────────────────────────
     holiday_set = {h[0] for h in MY_PUBLIC_HOLIDAYS}
     for row in forecast_data:
         dt_obj = datetime.strptime(row['ds'], '%Y-%m-%d')
         row['is_holiday'] = row['ds'] in holiday_set
         row['is_friday']  = (dt_obj.weekday() == 4)
 
-    # ── Predicted vs Actual (Prophet in-sample fit for selected month) ──
-    # Joins sales_forecast insample fitted values against actual daily revenue
-    # for dates within the selected reporting period.
+    # ── Predicted vs Actual ──
     pva_fc_conds  = ["f.forecast_date BETWEEN ? AND ?"]
     pva_fc_params = [date_from, date_to]
-    pva_act_conds  = ["s.sale_date BETWEEN ? AND ?"]
+    pva_act_conds  = ["s.transaction_date BETWEEN ? AND ?"]
     pva_act_params = [date_from, date_to]
 
     if branch_filter != 'all':
-        pva_fc_conds.append("b.branch_name = ?")
-        pva_fc_params.append(branch_filter)
-        pva_act_conds.append("b.branch_name = ?")
+        b_id = 'STB-PJ1' if branch_filter == 'Putrajaya' else 'FT-PA1'
+        pva_fc_conds.append("f.branch_id = ?")
+        pva_fc_params.append(b_id)
+        pva_act_conds.append("s.store_location = ?")
         pva_act_params.append(branch_filter)
 
     pva_fc_where  = "WHERE " + " AND ".join(pva_fc_conds)
     pva_act_where = "WHERE " + " AND ".join(pva_act_conds)
 
-    # Fetch forecast rows within the selected month range
     try:
         cursor.execute(f"""
-            SELECT f.forecast_date                          AS ds,
+            SELECT f.forecast_date                                  AS ds,
                    COALESCE(SUM(f.predicted_revenue), 0)   AS yhat,
                    COALESCE(SUM(f.lower_bound_revenue), 0) AS yhat_lower,
                    COALESCE(SUM(f.upper_bound_revenue), 0) AS yhat_upper
             FROM sales_forecast f
-            JOIN branch b ON f.branch_id = b.branch_id
             {pva_fc_where}
             GROUP BY f.forecast_date
             ORDER BY f.forecast_date ASC
@@ -1286,30 +1209,27 @@ def _build_report_data(branch_filter, date_from, date_to):
     except Exception:
         pva_forecast_rows = {}
 
-    # Fetch actual daily revenue within the selected month range
     try:
         cursor.execute(f"""
-            SELECT s.sale_date                         AS ds,
-                   ROUND(SUM(s.total_revenue), 2)      AS actual_revenue,
-                   COUNT(*)                            AS txn_count
+            SELECT s.transaction_date                         AS ds,
+                   ROUND(SUM(s.Total_Bill_MYR), 2)            AS actual_revenue,
+                   COUNT(*)                                    AS txn_count
             FROM sales_transaction s
-            JOIN branch b ON s.branch_id = b.branch_id
             {pva_act_where}
-            GROUP BY s.sale_date
-            ORDER BY s.sale_date ASC
+            GROUP BY s.transaction_date
+            ORDER BY s.transaction_date ASC
         """, pva_act_params)
         pva_actual_rows = {r['ds']: dict(r) for r in cursor.fetchall()}
     except Exception:
         pva_actual_rows = {}
 
-    # Merge: all dates that appear in either forecast or actual within the period
     all_pva_dates = sorted(set(list(pva_forecast_rows.keys()) + list(pva_actual_rows.keys())))
     predicted_vs_actual = []
     for ds in all_pva_dates:
         fc_row  = pva_forecast_rows.get(ds, {})
         act_row = pva_actual_rows.get(ds, {})
         yhat       = fc_row.get('yhat', 0) or 0
-        actual_rev = act_row.get('actual_revenue', None)  # None = no recorded sales
+        actual_rev = act_row.get('actual_revenue', None)
         txn_count  = act_row.get('txn_count', 0) or 0
         lower      = fc_row.get('yhat_lower', 0) or 0
         upper      = fc_row.get('yhat_upper', 0) or 0
@@ -1334,7 +1254,6 @@ def _build_report_data(branch_filter, date_from, date_to):
                             if actual_rev is not None and lower and upper else None,
         })
 
-    # Summary stats for predicted vs actual section
     pva_with_actual     = [r for r in predicted_vs_actual if r['actual'] is not None]
     pva_total_predicted = round(sum(r['yhat']   for r in pva_with_actual), 2)
     pva_total_actual    = round(sum(r['actual'] for r in pva_with_actual), 2)
@@ -1344,22 +1263,21 @@ def _build_report_data(branch_filter, date_from, date_to):
         pva_mape  = round(sum(mape_vals) / len(mape_vals), 1) if mape_vals else 0.0
     pva_within_range = sum(1 for r in pva_with_actual if r.get('in_range'))
 
+    try:
+        branch_id = None
+        if branch_filter == 'Putrajaya': branch_id = 'STB-PJ1'
+        if branch_filter == 'Puncak Alam': branch_id = 'FT-PA1'
+        diagnostics = revenue_decline_and_product_mix_profiler(branch_id)
+    except Exception:
+        diagnostics = {}
+
     conn.close()
 
-    # ── AI Executive Summary prompt ────────────────────────────
-    top_prod_ctx    = ", ".join([
-        f"{p['product_name']} ({p['qty']} units, {p['pct']}% share)"
-        for p in top_products
-    ]) or "N/A"
-    bottom_prod_ctx = ", ".join([p['product_name'] for p in bottom_products]) or "N/A"
-    cat_ctx         = ", ".join([
-        f"{c['product_category']}: RM {c['revenue']:,.2f} ({c['pct']}%)"
-        for c in category_breakdown
-    ]) or "N/A"
-    regional_ctx    = ", ".join([
-        f"{r['branch_name']}: RM {r['rev']:,.2f}"
-        for r in regional_breakdown
-    ]) or "N/A"
+    # AI Prompt Formatting Context
+    top_prod_ctx    = ", ".join([f"{p['product_id']} ({p['qty']} units)" for p in top_products]) or "N/A"
+    bottom_prod_ctx = ", ".join([p['product_id'] for p in bottom_products]) or "N/A"
+    cat_ctx         = ", ".join([f"{c['product_category']}: RM {c['revenue']:,.2f}" for c in category_breakdown]) or "N/A"
+    regional_ctx    = ", ".join([f"{r['branch_name']}: RM {r['rev']:,.2f}" for r in regional_breakdown]) or "N/A"
 
     ai_prompt = (
         f"Write a concise executive summary (3 sentences max) for a Malaysian coffee shop owner. "
@@ -1405,6 +1323,7 @@ def _build_report_data(branch_filter, date_from, date_to):
         "pva_mape":             pva_mape,
         "pva_within_range":     pva_within_range,
         "pva_days_with_data":   len(pva_with_actual),
+        "diagnostics":          diagnostics,
         "ai_insight":           insight if success_ai else "AI insight temporarily unavailable."
     }
 
@@ -1421,16 +1340,12 @@ def api_report_data():
         return jsonify({"status": "error", "message": "date_from and date_to are required."}), 400
 
     try:
-        # Check global cache first
         cache_key = f"{branch_filter}_{date_from}_{date_to}"
         if cache_key in REPORT_CACHE:
             return jsonify(REPORT_CACHE[cache_key])
 
         result = _build_report_data(branch_filter, date_from, date_to)
-        
-        # Save to global cache
         REPORT_CACHE[cache_key] = result
-        
         return jsonify(result)
     except Exception as e:
         print("Report API Error:", e)
@@ -1438,200 +1353,481 @@ def api_report_data():
 
 
 # ============================================================
-#    API — PDF EXPORT (Forecast Report)
+#    API — PDF EXPORT (Forecast Report — Full Data, Plain English)
 # ============================================================
-@app.route('/api/export-forecast-pdf')
+@app.route('/api/export-forecast-pdf', methods=['GET', 'POST'])
 @login_required
 def api_export_forecast_pdf():
-    branch_id   = request.args.get('branch_id',   1,            type=int)
-    branch_name = request.args.get('branch_name', 'Putrajaya', type=str)
-    month_filter = request.args.get('month',       None,         type=str)
+    # ── Accept both GET (legacy) and POST (new full-data path) ──────────
+    if request.method == 'POST':
+        body        = request.get_json() or {}
+        branch_id   = body.get('branch_id',   'STB-PJ1')
+        branch_name = body.get('branch_name', 'Putrajaya')
+        month_filter = body.get('month_filter', None)
+        result      = body.get('forecast_data', None)    # full frontend payload
+    else:
+        branch_id    = request.args.get('branch_id',   'STB-PJ1', type=str)
+        branch_name  = request.args.get('branch_name', 'Putrajaya', type=str)
+        month_filter = request.args.get('month', None,  type=str)
+        result       = None
+
+    # ── If no data was posted, regenerate from the engine ───────────────
+    if result is None:
+        try:
+            cache_key = f"{branch_id}_{branch_name}"
+            if cache_key in FORECAST_CACHE:
+                result = FORECAST_CACHE[cache_key]
+            else:
+                engine          = ForecastEngine()
+                success, result = engine.generate_7_day_forecast(branch_id, branch_name)
+                if not success:
+                    return jsonify({"status": "error", "message": result}), 500
+                FORECAST_CACHE[cache_key] = result
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)}), 500
 
     try:
-        # Check global forecast cache
-        cache_key = f"{branch_id}_{branch_name}"
-        if cache_key in FORECAST_CACHE:
-             result = FORECAST_CACHE[cache_key]
-        else:
-            engine          = ForecastEngine()
-            success, result = engine.generate_7_day_forecast(branch_id, branch_name)
-            if not success:
-                return jsonify({"status": "error", "message": result}), 500
-            
-            # Save to global cache
-            FORECAST_CACHE[cache_key] = result
+        now_str  = datetime.now().strftime('%d %b %Y, %I:%M %p')
+        forecast = result.get('forecast', [])
+        fva_all  = result.get('forecast_vs_actual', [])
+        hourly   = result.get('hourly', [])
+        wbt      = result.get('weather_by_time', [])
+        ingr     = result.get('ingredient_demand', {})
+        mape     = result.get('mape', 0)
+        rmse     = result.get('rmse', 0)
+        accuracy = result.get('accuracy', 0)
+        persona  = result.get('persona', '')
 
-        # Build data components
-        forecast_rows = ""
-        for row in result['forecast']:
-            promos = " ".join([f"<span style='background:#FEF3C7;color:#92400E;padding:1px 4px;border-radius:3px;font-size:8px;font-weight:600;margin-right:3px;'>{p}</span>" for p in row.get('promotions', [])])
-            if row.get('is_holiday'):
-                promos += "<span style='background:#FEE2E2;color:#991B1B;padding:1px 4px;border-radius:3px;font-size:8px;font-weight:600;margin-right:3px;'>🏖️ Holiday</span>"
-            
-            day_name = datetime.strptime(row['ds'], '%Y-%m-%d').strftime('%A')
-            row_style = "background:#F8FAFC;" if row.get('is_holiday') else ("background:#FEF3C7;" if day_name in ['Saturday','Sunday'] else "")
-            
-            forecast_rows += f"""
-            <tr style="{row_style}">
+        total_7day = sum(r.get('yhat', 0) for r in forecast)
+
+        # ── Helpers ─────────────────────────────────────────────────────
+        def fnum(n, d=2):
+            return f"{float(n or 0):,.{d}f}"
+
+        def row_bg(is_holiday, day_of_week):
+            if is_holiday:       return "background:#FEF2F2;"
+            if day_of_week in (5, 6): return "background:#FFFBEB;"
+            return ""
+
+        WEATHER_ICON_MAP = {'Sunny': '☀️', 'Cloudy': '⛅', 'Raining': '🌧️'}
+        DAYS_LIST        = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+        # ── Section 1: 7-Day forecast table ─────────────────────────────
+        forecast_rows_html = ""
+        for row in forecast:
+            dt       = datetime.strptime(row['ds'], '%Y-%m-%d')
+            day_name = DAYS_LIST[dt.weekday() + 1 if dt.weekday() < 6 else 0]
+            # use Python weekday: Mon=0…Sun=6
+            py_wd    = dt.weekday()        # 0=Mon … 6=Sun
+            js_day   = (py_wd + 1) % 7    # 0=Sun … 6=Sat
+            is_sun   = (js_day == 0)
+            is_hol   = row.get('is_holiday', False)
+            flags    = []
+            if is_hol:                flags.append("🏖️ Public Holiday")
+            if row.get('is_friday'):  flags.append("🎉 Friday Promo — 20% off Lattes")
+            if row.get('season'):     flags.append(f"🎁 {row['season']}")
+            if is_sun:                flags.append("🔒 Closed")
+            bg_style = "background:#FEF2F2;" if is_hol else ("background:#FFFBEB;" if js_day in (0,6) else "")
+            weather_cell = "—" if is_sun else f"{WEATHER_ICON_MAP.get(row.get('weather','Cloudy'),'⛅')} {row.get('weather','Cloudy')}"
+            yhat_disp  = "0.00" if is_sun else fnum(row.get('yhat', 0))
+            lower_disp = "0.00" if is_sun else fnum(row.get('yhat_lower', 0))
+            upper_disp = "0.00" if is_sun else fnum(row.get('yhat_upper', 0))
+            forecast_rows_html += f"""
+            <tr style="{bg_style}">
                 <td style="font-family:monospace;padding:5px 8px;">{row['ds']}</td>
-                <td style="padding:5px 8px;">{day_name}</td>
-                <td style="padding:5px 8px;">{row['weather']}</td>
-                <td style="padding:5px 8px;">{promos}</td>
-                <td style="text-align:right;font-family:monospace;padding:5px 8px;font-weight:700;">RM {row['yhat']:,.2f}</td>
-                <td style="text-align:right;font-family:monospace;padding:5px 8px;color:#64748B;">RM {row['yhat_lower']:,.2f}</td>
-                <td style="text-align:right;font-family:monospace;padding:5px 8px;color:#64748B;">RM {row['yhat_upper']:,.2f}</td>
+                <td style="padding:5px 8px;font-weight:600;">{DAYS_LIST[dt.isoweekday() % 7]}</td>
+                <td style="padding:5px 8px;">{weather_cell}</td>
+                <td style="padding:5px 8px;font-size:8px;">{" · ".join(flags) if flags else "—"}</td>
+                <td style="text-align:right;font-family:monospace;padding:5px 8px;font-weight:700;">RM {yhat_disp}</td>
+                <td style="text-align:right;font-family:monospace;padding:5px 8px;color:#64748B;">RM {lower_disp}</td>
+                <td style="text-align:right;font-family:monospace;padding:5px 8px;color:#64748B;">RM {upper_disp}</td>
             </tr>"""
 
-        # Predicted vs Actual Section
-        pva_section_html = ""
-        if month_filter:
-            pva_data = [r for r in result.get('forecast_vs_actual', []) if r['ds'].startswith(month_filter)]
-            if pva_data:
-                pva_rows = ""
-                total_p = 0
-                total_a = 0
-                mape_sum = 0
-                count = 0
-                
-                for r in pva_data:
-                    var = r['actual'] - r['predicted']
-                    var_pct = (var / r['predicted'] * 100) if r['predicted'] > 0 else 0
+        # ── Section 2: Ingredients ───────────────────────────────────────
+        ingr_html = ""
+        if ingr:
+            beans_kg  = (ingr.get('beans_g',  0) or 0) / 1000
+            milk_l    = (ingr.get('milk_ml',  0) or 0) / 1000
+            choco_kg  = (ingr.get('choco_g',  0) or 0) / 1000
+            ice_kg    = (ingr.get('ice_g',    0) or 0) / 1000
+            hot_cups  = ingr.get('cup_hot',   0) or 0
+            cold_cups = ingr.get('cup_cold',  0) or 0
+            ingr_html = f"""
+            <div class="section-title">What to Buy This Week — Ingredient Shopping Guide</div>
+            <p style="font-size:9px;color:#64748B;margin-bottom:10px;">
+                Based on your predicted sales, here is how much of each ingredient you will need over the next 7 days.
+            </p>
+            <div class="kpi-grid">
+                <div class="kpi-box"><div class="kpi-label">Coffee Beans</div><div class="kpi-value">{fnum(beans_kg)} kg</div></div>
+                <div class="kpi-box"><div class="kpi-label">Fresh Milk</div><div class="kpi-value">{fnum(milk_l, 1)} L</div></div>
+                <div class="kpi-box"><div class="kpi-label">Cocoa Powder</div><div class="kpi-value">{fnum(choco_kg)} kg</div></div>
+                <div class="kpi-box"><div class="kpi-label">Crushed Ice</div><div class="kpi-value">{fnum(ice_kg, 1)} kg</div></div>
+                <div class="kpi-box"><div class="kpi-label">Hot Paper Cups</div><div class="kpi-value">{hot_cups} pcs</div></div>
+                <div class="kpi-box"><div class="kpi-label">Cold Plastic Cups</div><div class="kpi-value">{cold_cups} pcs</div></div>
+            </div>"""
+
+        # ── Section 3: How accurate has the forecast been ────────────────
+        fva_section_html = ""
+        fva_rows_to_show = []
+        if fva_all:
+            sorted_fva = sorted(fva_all, key=lambda r: r['ds'])
+            # 🟢 REQUIREMENT: Constrain accuracy check to only the most recent 7 days
+            fva_rows_to_show = sorted_fva[-7:]
+
+            if fva_rows_to_show:
+                total_p = sum(r.get('predicted', 0) for r in fva_rows_to_show)
+                total_a = sum(r.get('actual', 0)    for r in fva_rows_to_show)
+                mape_vals = []
+                fva_body = ""
+                for r in fva_rows_to_show:
+                    pred = r.get('predicted', 0) or 0
+                    act  = r.get('actual', 0) or 0
+                    var  = act - pred
+                    var_pct = (var / pred * 100) if pred > 0 else 0
+                    mape_vals.append(abs(var_pct))
                     var_color = "#059669" if var >= 0 else "#DC2626"
-                    
-                    total_p += r['predicted']
-                    total_a += r['actual']
-                    mape_sum += abs(var_pct)
-                    count += 1
-                    
-                    pva_rows += f"""
+                    sign = "+" if var >= 0 else ""
+                    fva_body += f"""
                     <tr>
                         <td style="font-family:monospace;padding:4px 8px;">{r['ds']}</td>
-                        <td style="text-align:right;font-family:monospace;padding:4px 8px;">RM {r['predicted']:,.2f}</td>
-                        <td style="text-align:right;font-family:monospace;padding:4px 8px;">RM {r['actual']:,.2f}</td>
+                        <td style="text-align:right;font-family:monospace;padding:4px 8px;">RM {fnum(pred)}</td>
+                        <td style="text-align:right;font-family:monospace;padding:4px 8px;">RM {fnum(act)}</td>
                         <td style="text-align:right;font-family:monospace;padding:4px 8px;color:{var_color};">
-                            {'+' if var>=0 else ''}RM {var:,.2f} ({'+' if var_pct>=0 else ''}{var_pct:.1f}%)
+                            {sign}RM {fnum(abs(var))} ({sign}{fnum(var_pct, 1)}%)
                         </td>
                     </tr>"""
+                avg_mape    = sum(mape_vals) / len(mape_vals) if mape_vals else 0
+                avg_acc     = max(0, round(100 - avg_mape, 1))
                 
-                avg_mape = mape_sum / count if count > 0 else 0
-                month_label = datetime.strptime(month_filter + "-01", "%Y-%m-%d").strftime("%B %Y")
-                
-                pva_section_html = f"""
-                <div style="page-break-before: always;"></div>
-                <div class="section-title">Historical Performance: {month_label}</div>
+                fva_section_html = f"""
+                <div style="page-break-before:always;"></div>
+                <div class="section-title">How Accurate Has the Forecast Been? — Recent 7 Days</div>
                 <div class="kpi-grid">
-                    <div class="kpi-box"><div class="kpi-label">Month Total Predicted</div><div class="kpi-value">RM {total_p:,.2f}</div></div>
-                    <div class="kpi-box"><div class="kpi-label">Month Total Actual</div><div class="kpi-value">RM {total_a:,.2f}</div></div>
-                    <div class="kpi-box"><div class="kpi-label">Avg. Month Accuracy</div><div class="kpi-value">{max(0, round(100 - avg_mape, 1))}%</div></div>
-                    <div class="kpi-box"><div class="kpi-label">Variance</div><div class="kpi-value" style="color:{'#059669' if total_a >= total_p else '#DC2626'};">RM {total_a - total_p:,.2f}</div></div>
+                    <div class="kpi-box"><div class="kpi-label">Total Predicted</div><div class="kpi-value">RM {fnum(total_p)}</div></div>
+                    <div class="kpi-box"><div class="kpi-label">Total Actual Sales</div><div class="kpi-value">RM {fnum(total_a)}</div></div>
+                    <div class="kpi-box"><div class="kpi-label">Forecast Accuracy</div><div class="kpi-value">{avg_acc}%</div></div>
+                    <div class="kpi-box"><div class="kpi-label">Total Difference</div>
+                        <div class="kpi-value" style="color:{'#059669' if total_a >= total_p else '#DC2626'};">
+                            RM {fnum(abs(total_a - total_p))} {'over' if total_a >= total_p else 'under'}
+                        </div>
+                    </div>
                 </div>
                 <table>
                     <thead>
                         <tr>
                             <th>Date</th>
                             <th style="text-align:right;">Predicted (RM)</th>
-                            <th style="text-align:right;">Actual (RM)</th>
-                            <th style="text-align:right;">Variance</th>
+                            <th style="text-align:right;">Actual Sales (RM)</th>
+                            <th style="text-align:right;">Difference</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        {pva_rows}
-                    </tbody>
-                </table>
-                """
+                    <tbody>{fva_body}</tbody>
+                </table>"""
 
-        now_str = datetime.now().strftime('%d %b %Y, %I:%M %p')
-        
+        # ── Section 4: Busiest hours ─────────────────────────────────────
+        hourly_html = ""
+        if hourly:
+            sorted_hourly = sorted(hourly, key=lambda r: r.get('hour', 0))
+            max_rev = max((r.get('revenue', 0) for r in sorted_hourly), default=1) or 1
+            rows_h  = ""
+            for h in sorted_hourly:
+                bar_w = int(h.get('revenue', 0) / max_rev * 100)
+                rows_h += f"""
+                <tr>
+                    <td style="font-family:monospace;padding:4px 8px;">{str(h.get('hour',0)).zfill(2)}:00</td>
+                    <td style="text-align:right;padding:4px 8px;">{h.get('transactions', 0):,}</td>
+                    <td style="text-align:right;padding:4px 8px;">RM {fnum(h.get('revenue', 0))}</td>
+                    <td style="padding:4px 8px;"><div style="background:#2563EB;height:8px;border-radius:4px;width:{bar_w}%;"></div></td>
+                </tr>"""
+            hourly_html = f"""
+            <div class="section-title">Best and Slowest Hours of the Day</div>
+            <table>
+                <thead>
+                    <tr><th>Hour</th><th style="text-align:right;">Orders</th><th style="text-align:right;">Revenue (RM)</th><th>Activity Level</th></tr>
+                </thead>
+                <tbody>{rows_h}</tbody>
+            </table>"""
+
+        # ── Section 5: Weather impact by shift ──────────────────────────
+        wbt_html = ""
+        if wbt:
+            wbt_pivot = {}
+            for r in wbt:
+                shift   = r.get('shift', '—')
+                weather = r.get('weather', '—')
+                count   = r.get('count', 0)
+                if shift not in wbt_pivot:
+                    wbt_pivot[shift] = {}
+                wbt_pivot[shift][weather] = count
+            wbt_rows = ""
+            for shift, conds in wbt_pivot.items():
+                wbt_rows += f"""
+                <tr>
+                    <td style="padding:4px 8px;font-weight:600;">{shift}</td>
+                    <td style="padding:4px 8px;">{WEATHER_ICON_MAP.get('Sunny','☀️')} {conds.get('Sunny', 0)} days</td>
+                    <td style="padding:4px 8px;">{WEATHER_ICON_MAP.get('Cloudy','⛅')} {conds.get('Cloudy', 0)} days</td>
+                    <td style="padding:4px 8px;">{WEATHER_ICON_MAP.get('Raining','🌧️')} {conds.get('Raining', 0)} days</td>
+                </tr>"""
+            wbt_html = f"""
+            <div class="section-title">How Weather Affects Your Sales — by Time of Day</div>
+            <table>
+                <thead>
+                    <tr><th>Shift</th><th>Sunny Days</th><th>Cloudy Days</th><th>Rainy Days</th></tr>
+                </thead>
+                <tbody>{wbt_rows}</tbody>
+            </table>"""
+
+        # ── Section 6: What drives the forecast ─────────────────────────
+        avg_day   = total_7day / 7 if total_7day else 0
+        sunny_est = fnum(avg_day * 1.12)
+        rain_est  = fnum(avg_day * 0.88)
+        drivers_html = f"""
+        <div class="section-title">What Drives the Forecast?</div>
+        <table>
+            <thead><tr><th>Factor</th><th>Effect on Sales</th></tr></thead>
+            <tbody>
+                <tr><td style="padding:5px 8px;">☀️ Sunny or Cloudy day</td>
+                    <td style="padding:5px 8px;color:#059669;font-weight:600;">Estimated RM {sunny_est} / day</td></tr>
+                <tr><td style="padding:5px 8px;">🌧️ Rainy day</td>
+                    <td style="padding:5px 8px;color:#DC2626;font-weight:600;">Estimated RM {rain_est} / day</td></tr>
+                <tr><td style="padding:5px 8px;">🎉 Every Friday</td>
+                    <td style="padding:5px 8px;">20% off all Latte drinks — boosts orders</td></tr>
+                <tr><td style="padding:5px 8px;">🎁 School holidays &amp; festive seasons</td>
+                    <td style="padding:5px 8px;">Higher foot traffic expected</td></tr>
+                <tr><td style="padding:5px 8px;">🏢 Putrajaya — public holidays</td>
+                    <td style="padding:5px 8px;color:#DC2626;">−35% (office workers stay home)</td></tr>
+                <tr><td style="padding:5px 8px;">🎓 Puncak Alam — public holidays</td>
+                    <td style="padding:5px 8px;color:#059669;">+15% (students &amp; residents gather)</td></tr>
+            </tbody>
+        </table>"""
+
+        # ── Assemble full HTML document ──────────────────────────────────
         html_doc = f"""<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
   @page {{ size: A4 portrait; margin: 15mm 12mm; }}
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-  body {{ font-family: Arial, sans-serif; font-size: 10px; color: #1E293B; }}
-  .header {{ background: linear-gradient(135deg,#1E2A3A,#2A3B52); padding: 25px 30px; color: white; }}
-  .brand {{ display:flex;align-items:center;gap:10px;margin-bottom:10px; }}
-  .accent {{ height:4px;background:linear-gradient(90deg,#F59E0B,#3B82F6,#10B981); }}
-  .body {{ padding:20px 30px; }}
-  .section-title {{ font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;border-left:3px solid #3B82F6;padding-left:7px;margin:15px 0 10px;color:#1E2A3A; }}
-  .kpi-grid {{ display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:15px; }}
-  .kpi-box {{ border:1px solid #E2E8F0;border-radius:6px;padding:10px;background:#F8FAFC; }}
-  .kpi-label {{ font-size:8px;color:#64748B;text-transform:uppercase;margin-bottom:3px; }}
-  .kpi-value {{ font-size:14px;font-weight:700;font-family:monospace; }}
-  table {{ width:100%;border-collapse:collapse;margin-top:5px; }}
-  thead th {{ background:#1E2A3A;color:white;padding:6px 8px;text-align:left;font-size:9px; }}
-  tbody td {{ padding:5px 8px;border-bottom:1px solid #E2E8F0; }}
-  .footer {{ padding:10px 30px;background:#F8FAFC;border-top:1px solid #E2E8F0;display:flex;justify-content:space-between;font-size:8px;color:#94A3B8; }}
+  body {{ 
+    font-family: 'Segoe UI', Arial, sans-serif; 
+    font-size: 10px; 
+    color: #1E293B; 
+    line-height: 1.5;
+    background: #FFFFFF;
+  }}
+  .report-container {{
+    max-width: 800px;
+    margin: 0 auto;
+    background: #fff;
+  }}
+  .header {{ 
+    background: linear-gradient(135deg,#1E2A3A,#2A3B52); 
+    padding: 30px; 
+    color: white; 
+    -webkit-print-color-adjust: exact;
+  }}
+  .brand {{ display:flex; align-items:center; gap:10px; margin-bottom:12px; }}
+  .accent {{ height:4px; background:linear-gradient(90deg,#F59E0B,#3B82F6,#10B981); -webkit-print-color-adjust: exact; }}
+  .body {{ padding: 25px 30px; }}
+  
+  .section-title {{ 
+    font-size: 10px; 
+    font-weight: 700; 
+    text-transform: uppercase; 
+    letter-spacing: 1px; 
+    border-left: 4px solid #3B82F6; 
+    padding-left: 10px; 
+    margin: 25px 0 12px; 
+    color: #0F172A;
+    page-break-after: avoid;
+  }}
+  
+  /* Responsive KPI Grid */
+  .kpi-grid {{ 
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 20px;
+  }}
+  .kpi-box {{ 
+    flex: 1 1 calc(25% - 12px);
+    min-width: 120px;
+    border: 1px solid #E2E8F0; 
+    border-radius: 8px; 
+    padding: 12px; 
+    background: #F8FAFC;
+    page-break-inside: avoid;
+  }}
+  .kpi-label {{ font-size: 8px; color: #64748B; text-transform: uppercase; margin-bottom: 4px; font-weight: 600; }}
+  .kpi-value {{ font-size: 15px; font-weight: 700; font-family: 'Courier New', monospace; color: #1E293B; }}
+  
+  /* Tables */
+  .table-wrapper {{ width: 100%; overflow-x: auto; }}
+  table {{ width: 100%; border-collapse: collapse; margin-top: 8px; table-layout: auto; }}
+  thead th {{ 
+    background: #1E2A3A; 
+    color: white; 
+    padding: 8px 10px; 
+    text-align: left; 
+    font-size: 9px; 
+    font-weight: 600;
+    -webkit-print-color-adjust: exact;
+  }}
+  tbody td {{ 
+    padding: 7px 10px; 
+    border-bottom: 1px solid #E2E8F0; 
+    font-size: 9px; 
+    vertical-align: middle;
+  }}
+  tr {{ page-break-inside: avoid; }}
+  
+  .persona-box {{ 
+    background: #EFF6FF; 
+    padding: 12px 15px; 
+    border-radius: 8px; 
+    margin-bottom: 20px; 
+    font-size: 10px; 
+    border-left: 4px solid #3B82F6;
+    color: #1E40AF;
+  }}
+  
+  .footer {{ 
+    padding: 15px 30px; 
+    background: #F8FAFC; 
+    border-top: 1px solid #E2E8F0; 
+    display: flex; 
+    justify-content: space-between; 
+    font-size: 8px; 
+    color: #94A3B8;
+    margin-top: 30px;
+  }}
+  
+  .note {{ 
+    font-size: 9px; 
+    color: #64748B; 
+    line-height: 1.6; 
+    margin-top: 25px; 
+    padding: 15px; 
+    background: #F1F5F9; 
+    border-radius: 8px; 
+    border: 1px dashed #CBD5E1;
+  }}
+
+  /* Printing Helpers */
+  .page-break {{ page-break-before: always; }}
+  
+  @media screen and (max-width: 600px) {{
+    .kpi-box {{ flex: 1 1 calc(50% - 12px); }}
+    .header, .body, .footer {{ padding: 15px; }}
+  }}
 </style>
 </head>
 <body>
+<div class="report-container">
 <div class="header">
-    <div class="brand"><div style="background:#F59E0B;padding:5px;border-radius:5px;">☕</div> <strong>Mini Coffee Shop</strong></div>
-    <div style="font-size:18px;font-weight:700;">AI Sales Forecast Report</div>
-    <div style="font-size:10px;opacity:.8;">Branch: {branch_name} | Generated: {now_str}</div>
+    <div class="brand">
+        <div style="background:#F59E0B;padding:6px;border-radius:6px;font-size:14px;">☕</div>
+        <strong style="font-size:12px;letter-spacing:0.5px;">Mini Coffee Shop</strong>
+    </div>
+    <div style="font-size:22px;font-weight:800;letter-spacing:-0.5px;margin-bottom:5px;">Sales Forecast Report</div>
+    <div style="font-size:10px;opacity:.85;font-weight:500;">Branch: {branch_name} &nbsp; | &nbsp; Generated: {now_str}</div>
 </div>
 <div class="accent"></div>
 <div class="body">
-    <div class="section-title">Model Performance & Persona</div>
+
+    <!-- Model performance summary -->
+    <div class="section-title">How Reliable Is This Forecast?</div>
     <div class="kpi-grid">
-        <div class="kpi-box"><div class="kpi-label">MAPE</div><div class="kpi-value">{result['mape']}%</div></div>
-        <div class="kpi-box"><div class="kpi-label">RMSE</div><div class="kpi-value">RM {result['rmse']:,.2f}</div></div>
-        <div class="kpi-box"><div class="kpi-label">Accuracy</div><div class="kpi-value">{result['accuracy']}%</div></div>
-        <div class="kpi-box"><div class="kpi-label">7-Day Total</div><div class="kpi-value">RM {sum(r['yhat'] for r in result['forecast']):,.2f}</div></div>
-    </div>
-    <div style="background:#EFF6FF;padding:10px;border-radius:6px;margin-bottom:15px;font-size:10px;">
-        <strong>Branch Persona:</strong> {result['persona']}
+        <div class="kpi-box">
+            <div class="kpi-label">Error Rate</div>
+            <div class="kpi-value">{mape}%</div>
+            <div style="font-size:7px;color:#94A3B8;margin-top:3px;">Lower is better</div>
+        </div>
+        <div class="kpi-box">
+            <div class="kpi-label">Typical Variation</div>
+            <div class="kpi-value">RM {fnum(rmse)}</div>
+            <div style="font-size:7px;color:#94A3B8;margin-top:3px;">Per day average</div>
+        </div>
+        <div class="kpi-box">
+            <div class="kpi-label">Forecast Accuracy</div>
+            <div class="kpi-value">{accuracy}%</div>
+            <div style="font-size:7px;color:#94A3B8;margin-top:3px;">Higher is better</div>
+        </div>
+        <div class="kpi-box">
+            <div class="kpi-label">7-Day Prediction</div>
+            <div class="kpi-value">RM {fnum(total_7day)}</div>
+            <div style="font-size:7px;color:#94A3B8;margin-top:3px;">Expected gross</div>
+        </div>
     </div>
 
-    <div class="section-title">7-Day Prediction Breakdown</div>
+    <div class="persona-box">
+        <strong>Branch Profile:</strong> {persona}
+    </div>
+
+    <!-- Day-by-day forecast -->
+    <div class="section-title">Day-by-Day Forecast Breakdown — Next 7 Days</div>
     <table>
         <thead>
             <tr>
                 <th>Date</th>
                 <th>Day</th>
                 <th>Weather</th>
-                <th>Promotions/Flags</th>
-                <th style="text-align:right;">Predicted (RM)</th>
-                <th style="text-align:right;">Lower</th>
-                <th style="text-align:right;">Upper</th>
+                <th>Notes &amp; Promotions</th>
+                <th style="text-align:right;">Predicted Sales (RM)</th>
+                <th style="text-align:right;">Low Estimate</th>
+                <th style="text-align:right;">High Estimate</th>
             </tr>
         </thead>
-        <tbody>
-            {forecast_rows}
-        </tbody>
+        <tbody>{forecast_rows_html}</tbody>
     </table>
 
-    {pva_section_html}
-    
-    <div style="margin-top:20px;font-size:9px;color:#64748B;line-height:1.6;">
-        <strong>Note:</strong> This forecast is generated using Prophet with multiplicative seasonality, 
-        incorporating Malaysian public holidays, weather regressors, and branch-specific demand patterns.
-        95% confidence intervals (Lower/Upper) are provided for risk assessment.
+    <!-- Ingredients -->
+    {ingr_html}
+
+    <!-- Historical accuracy -->
+    {fva_section_html}
+
+    <!-- Hourly breakdown -->
+    {hourly_html}
+
+    <!-- Weather by shift -->
+    {wbt_html}
+
+    <!-- What drives the forecast -->
+    {drivers_html}
+
+    <div class="note">
+        <strong>About this forecast:</strong> Predictions are made using an AI model trained on your past sales data.
+        It accounts for Malaysian public holidays, school breaks, weekly patterns, and upcoming weather conditions.
+        The "Low Estimate" and "High Estimate" columns show the range the model is 95% confident your actual sales will fall within.
+        Actual results may vary due to unexpected events, weather changes, or promotions not yet in the system.
     </div>
+
 </div>
 <div class="footer">
     <div>MCS Analytics v1.0</div>
-    <div>Internal Use Only</div>
+    <div>Internal Use Only — Mini Coffee Shop</div>
+    <div>{now_str}</div>
 </div>
 </body>
 </html>"""
 
-        from weasyprint import HTML as WP_HTML
-        pdf_bytes = WP_HTML(string=html_doc).write_pdf()
-        response  = make_response(pdf_bytes)
-        response.headers['Content-Type']        = 'application/pdf'
-        filename_str = f"MCS_Forecast_{branch_name.replace(' ','_')}_{datetime.now().strftime('%Y%m%d')}.pdf"
-        response.headers['Content-Disposition'] = f'attachment; filename="{filename_str}"'
-        return response
-
-    except ImportError:
-        # Fallback to HTML if WeasyPrint is missing
-        response = make_response(html_doc)
-        response.headers['Content-Type']        = 'text/html; charset=utf-8'
-        filename_str = f"MCS_Forecast_{branch_name.replace(' ','_')}_{datetime.now().strftime('%Y%m%d')}.html"
-        response.headers['Content-Disposition'] = f'attachment; filename="{filename_str}"'
-        return response
+        try:
+            from weasyprint import HTML as WP_HTML
+            pdf_bytes = WP_HTML(string=html_doc).write_pdf()
+            response  = make_response(pdf_bytes)
+            response.headers['Content-Type']        = 'application/pdf'
+            fn = f"MCS_Forecast_{branch_name.replace(' ','_')}_{datetime.now().strftime('%Y%m%d')}.pdf"
+            response.headers['Content-Disposition'] = f'attachment; filename="{fn}"'
+            return response
+        except ImportError:
+            response = make_response(html_doc)
+            response.headers['Content-Type']        = 'text/html; charset=utf-8'
+            fn = f"MCS_Forecast_{branch_name.replace(' ','_')}_{datetime.now().strftime('%Y%m%d')}.html"
+            response.headers['Content-Disposition'] = f'attachment; filename="{fn}"'
+            return response
 
     except Exception as e:
         return jsonify({"status": "error", "message": f"PDF render error: {str(e)}"}), 500
@@ -1640,18 +1836,17 @@ def api_export_forecast_pdf():
 # ============================================================
 #    API — PDF EXPORT (Executive Report Only, Month-Based)
 # ============================================================
-# ── Colour palette (flat, business) ───────────────────────────
-C_DARK    = colors.HexColor('#1E293B')   # headings
-C_MID     = colors.HexColor('#334155')   # body text
-C_MUTED   = colors.HexColor('#64748B')   # sub-labels
-C_LIGHT   = colors.HexColor('#F1F5F9')   # row alt / header bg
-C_BLUE    = colors.HexColor('#2563EB')   # accent / KPI
-C_TEAL    = colors.HexColor('#0D9488')   # positive
-C_RED     = colors.HexColor('#DC2626')   # negative
-C_AMBER   = colors.HexColor('#D97706')   # warning
+C_DARK    = colors.HexColor('#1E293B')   
+C_MID     = colors.HexColor('#334155')   
+C_MUTED   = colors.HexColor('#64748B')   
+C_LIGHT   = colors.HexColor('#F1F5F9')   
+C_BLUE    = colors.HexColor('#2563EB')   
+C_TEAL    = colors.HexColor('#0D9488')   
+C_RED     = colors.HexColor('#DC2626')   
+C_AMBER   = colors.HexColor('#D97706')   
 C_WHITE   = colors.white
-C_BORDER  = colors.HexColor('#CBD5E1')   # table borders
-C_HDRROW  = colors.HexColor('#1E293B')   # table header bg
+C_BORDER  = colors.HexColor('#CBD5E1')   
+C_HDRROW  = colors.HexColor('#1E293B')   
  
  
 def _styles():
@@ -1714,7 +1909,6 @@ def _table_style(has_header=True, stripe=True):
             ('FONTSIZE',   (0, 0), (-1, 0), 8.5),
         ]
     if stripe:
-        # stripe every even data row
         cmds.append(('ROWBACKGROUNDS', (0, 1 if has_header else 0), (-1, -1),
                      [C_WHITE, C_LIGHT]))
     return TableStyle(cmds)
@@ -1727,21 +1921,18 @@ def _section(title, story, styles):
  
  
 def _bar_cell(pct, bar_color=C_BLUE, width_pts=80):
-    """Return a mini text-based bar (ASCII-style using underscores)."""
     filled = int(pct / 100 * 12)
     bar = '█' * filled + '░' * (12 - filled)
     return f'<font color="#{bar_color.hexval()[1:] if hasattr(bar_color,"hexval") else "2563EB"}">{bar}</font>'
  
  
-# ── PAGE TEMPLATE (header + footer) ───────────────────────────
+# ── PAGE TEMPLATE ─────────────────────────────────────────────
 def _make_on_page(branch_label, month_label, now_str):
     def on_page(canvas, doc):
         canvas.saveState()
         w, h = A4
-        # Header bar
         canvas.setFillColor(C_DARK)
         canvas.rect(0, h - 28*mm, w, 28*mm, fill=1, stroke=0)
-        # Accent line
         canvas.setFillColor(C_BLUE)
         canvas.rect(0, h - 29.5*mm, w, 1.5*mm, fill=1, stroke=0)
  
@@ -1752,7 +1943,6 @@ def _make_on_page(branch_label, month_label, now_str):
         canvas.drawString(14*mm, h - 20*mm, f'{branch_label}  ·  {month_label}  ·  Confidential — Internal Use Only')
         canvas.drawRightString(w - 14*mm, h - 20*mm, f'Generated: {now_str}')
  
-        # Footer
         canvas.setFillColor(C_MUTED)
         canvas.setFont('Helvetica', 7.5)
         canvas.drawString(14*mm, 8*mm, 'MCS Analytics v1.0 — Internal Use Only')
@@ -1772,7 +1962,6 @@ def api_export_pdf():
     if not date_from or not date_to:
         return jsonify({"status": "error", "message": "date_from and date_to are required."}), 400
  
-    # ── Fetch / global cache report data ──────────────────────
     try:
         cache_key = f"{branch_filter}_{date_from}_{date_to}"
         if cache_key in REPORT_CACHE:
@@ -1783,7 +1972,6 @@ def api_export_pdf():
     except Exception as e:
         return jsonify({"status": "error", "message": f"Data error: {str(e)}"}), 500
  
-    # ── Derived labels ─────────────────────────────────────────
     branch_label = branch_filter if branch_filter != 'all' else 'All Branches'
     now_str      = datetime.now().strftime('%d %b %Y, %I:%M %p')
     try:
@@ -1793,7 +1981,6 @@ def api_export_pdf():
         month_label = date_from
         month_key   = date_from[:7]
  
-    # ── Build PDF with ReportLab ───────────────────────────────
     buf    = BytesIO()
     styles = _styles()
     M      = 14 * mm
@@ -1806,7 +1993,6 @@ def api_export_pdf():
  
     story = []
  
-    # ── Helpers ────────────────────────────────────────────────
     def P(text, style='RPT_Body'):
         return Paragraph(text, styles[style])
  
@@ -1814,7 +2000,6 @@ def api_export_pdf():
         return f'{float(n or 0):,.{dp}f}'
  
     def pct_bar(pct, width=60):
-        """Tiny visual bar using filled chars."""
         filled = max(0, min(12, int((pct or 0) / 100 * 12)))
         return '█' * filled + '░' * (12 - filled)
  
@@ -1823,17 +2008,17 @@ def api_export_pdf():
     # ─────────────────────────────────────────────────────────
     _section('1.  Executive Summary', story, styles)
  
-    rd            = report_data
-    period_rev    = rd.get('period_revenue', 0)
-    period_txns   = rd.get('period_txns', 0)
-    daily_avg     = rd.get('daily_average', 0)
-    aov           = rd.get('aov', 0)
-    trend_label   = rd.get('trend_label', 'N/A')
-    top_branch    = rd.get('top_branch', 'N/A')
-    peak_hour     = rd.get('peak_hour', 'N/A')
-    peak_day      = rd.get('peak_day', 'N/A')
-    days_in_p     = max(len(rd.get('daily', [])), 1)
-    avg_daily_t   = round(period_txns / days_in_p, 1)
+    rd             = report_data
+    period_rev     = rd.get('period_revenue', 0)
+    period_txns    = rd.get('period_txns', 0)
+    daily_avg      = rd.get('daily_average', 0)
+    aov            = rd.get('aov', 0)
+    trend_label    = rd.get('trend_label', 'N/A')
+    top_branch     = rd.get('top_branch', 'N/A')
+    peak_hour      = rd.get('peak_hour', 'N/A')
+    peak_day       = rd.get('peak_day', 'N/A')
+    days_in_p      = max(len(rd.get('daily', [])), 1)
+    avg_daily_t    = round(period_txns / days_in_p, 1)
  
     kpi_data = [
         ['Metric', 'Value', 'Metric', 'Value'],
@@ -1850,8 +2035,8 @@ def api_export_pdf():
         ('TEXTCOLOR',     (0, 0), (-1, 0), C_WHITE),
         ('FONTNAME',      (0, 0), (-1, 0), 'Helvetica-Bold'),
         ('FONTNAME',      (0, 1), (-1, -1), 'Helvetica'),
-        ('FONTNAME',      (0, 1), (0, -1), 'Helvetica-Bold'),  # left label col bold
-        ('FONTNAME',      (2, 1), (2, -1), 'Helvetica-Bold'),  # right label col bold
+        ('FONTNAME',      (0, 1), (0, -1), 'Helvetica-Bold'),  
+        ('FONTNAME',      (2, 1), (2, -1), 'Helvetica-Bold'),  
         ('FONTSIZE',      (0, 0), (-1, -1), 8.5),
         ('TEXTCOLOR',     (0, 1), (-1, -1), C_MID),
         ('TEXTCOLOR',     (1, 1), (1, -1), C_BLUE),
@@ -1905,13 +2090,11 @@ def api_export_pdf():
  
         mt_tbl = Table(rows, colWidths=col_w)
         mt_style = _table_style()
-        # highlight current month rows
         for i, k in enumerate(rec_keys):
             if k == month_key:
                 mt_style.add('BACKGROUND', (0, i+1), (-1, i+1), colors.HexColor('#EFF6FF'))
                 mt_style.add('FONTNAME',   (0, i+1), (-1, i+1), 'Helvetica-Bold')
                 mt_style.add('TEXTCOLOR',  (-1, i+1), (-1, i+1), C_BLUE)
-        # right-align numeric cols
         for c in range(1, n_cols):
             mt_style.add('ALIGN', (c, 0), (c, -1), 'RIGHT')
         mt_tbl.setStyle(mt_style)
@@ -1930,7 +2113,6 @@ def api_export_pdf():
     pva_in_range = rd.get('pva_within_range', 0)
     pva_days     = rd.get('pva_days_with_data', 0)
  
-    # PvA summary row
     pva_sum = [
         ['Total Predicted', f'RM {num(pva_total_p)}',
          'Total Actual', f'RM {num(pva_total_a)}',
@@ -2007,7 +2189,7 @@ def api_export_pdf():
         for i, p in enumerate(top_prods, 1):
             top_body.append([
                 str(i),
-                p['product_name'],
+                p['product_id'],
                 f"{int(p['qty']):,}",
                 num(p['revenue']),
                 f"{p['pct']}%",
@@ -2029,7 +2211,7 @@ def api_export_pdf():
         story.append(P('Underperforming Products — Bottom 3 (by quantity)', 'RPT_Bold'))
         bot_hdr = ['Product', 'Units Sold', 'Revenue (RM)']
         bot_body = [bot_hdr] + [
-            [p['product_name'], f"{int(p['qty']):,}", num(p['revenue'])]
+            [p['product_id'], f"{int(p['qty']):,}", num(p['revenue'])]
             for p in bot_prods
         ]
         bot_tbl = Table(bot_body, colWidths=[100*mm, 35*mm, 45*mm])
@@ -2093,7 +2275,7 @@ def api_export_pdf():
         story.append(P('Payment Method Breakdown', 'RPT_Bold'))
         pay_hdr  = ['Payment Method', 'Transactions', 'Share %', 'Bar']
         pay_body = [pay_hdr] + [
-            [p['payment_method'], f"{int(p['txn_count']):,}", f"{p['pct']}%", pct_bar(float(p['pct'] or 0))]
+            [str(p['payment_method']).upper(), f"{int(p['txn_count']):,}", f"{p['pct']}%", pct_bar(float(p['pct'] or 0))]
             for p in pay_data
         ]
         pay_tbl = Table(pay_body, colWidths=[60*mm, 35*mm, 22*mm, 65*mm])
@@ -2106,7 +2288,7 @@ def api_export_pdf():
         story.append(KeepTogether([pay_tbl]))
  
     # ─────────────────────────────────────────────────────────
-    #   SECTION 6 — TRANSACTION FLOW (Hourly + Day-of-Week)
+    #   SECTION 6 — TRANSACTION FLOW
     # ─────────────────────────────────────────────────────────
     _section('6.  Transaction Flow by Time', story, styles)
  
@@ -2169,13 +2351,11 @@ def api_export_pdf():
     story.append(P(f'<b>Branch:</b> {branch_label}  |  <b>Period:</b> {month_label}  |  <b>Revenue:</b> RM {num(period_rev)}', 'RPT_Body'))
     story.append(Spacer(1, 6))
  
-    # Parse AI text into lines and render cleanly
     for line in ai_text.replace('\r\n', '\n').split('\n'):
         line = line.strip()
         if not line:
             story.append(Spacer(1, 3))
             continue
-        # Numbered action items → bullet style
         if line and line[0].isdigit() and len(line) > 2 and line[1] in '.):':
             story.append(Paragraph(f'• {line}', styles['RPT_Bullet']))
         elif line.startswith('•') or line.startswith('-'):
@@ -2185,15 +2365,14 @@ def api_export_pdf():
  
     story.append(Spacer(1, 8))
  
-    # Key findings summary table
     top_prods_list = rd.get('top_products', [])
     findings = [
         ['Finding', 'Detail'],
         ['Revenue Trend',      trend_label],
-        ['Top Branch',         top_branch],
+        ['Top Branch',          top_branch],
         ['Avg Order Value',    f'RM {num(aov)}'],
         ['Busiest Window',     f'{peak_hour}  ·  {peak_day}'],
-        ['Best Product',       f"{top_prods_list[0]['product_name']} ({int(top_prods_list[0]['qty']):,} units)" if top_prods_list else 'N/A'],
+        ['Best Product',       f"{top_prods_list[0]['product_id']} ({int(top_prods_list[0]['qty']):,} units)" if top_prods_list else 'N/A'],
         ['Period Revenue',     f'RM {num(period_rev)} across {int(period_txns):,} transactions'],
     ]
     fin_tbl = Table(findings, colWidths=[55*mm, 127*mm])
@@ -2216,7 +2395,6 @@ def api_export_pdf():
     ]))
     story.append(KeepTogether([fin_tbl]))
  
-    # ── Build & stream PDF ─────────────────────────────────────
     on_page = _make_on_page(branch_label, month_label, now_str)
     doc.build(story, onFirstPage=on_page, onLaterPages=on_page)
  
@@ -2224,6 +2402,7 @@ def api_export_pdf():
     response  = make_response(pdf_bytes)
     response.headers['Content-Type']        = 'application/pdf'
     filename_str = f"MCS_Executive_Report_{branch_filter.replace(' ','_')}_{month_key}.pdf"
+    filename_str = filename_str.replace(' ','_')
     response.headers['Content-Disposition'] = f'attachment; filename="{filename_str}"'
     return response
 
@@ -2232,4 +2411,5 @@ def api_export_pdf():
 #    RUNTIME ENGINE EXECUTION ENTRYPOINT
 # ============================================================
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Threading explicitly active to support real-time Event Stream pipelines
+    app.run(debug=True, threaded=True)

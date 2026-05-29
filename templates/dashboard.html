@@ -1,515 +1,939 @@
 {% extends "base.html" %}
 {% block title %}Overview{% endblock %}
-
 {% block content %}
+<style>
+:root {
+  --blue-kpi:   #2563EB;
+  --amber-kpi:  #D97706;
+  --teal-kpi:   #0D9488;
+  --purple-kpi: #7C3AED;
+  --red-kpi:    #DC2626;
+  --green-kpi:  #16A34A;
+  --card-radius: 14px;
+  --filter-gap: .5rem;
+}
 
-<!-- Page Header -->
+/* ── PAGE HEADER ── */
+.page-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+.page-header-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--filter-gap);
+  align-items: center;
+}
+.page-title   { font-size: 1.55rem; font-weight: 700; color: #1E293B; margin: 0; }
+.page-subtitle { font-size: .82rem; color: #64748B; margin: .2rem 0 0; }
+
+@media (max-width: 575px) {
+  .page-title   { font-size: 1.25rem; }
+  .page-subtitle { font-size: .75rem; }
+  .page-header-controls { width: 100%; }
+  .page-header-controls .form-control-custom { width: 100%; }
+}
+
+/* ── FILTER PILLS ── */
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  background: #F1F5F9;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: .3rem .55rem;
+}
+.filter-group label {
+  font-size: .68rem;
+  font-weight: 600;
+  color: #94A3B8;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  white-space: nowrap;
+}
+
+/* ── KPI CARDS ── */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(195px, 1fr));
+  gap: .75rem;
+  margin-bottom: 1.5rem;
+}
+.kpi-card {
+  position: relative;
+  border-radius: var(--card-radius);
+  padding: 1.1rem 1.25rem 1rem;
+  display: flex;
+  gap: .9rem;
+  align-items: flex-start;
+  overflow: hidden;
+  transition: transform .18s, box-shadow .18s;
+  border: 1px solid rgba(0,0,0,.04);
+}
+.kpi-card:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(0,0,0,.1); }
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  top: -20px; right: -20px;
+  width: 75px; height: 75px;
+  border-radius: 50%;
+  opacity: .13;
+  background: currentColor;
+}
+.kpi-blue   { background: linear-gradient(135deg,#EFF6FF 0%,#DBEAFE 100%); color: var(--blue-kpi); }
+.kpi-amber  { background: linear-gradient(135deg,#FFFBEB 0%,#FEF3C7 100%); color: var(--amber-kpi); }
+.kpi-teal   { background: linear-gradient(135deg,#ECFDF5 0%,#D1FAE5 100%); color: var(--teal-kpi); }
+.kpi-purple { background: linear-gradient(135deg,#F5F3FF 0%,#EDE9FE 100%); color: var(--purple-kpi); }
+.kpi-icon-wrap {
+  flex-shrink: 0;
+  width: 40px; height: 40px;
+  border-radius: 11px;
+  background: rgba(255,255,255,.75);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.kpi-body     { min-width: 0; flex: 1; }
+.kpi-label    { font-size: .68rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; opacity: .65; margin-bottom: .2rem; }
+.kpi-value    { font-size: 1.45rem; font-weight: 800; line-height: 1.15; color: #1E293B; }
+.kpi-sub      { font-size: .72rem; margin-top: .3rem; color: #64748B; display: flex; align-items: center; gap: .3rem; }
+.kpi-trend-up   { color: #16A34A; }
+.kpi-trend-down { color: #DC2626; }
+
+/* ── DASHBOARD CARDS ── */
+.dashboard-card {
+  background: #fff;
+  border-radius: var(--card-radius);
+  border: 1px solid #E2E8F0;
+  padding: 1.25rem 1.3rem;
+  box-shadow: 0 1px 5px rgba(0,0,0,.04);
+  transition: box-shadow .18s;
+}
+.dashboard-card:hover { box-shadow: 0 4px 18px rgba(0,0,0,.07); }
+
+.card-title {
+  font-size: .84rem;
+  font-weight: 700;
+  color: #1E293B;
+  margin: 0;
+  line-height: 1.3;
+}
+.card-subtitle {
+  font-size: .7rem;
+  color: #94A3B8;
+  margin: .15rem 0 0;
+}
+
+/* ── SECTION LABEL ── */
+.section-label {
+  font-size: .65rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #94A3B8;
+  margin-bottom: .6rem;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+.section-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #E2E8F0;
+}
+
+/* ── CHART GRIDS ── */
+.charts-row { display: grid; gap: .75rem; margin-bottom: .75rem; }
+.charts-row-2-8 { grid-template-columns: 1fr; }
+.charts-row-2   { grid-template-columns: 1fr; }
+.charts-row-5-7 { grid-template-columns: 1fr; }
+@media (min-width: 768px) {
+  .charts-row-2-8 { grid-template-columns: minmax(0,2fr) minmax(0,1fr); }
+  .charts-row-2   { grid-template-columns: 1fr 1fr; }
+  .charts-row-5-7 { grid-template-columns: minmax(0,5fr) minmax(0,7fr); }
+}
+
+/* ── DIAGNOSTICS ── */
+.diagnostics-grid {
+  display: grid;
+  gap: .75rem;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 768px) {
+  .diagnostics-grid { grid-template-columns: 1fr 1fr; }
+}
+.diag-inner {
+  background: #F8FAFC;
+  border-radius: 10px;
+  padding: 1.1rem 1.15rem;
+  border: 1px solid #E2E8F0;
+  height: 100%;
+}
+.diag-icon {
+  width: 34px; height: 34px;
+  border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.diag-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: .45rem .5rem;
+  border-bottom: 1px solid #E2E8F0;
+  font-size: .8rem;
+  border-radius: 5px;
+}
+.diag-row:last-child { border-bottom: none; }
+.diag-row:hover { background: rgba(0,0,0,.02); }
+
+/* ── LOADING ── */
+.chart-wrap { position: relative; width: 100%; }
+.chart-loading {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,.8);
+  border-radius: 8px;
+  z-index: 5;
+}
+.spinner {
+  width: 26px; height: 26px;
+  border: 3px solid #E2E8F0;
+  border-top-color: var(--blue-kpi);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── BADGES ── */
+.badge-custom {
+  display: inline-flex; align-items: center; gap: .25rem;
+  font-size: .68rem; font-weight: 600; border-radius: 99px;
+  padding: .22rem .6rem; letter-spacing: .02em;
+}
+.badge-blue   { background: #EFF6FF; color: #1D4ED8; }
+.badge-teal   { background: #ECFDF5; color: #065F46; }
+.badge-red    { background: #FEF2F2; color: #991B1B; }
+.badge-amber  { background: #FFFBEB; color: #92400E; }
+.badge-green  { background: #F0FDF4; color: #166534; }
+
+.text-muted-sm { font-size: .73rem; color: #64748B; }
+.fw-700 { font-weight: 700; }
+
+/* ── SECTION CARD WITH ACCENT ── */
+.section-card-accent {
+  border-top: 3px solid var(--teal-kpi);
+}
+.section-card-accent-blue {
+  border-top: 3px solid var(--blue-kpi);
+}
+
+/* ── PROFIT SUMMARY ROW ── */
+.profit-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .55rem .6rem;
+  border-radius: 8px;
+  border-bottom: 1px solid #F1F5F9;
+  font-size: .82rem;
+}
+.profit-row:last-child { border-bottom: none; }
+.profit-row:hover { background: #F8FAFC; }
+
+/* ── RESPONSIVE CHART HEIGHTS ── */
+@media (max-width: 575px) {
+  .ch-trend  { height: 220px !important; }
+  .ch-donut  { height: 220px !important; }
+  .ch-bar    { height: 200px !important; }
+  .ch-heat   { height: 200px !important; }
+  .ch-pay    { height: 180px !important; }
+  .ch-branch { height: 180px !important; }
+  .ch-disc   { height: 180px !important; }
+  .sparkline-wrap { height: 28px !important; }
+}
+</style>
+
+<!-- ══════════════════════════════════════════════════════════
+     PAGE HEADER
+══════════════════════════════════════════════════════════ -->
 <div class="page-header" data-aos="fade-down">
-    <div>
-        <h1 class="page-title">Executive Overview</h1>
-        <p class="page-subtitle">Live business intelligence and localized demand patterns</p>
+  <div>
+    <h1 class="page-title">☕ Sales Overview</h1>
+    <p class="page-subtitle">Live sales summary for your coffee outlets</p>
+  </div>
+  <div class="page-header-controls">
+    <!-- Time filter -->
+    <div class="filter-group">
+      <label><i class="fa-solid fa-calendar-days"></i> Period</label>
+      <select id="timeFilter" class="form-control-custom" style="width:auto;min-width:155px;border:none;background:transparent;padding:.1rem .2rem;" onchange="applyFilters()">
+        <option value="all">All Time</option>
+        <option value="current_week">Last 7 Days</option>
+        <optgroup label="── By Year ──" id="optYears"></optgroup>
+        <optgroup label="── By Month ──" id="optMonths"></optgroup>
+      </select>
     </div>
-    <div class="d-flex gap-2 align-items-center flex-wrap">
-
-        <!-- Time Filter — options populated dynamically from DB -->
-        <select id="timeFilter" class="form-control-custom"
-                style="width:auto;min-width:175px;" onchange="applyFilters()">
-            <option value="all">All Time</option>
-            <option value="current_week">Current 7 Days</option>
-            <optgroup label="── By Year ──"  id="optYears"></optgroup>
-            <optgroup label="── By Month ──" id="optMonths"></optgroup>
-        </select>
-
-        <!-- Branch Filter -->
-        <select id="branchFilter" class="form-control-custom"
-                style="width:auto;min-width:160px;" onchange="applyFilters()">
-            <option value="all">All Branches</option>
-            <option value="Putrajaya">Putrajaya</option>
-            <option value="Puncak Alam">Puncak Alam</option>
-        </select>
-
-        <button class="btn-outline-custom" onclick="window.print()">
-            <i class="fa-solid fa-download"></i> Export
-        </button>
+    <!-- Branch filter -->
+    <div class="filter-group">
+      <label><i class="fa-solid fa-store"></i> Outlet</label>
+      <select id="branchFilter" class="form-control-custom" style="width:auto;min-width:150px;border:none;background:transparent;padding:.1rem .2rem;" onchange="applyFilters()">
+        <option value="all">All Outlets</option>
+        <option value="Putrajaya">Putrajaya Stall</option>
+        <option value="Puncak Alam">Puncak Alam Food Truck</option>
+      </select>
     </div>
+  </div>
 </div>
 
-<!-- ============================================================
+<!-- ══════════════════════════════════════════════════════════
      KPI CARDS
-============================================================ -->
-<div class="row g-3 mb-4">
-
-    <div class="col-12 col-md-6 col-xl-3" data-aos="fade-up" data-aos-delay="0">
-        <div class="kpi-card kpi-blue">
-            <div class="kpi-icon-wrap"><i class="fa-solid fa-wallet"></i></div>
-            <div class="kpi-body">
-                <div class="kpi-label">Total Revenue</div>
-                <div class="kpi-value">RM&nbsp;<span id="kpiRevenue">—</span></div>
-                <span class="kpi-trend neutral" id="kpiRevTrend">
-                    <i class="fa-solid fa-filter"></i> Filter applied
-                </span>
-            </div>
-        </div>
+══════════════════════════════════════════════════════════ -->
+<div class="kpi-grid">
+  <div class="kpi-card kpi-blue" data-aos="fade-up" data-aos-delay="0">
+    <div class="kpi-icon-wrap"><i class="fa-solid fa-wallet"></i></div>
+    <div class="kpi-body">
+      <div class="kpi-label">Total Sales (RM)</div>
+      <div class="kpi-value">RM&nbsp;<span id="kpiRevenue">—</span></div>
+      <span class="kpi-sub" id="kpiRevTrend">
+        <i class="fa-solid fa-arrow-trend-up"></i> <span id="kpiRevTrendText">Loading…</span>
+      </span>
     </div>
-
-    <div class="col-12 col-md-6 col-xl-3" data-aos="fade-up" data-aos-delay="80">
-        <div class="kpi-card kpi-amber">
-            <div class="kpi-icon-wrap"><i class="fa-solid fa-mug-hot"></i></div>
-            <div class="kpi-body">
-                <div class="kpi-label">Volume Sold</div>
-                <div class="kpi-value">
-                    <span id="kpiVolume">—</span>
-                    <span style="font-size:.95rem;color:var(--text-muted);"> units</span>
-                </div>
-                <span class="kpi-trend neutral">
-                    <i class="fa-solid fa-boxes-stacked"></i> Total product count
-                </span>
-            </div>
-        </div>
+  </div>
+  <div class="kpi-card kpi-amber" data-aos="fade-up" data-aos-delay="60">
+    <div class="kpi-icon-wrap"><i class="fa-solid fa-mug-hot"></i></div>
+    <div class="kpi-body">
+      <div class="kpi-label">Cups Sold</div>
+      <div class="kpi-value"><span id="kpiVolume">—</span> <span style="font-size:.82rem;color:#64748B;">cups</span></div>
+      <span class="kpi-sub">
+        <i class="fa-solid fa-boxes-stacked"></i> Total beverages served
+      </span>
     </div>
-
-    <div class="col-12 col-md-6 col-xl-3" data-aos="fade-up" data-aos-delay="160">
-        <div class="kpi-card kpi-teal">
-            <div class="kpi-icon-wrap"><i class="fa-solid fa-receipt"></i></div>
-            <div class="kpi-body">
-                <div class="kpi-label">Transactions</div>
-                <div class="kpi-value"><span id="kpiTransactions">—</span></div>
-                <!-- Sparkline lives here -->
-                <div style="height:34px;margin-top:6px;">
-                    <canvas id="sparklineChart"></canvas>
-                </div>
-            </div>
-        </div>
+  </div>
+  <div class="kpi-card kpi-teal" data-aos="fade-up" data-aos-delay="120">
+    <div class="kpi-icon-wrap"><i class="fa-solid fa-receipt"></i></div>
+    <div class="kpi-body">
+      <div class="kpi-label">Total Orders</div>
+      <div class="kpi-value"><span id="kpiTransactions">—</span></div>
+      <div class="sparkline-wrap" style="height:30px;margin-top:6px;">
+        <canvas id="sparklineChart"></canvas>
+      </div>
     </div>
-
-    <div class="col-12 col-md-6 col-xl-3" data-aos="fade-up" data-aos-delay="240">
-        <div class="kpi-card kpi-purple">
-            <div class="kpi-icon-wrap"><i class="fa-solid fa-store"></i></div>
-            <div class="kpi-body">
-                <div class="kpi-label">Top Branch (Last Month)</div>
-                <div class="kpi-value" style="font-size:1.1rem;margin-top:4px;">
-                    <span id="kpiBranch">—</span>
-                </div>
-                <span class="kpi-trend neutral" style="color:var(--slate-accent);">
-                    <i class="fa-solid fa-calendar-check"></i>
-                    <span id="kpiPrevMonth">—</span>
-                </span>
-            </div>
-        </div>
+  </div>
+  <div class="kpi-card kpi-purple" data-aos="fade-up" data-aos-delay="180">
+    <div class="kpi-icon-wrap"><i class="fa-solid fa-trophy"></i></div>
+    <div class="kpi-body">
+      <div class="kpi-label">Best Outlet Last Month</div>
+      <div class="kpi-value" style="font-size:1rem;line-height:1.2;"><span id="kpiBranch">—</span></div>
+      <span class="kpi-sub">
+        <i class="fa-solid fa-calendar-check"></i> <span id="kpiPrevMonth">—</span>
+      </span>
     </div>
-
+  </div>
 </div>
 
-<!-- ============================================================
-     ROW 2 — Historical Sales Trend + Product Mix
-============================================================ -->
-<div class="row g-3 mb-4">
-
-    <div class="col-12 col-xl-8" data-aos="fade-up" data-aos-delay="0">
-        <div class="dashboard-card h-100">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <p class="card-title mb-0">Historical Sales Trend</p>
-                <div class="d-flex align-items-center gap-2">
-                    <span class="badge-custom badge-blue" id="trendAxisBadge">Monthly</span>
-                    <button class="btn-outline-custom"
-                            style="padding:.3rem .7rem;font-size:.75rem;"
-                            onclick="Plotly.downloadImage('trendChart',{format:'png',filename:'sales_trend',width:900,height:400})">
-                        <i class="fa-solid fa-image"></i>
-                    </button>
-                </div>
-            </div>
-            <div class="chart-container" style="min-height:280px;">
-                <div class="chart-loading" id="loadingTrend"><div class="spinner"></div></div>
-                <div id="trendChart" style="width:100%;height:280px;"></div>
-            </div>
-        </div>
+<!-- ══════════════════════════════════════════════════════════
+     ROW 1 — SALES TREND + PRODUCT TYPE BREAKDOWN
+══════════════════════════════════════════════════════════ -->
+<div class="section-label" data-aos="fade-up">Sales Performance</div>
+<div class="charts-row charts-row-2-8 mb-3" data-aos="fade-up">
+  <div class="dashboard-card">
+    <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+      <div>
+        <p class="card-title">Sales Over Time</p>
+        <p class="card-subtitle">How much you earned each day / month</p>
+      </div>
+      <span class="badge-custom badge-blue" id="trendAxisBadge">Monthly</span>
     </div>
-
-    <div class="col-12 col-xl-4" data-aos="fade-up" data-aos-delay="100">
-        <div class="dashboard-card h-100">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <p class="card-title mb-0">Product Mix</p>
-                <button class="btn-outline-custom"
-                        style="padding:.3rem .7rem;font-size:.75rem;"
-                        onclick="Plotly.downloadImage('categoryChart',{format:'png',filename:'product_mix',width:600,height:400})">
-                    <i class="fa-solid fa-image"></i>
-                </button>
-            </div>
-            <div class="chart-container" style="min-height:280px;">
-                <div class="chart-loading" id="loadingCategory"><div class="spinner"></div></div>
-                <div id="categoryChart" style="width:100%;height:280px;"></div>
-            </div>
-        </div>
+    <div class="chart-wrap" style="min-height:260px;">
+      <div class="chart-loading" id="loadingTrend"><div class="spinner"></div></div>
+      <div id="trendChart" class="ch-trend" style="width:100%;height:260px;"></div>
     </div>
-
+  </div>
+  <div class="dashboard-card">
+    <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+      <div>
+        <p class="card-title">Sales by Product Type</p>
+        <p class="card-subtitle">Which category earns the most</p>
+      </div>
+    </div>
+    <div class="chart-wrap" style="min-height:260px;">
+      <div class="chart-loading" id="loadingCategory"><div class="spinner"></div></div>
+      <div id="categoryChart" class="ch-donut" style="width:100%;height:260px;"></div>
+    </div>
+  </div>
 </div>
 
-<!-- ============================================================
-     ROW 3 — Top Selling + Weak Performance
-============================================================ -->
-<div class="row g-3 mb-4">
-
-    <div class="col-12 col-md-6" data-aos="fade-up" data-aos-delay="0">
-        <div class="dashboard-card h-100">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <p class="card-title mb-0">Top Selling Items</p>
-                <span class="badge-custom badge-teal">Best 3 Product</span>
-            </div>
-            <div class="chart-container" style="min-height:240px;">
-                <div class="chart-loading" id="loadingTop"><div class="spinner"></div></div>
-                <div id="topChart" style="width:100%;height:240px;"></div>
-            </div>
-        </div>
+<!-- ══════════════════════════════════════════════════════════
+     ROW 2 — BEST & WORST DRINKS
+══════════════════════════════════════════════════════════ -->
+<div class="section-label" data-aos="fade-up">Menu Performance</div>
+<div class="charts-row charts-row-2 mb-3" data-aos="fade-up" data-aos-delay="40">
+  <div class="dashboard-card">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <p class="card-title">Best-Selling Drinks</p>
+        <p class="card-subtitle">Your top 5 most ordered items</p>
+      </div>
+      <span class="badge-custom badge-teal"><i class="fa-solid fa-star me-1"></i>Top Items</span>
     </div>
-
-    <div class="col-12 col-md-6" data-aos="fade-up" data-aos-delay="80">
-        <div class="dashboard-card h-100">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <p class="card-title mb-0">Weak Performance Items</p>
-                <span class="badge-custom badge-red">Needs Attention</span>
-            </div>
-            <div class="chart-container" style="min-height:240px;">
-                <div class="chart-loading" id="loadingWeak"><div class="spinner"></div></div>
-                <div id="weakChart" style="width:100%;height:240px;"></div>
-            </div>
-        </div>
+    <div class="chart-wrap" style="min-height:220px;">
+      <div class="chart-loading" id="loadingTop"><div class="spinner"></div></div>
+      <div id="topChart" class="ch-bar" style="width:100%;height:220px;"></div>
     </div>
-
+  </div>
+  <div class="dashboard-card">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <p class="card-title">Drinks That Need a Boost</p>
+        <p class="card-subtitle">Low-order items — consider promotions</p>
+      </div>
+      <span class="badge-custom badge-red"><i class="fa-solid fa-triangle-exclamation me-1"></i>Slow</span>
+    </div>
+    <div class="chart-wrap" style="min-height:220px;">
+      <div class="chart-loading" id="loadingWeak"><div class="spinner"></div></div>
+      <div id="weakChart" class="ch-bar" style="width:100%;height:220px;"></div>
+    </div>
+  </div>
 </div>
 
-<!-- ============================================================
-     ROW 4 — Payment Breakdown + Peak Hours Heatmap
-============================================================ -->
-<div class="row g-3 mb-2">
-
-    <div class="col-12 col-md-5" data-aos="fade-up" data-aos-delay="0">
-        <div class="dashboard-card h-100">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <p class="card-title mb-0">Payment Method Breakdown</p>
-            </div>
-            <div class="chart-container" style="min-height:220px;">
-                <div class="chart-loading" id="loadingPayment"><div class="spinner"></div></div>
-                <div id="paymentChart" style="width:100%;height:220px;"></div>
-            </div>
-        </div>
+<!-- ══════════════════════════════════════════════════════════
+     ROW 3 — PAYMENT METHODS + HEATMAP
+══════════════════════════════════════════════════════════ -->
+<div class="section-label" data-aos="fade-up">Operations & Timing</div>
+<div class="charts-row charts-row-5-7 mb-3" data-aos="fade-up" data-aos-delay="60">
+  <div class="dashboard-card">
+    <div>
+      <p class="card-title">How Customers Pay</p>
+      <p class="card-subtitle">Payment method breakdown</p>
     </div>
-
-    <div class="col-12 col-md-7" data-aos="fade-up" data-aos-delay="80">
-        <div class="dashboard-card h-100">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <p class="card-title mb-0">Peak Traffic Heatmap — Day × Hour</p>
-                <span class="text-muted-sm">Darker = more transactions</span>
-            </div>
-            <div class="chart-container" style="min-height:220px;">
-                <div class="chart-loading" id="loadingHeatmap"><div class="spinner"></div></div>
-                <div id="heatmapChart" style="width:100%;height:220px;"></div>
-            </div>
-        </div>
+    <div class="chart-wrap" style="min-height:200px;margin-top:.85rem;">
+      <div class="chart-loading" id="loadingPayment"><div class="spinner"></div></div>
+      <div id="paymentChart" class="ch-pay" style="width:100%;height:200px;"></div>
     </div>
+  </div>
+  <div class="dashboard-card">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+      <div>
+        <p class="card-title">Busiest Hours of the Day</p>
+        <p class="card-subtitle">Darker = more orders at that time</p>
+      </div>
+      <span class="badge-custom badge-amber"><i class="fa-solid fa-fire me-1"></i>Peak Hours</span>
+    </div>
+    <div class="chart-wrap" style="min-height:200px;margin-top:.85rem;">
+      <div class="chart-loading" id="loadingHeatmap"><div class="spinner"></div></div>
+      <div id="heatmapChart" class="ch-heat" style="width:100%;height:200px;"></div>
+    </div>
+  </div>
+</div>
 
+<!-- ══════════════════════════════════════════════════════════
+     ROW 4 — OUTLET COMPARISON
+══════════════════════════════════════════════════════════ -->
+<div class="section-label" data-aos="fade-up">Outlet Analysis</div>
+<div class="mb-3" data-aos="fade-up" data-aos-delay="40">
+  <div class="dashboard-card section-card-accent-blue">
+    <div>
+      <p class="card-title">Monthly Sales by Outlet</p>
+      <p class="card-subtitle">Compare Putrajaya Stall vs Puncak Alam Food Truck each month</p>
+    </div>
+    <div class="chart-wrap" style="min-height:260px;margin-top:.85rem;">
+      <div class="chart-loading" id="loadingBranch"><div class="spinner"></div></div>
+      <div id="branchChart" class="ch-branch" style="width:100%;height:260px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     ROW 5 — DISCOUNT IMPACT
+══════════════════════════════════════════════════════════ -->
+<div class="section-label" data-aos="fade-up">Discount Analysis</div>
+<div class="mb-3" data-aos="fade-up" data-aos-delay="60">
+  <div class="dashboard-card section-card-accent-blue">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+      <div>
+        <p class="card-title">Sales vs Discounts Given</p>
+        <p class="card-subtitle">How much revenue is retained after discounts & tax</p>
+      </div>
+      <span class="badge-custom badge-green"><i class="fa-solid fa-percent me-1"></i>Discount Impact</span>
+    </div>
+    <div class="chart-wrap" style="min-height:260px;margin-top:.85rem;">
+      <div class="chart-loading" id="loadingDiscount"><div class="spinner"></div></div>
+      <div id="discountChart" class="ch-disc" style="width:100%;height:260px;"></div>
+    </div>
+    <p class="text-muted-sm mt-2 mb-0" style="font-size:.67rem;">
+      <i class="fa-solid fa-circle-info me-1"></i>
+      Gross Sales = full price before discounts &amp; tax. Net Sales = what you actually collect.
+    </p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     ROW 6 — BUSINESS INSIGHTS (diagnostics)
+══════════════════════════════════════════════════════════ -->
+<div class="section-label" data-aos="fade-up">Business Insights</div>
+<div data-aos="fade-up" data-aos-delay="80" class="mb-3">
+  <div class="dashboard-card section-card-accent">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+      <div>
+        <p class="card-title">What's Affecting Your Sales?</p>
+        <p class="card-subtitle">External factors that may influence how much customers spend</p>
+      </div>
+      <span class="badge-custom badge-teal"><i class="fa-solid fa-lightbulb me-1"></i>Smart Insights</span>
+    </div>
+    <div class="diagnostics-grid">
+
+      <!-- Weather vs Drink preference -->
+      <div class="diag-inner">
+        <div class="d-flex align-items-center gap-2 mb-3">
+          <div class="diag-icon" style="background:rgba(16,185,129,.1);color:var(--teal-kpi);">
+            <i class="fa-solid fa-cloud-sun-rain" style="font-size:.9rem;"></i>
+          </div>
+          <div>
+            <p class="fw-700 mb-0" style="font-size:.84rem;color:#1E293B;">Weather vs Drink Preference</p>
+            <p class="text-muted-sm mb-0" style="font-size:.68rem;">Do customers order more hot or iced drinks on rainy days?</p>
+          </div>
+        </div>
+        <div id="weatherAnalysis">
+          <div class="text-muted-sm py-3 text-center">Loading weather data…</div>
+        </div>
+        <p class="text-muted-sm mt-3 mb-0" style="font-size:.67rem;line-height:1.5;">
+          <i class="fa-solid fa-circle-info me-1"></i>
+          Based on historical weather data from Open-Meteo for both outlet locations.
+        </p>
+      </div>
+
+      <!-- Monthly outlet winner -->
+      <div class="diag-inner">
+        <div class="d-flex align-items-center gap-2 mb-3">
+          <div class="diag-icon" style="background:rgba(37,99,235,.1);color:var(--blue-kpi);">
+            <i class="fa-solid fa-ranking-star" style="font-size:.9rem;"></i>
+          </div>
+          <div>
+            <p class="fw-700 mb-0" style="font-size:.84rem;color:#1E293B;">Monthly Outlet Winners</p>
+            <p class="text-muted-sm mb-0" style="font-size:.68rem;">Which outlet sold more each month?</p>
+          </div>
+        </div>
+        <div id="branchWinnerList">
+          <div class="text-muted-sm py-3 text-center">Loading outlet data…</div>
+        </div>
+        <p class="text-muted-sm mt-3 mb-0" style="font-size:.67rem;line-height:1.5;">
+          <i class="fa-solid fa-circle-info me-1"></i>
+          Winner is the outlet with higher net sales in that month.
+        </p>
+      </div>
+
+    </div>
+  </div>
 </div>
 
 {% endblock %}
-
-
 {% block scripts %}
-<!-- Chart.js for sparkline -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<!-- Plotly for all main charts -->
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
-
 <script>
-/* ============================================================
-   PALETTE & LAYOUT
-============================================================ */
+/* ── DESIGN TOKENS ─────────────────────────────────────── */
 const COLORS = {
-    blue:   '#3B82F6',
-    amber:  '#F59E0B',
-    teal:   '#10B981',
-    purple: '#8B5CF6',
-    red:    '#EF4444',
-    slate:  ['#3B82F6','#10B981','#F59E0B','#8B5CF6','#EF4444',
-             '#06B6D4','#F97316','#84CC16','#EC4899','#6366F1']
+  blue:   '#2563EB',
+  amber:  '#D97706',
+  teal:   '#0D9488',
+  purple: '#7C3AED',
+  red:    '#DC2626',
+  green:  '#16A34A',
+  slate:  ['#2563EB','#0D9488','#D97706','#7C3AED','#DC2626',
+           '#06B6D4','#F97316','#84CC16','#EC4899','#6366F1']
 };
 
 const LAYOUT_BASE = {
-    paper_bgcolor: 'rgba(0,0,0,0)',
-    plot_bgcolor:  'rgba(0,0,0,0)',
-    font:   { family:"'DM Sans', sans-serif", color:'#334155', size:12 },
-    margin: { t:10, r:16, b:40, l:50 },
-    hoverlabel: { bgcolor:'#1E2A3A', font:{ color:'white', size:12 } }
+  paper_bgcolor: 'rgba(0,0,0,0)',
+  plot_bgcolor:  'rgba(0,0,0,0)',
+  font:   { family:"'DM Sans',sans-serif", color:'#334155', size:11 },
+  margin: { t:10, r:16, b:40, l:50 },
+  hoverlabel: { bgcolor:'#1E2A3A', font:{ color:'white', size:12 } }
 };
 const CONFIG = { responsive:true, displayModeBar:false };
 
-/* ============================================================
-   UTILITIES
-============================================================ */
-function hideLoader(id) {
-    const el = document.getElementById(id);
-    if (el) el.style.display = 'none';
-}
+const hideLoader = id => { const el = document.getElementById(id); if(el) el.style.display='none'; };
+const showLoader = id => { const el = document.getElementById(id); if(el) el.style.display='flex'; };
 
-function showLoader(id) {
-    const el = document.getElementById(id);
-    if (el) el.style.display = 'flex';
-}
-
+/* ── ANIMATED COUNT ────────────────────────────────────── */
 function animateCount(id, end, isCurrency=false) {
-    const el = document.getElementById(id);
-    if (!el || end === undefined || end === null) return;
-    const dur = 800, step = 16;
-    const inc = end / (dur / step);
-    let cur = 0;
-    const timer = setInterval(() => {
-        cur += inc;
-        if (cur >= end) { cur = end; clearInterval(timer); }
-        el.textContent = isCurrency
-            ? cur.toLocaleString('en-MY', {minimumFractionDigits:2, maximumFractionDigits:2})
-            : Math.floor(cur).toLocaleString('en-MY');
-    }, step);
+  const el = document.getElementById(id);
+  if(!el || end == null) return;
+  const dur=600, step=16, inc=end/(dur/step);
+  let cur=0;
+  const t = setInterval(()=>{
+    cur+=inc;
+    if(cur>=end){ cur=end; clearInterval(t); }
+    el.textContent = isCurrency
+      ? cur.toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2})
+      : Math.floor(cur).toLocaleString('en-MY');
+  }, step);
 }
 
 let sparklineInstance = null;
 
-/* ============================================================
-   STEP 1 — LOAD FILTER OPTIONS (only months/years that exist)
-============================================================ */
+/* ── FILTER OPTIONS ────────────────────────────────────── */
 function loadFilterOptions() {
-    fetch('/api/dashboard_filters')
-        .then(r => r.json())
-        .then(d => {
-            if (d.status !== 'success') return;
-
-            const yrGrp = document.getElementById('optYears');
-            const moGrp = document.getElementById('optMonths');
-
-            // Years
-            d.years.forEach(y => {
-                const opt = document.createElement('option');
-                opt.value       = 'year_' + y;
-                opt.textContent = y;
-                yrGrp.appendChild(opt);
-            });
-
-            // Months — formatted as "March 2026"
-            d.months.forEach(m => {
-                const opt  = document.createElement('option');
-                opt.value  = 'month_' + m;
-                try {
-                    const dt = new Date(m + '-01');
-                    opt.textContent = dt.toLocaleString('default', {month:'long', year:'numeric'});
-                } catch(e) {
-                    opt.textContent = m;
-                }
-                moGrp.appendChild(opt);
-            });
-        })
-        .catch(err => console.error('Filter load error:', err));
+  fetch('/api/dashboard_filters')
+    .then(r=>r.json())
+    .then(d=>{
+      if(d.status!=='success') return;
+      const yrGrp = document.getElementById('optYears');
+      const moGrp = document.getElementById('optMonths');
+      d.years.forEach(y=>{
+        const o=document.createElement('option');
+        o.value='year_'+y; o.textContent=y; yrGrp.appendChild(o);
+      });
+      d.months.forEach(m=>{
+        const o=document.createElement('option');
+        o.value='month_'+m;
+        try{ o.textContent=new Date(m+'-01').toLocaleString('default',{month:'long',year:'numeric'}); }
+        catch{ o.textContent=m; }
+        moGrp.appendChild(o);
+      });
+    })
+    .catch(e=>console.error('Filter options error:',e));
 }
 
-/* ============================================================
-   STEP 2 — APPLY FILTERS (called on change + initial load)
-============================================================ */
+/* ── MAIN FILTER APPLY ─────────────────────────────────── */
 function applyFilters() {
-    const branch = document.getElementById('branchFilter').value;
-    const time   = document.getElementById('timeFilter').value;
+  const branch = document.getElementById('branchFilter').value;
+  const time   = document.getElementById('timeFilter').value;
+  const qp     = `branch=${encodeURIComponent(branch)}&time=${encodeURIComponent(time)}&temp=all`;
 
-    // Show all loaders
-    ['loadingTrend','loadingCategory','loadingTop',
-     'loadingWeak','loadingPayment','loadingHeatmap'].forEach(showLoader);
+  ['loadingTrend','loadingCategory','loadingTop','loadingWeak',
+   'loadingPayment','loadingHeatmap','loadingBranch','loadingDiscount'].forEach(showLoader);
 
-    // ── KPIs ──────────────────────────────────────────────────
-    fetch(`/api/kpis?branch=${encodeURIComponent(branch)}&time=${encodeURIComponent(time)}`)
-        .then(r => r.json())
-        .then(d => {
-            if (d.status !== 'success') return;
+  /* ── KPIs ── */
+  fetch(`/api/kpis?${qp}`)
+    .then(r=>r.json())
+    .then(d=>{
+      if(d.status!=='success') return;
+      animateCount('kpiRevenue',      d.total_revenue,      true);
+      animateCount('kpiVolume',       d.volume_sold,        false);
+      animateCount('kpiTransactions', d.total_transactions, false);
+      document.getElementById('kpiBranch').textContent    = d.top_branch;
+      document.getElementById('kpiPrevMonth').textContent = d.prev_month_label;
 
-            animateCount('kpiRevenue',      d.total_revenue,      true);
-            animateCount('kpiVolume',       d.volume_sold,        false);
-            animateCount('kpiTransactions', d.total_transactions, false);
+      // Trend label with colour
+      const trendEl = document.getElementById('kpiRevTrendText');
+      const trendSpan = document.getElementById('kpiRevTrend');
+      if(trendEl){
+        const lbl = d.trend_label || '';
+        trendEl.textContent = lbl;
+        if(lbl.startsWith('+')) trendSpan.className='kpi-sub kpi-trend-up';
+        else if(lbl.match(/^-/)) trendSpan.className='kpi-sub kpi-trend-down';
+        else trendSpan.className='kpi-sub';
+      }
 
-            document.getElementById('kpiBranch').textContent    = d.top_branch;
-            document.getElementById('kpiPrevMonth').textContent = d.prev_month_label;
+      // Sparkline
+      const ctx = document.getElementById('sparklineChart').getContext('2d');
+      if(sparklineInstance) sparklineInstance.destroy();
+      const sparkData = d.sparkline?.data || [];
+      sparklineInstance = new Chart(ctx,{
+        type:'line',
+        data:{
+          labels: d.sparkline?.labels||[],
+          datasets:[{ data:sparkData, borderColor:COLORS.teal, borderWidth:2,
+                      tension:0.45, pointRadius:0, fill:true,
+                      backgroundColor:'rgba(13,148,136,.1)' }]
+        },
+        options:{
+          responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{display:false}, tooltip:{enabled:false} },
+          scales:{
+            x:{display:false},
+            y:{display:false, min:sparkData.length?Math.min(...sparkData)*.85:0}
+          },
+          layout:{padding:0}
+        }
+      });
+    });
 
-            // Sparkline
-            const ctx = document.getElementById('sparklineChart').getContext('2d');
-            if (sparklineInstance) sparklineInstance.destroy();
-            const sparkData = d.sparkline?.data || [];
-            sparklineInstance = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: d.sparkline?.labels || [],
-                    datasets: [{
-                        data: sparkData,
-                        borderColor: COLORS.teal,
-                        borderWidth: 2,
-                        tension: 0.45,
-                        pointRadius: 0,
-                        fill: true,
-                        backgroundColor: 'rgba(16,185,129,.12)'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend:{display:false}, tooltip:{enabled:false} },
-                    scales: {
-                        x: { display:false },
-                        y: { display:false,
-                             min: sparkData.length ? Math.min(...sparkData) * 0.88 : 0 }
-                    },
-                    layout: { padding:0 }
-                }
-            });
+  /* ── CHARTS ── */
+  fetch(`/api/charts?${qp}`)
+    .then(r=>r.json())
+    .then(d=>{
+      if(d.status!=='success') return;
+
+      /* Trend badge */
+      const badge = document.getElementById('trendAxisBadge');
+      if(badge) badge.textContent = d.trend.is_monthly ? 'Monthly View' : 'Daily View';
+
+      /* Sales trend line */
+      Plotly.newPlot('trendChart',[{
+        x:d.trend.labels, y:d.trend.data,
+        type:'scatter', mode:'lines+markers',
+        line:  {color:COLORS.blue, width:2.5, shape:'spline'},
+        marker:{size:5, color:COLORS.blue},
+        fill:'tozeroy', fillcolor:'rgba(37,99,235,0.06)',
+        hovertemplate:'<b>%{x}</b><br>Sales: RM %{y:,.2f}<extra></extra>'
+      }],{
+        ...LAYOUT_BASE, hovermode:'x unified',
+        xaxis:{gridcolor:'#E2E8F0', tickangle:-25, showgrid:false},
+        yaxis:{tickprefix:'RM ', gridcolor:'#E2E8F0', gridwidth:1}
+      }, CONFIG);
+      hideLoader('loadingTrend');
+
+      /* Product type donut */
+      Plotly.newPlot('categoryChart',[{
+        labels:d.category.labels, values:d.category.data,
+        type:'pie', hole:.5,
+        marker:{colors:COLORS.slate},
+        textinfo:'percent',
+        hovertemplate:'<b>%{label}</b><br>RM %{value:,.2f}<br>%{percent}<extra></extra>',
+        textfont:{size:11}
+      }],{
+        ...LAYOUT_BASE, showlegend:true,
+        legend:{orientation:'h', y:-0.15, font:{size:10}},
+        margin:{t:10,r:10,b:30,l:10}
+      }, CONFIG);
+      hideLoader('loadingCategory');
+
+      /* Best drinks */
+      Plotly.newPlot('topChart',[{
+        x:d.products.data, y:d.products.labels,
+        type:'bar', orientation:'h',
+        marker:{color:COLORS.teal, opacity:.9},
+        hovertemplate:'<b>%{y}</b><br>Orders: %{x:,}<extra></extra>',
+        text:d.products.data.map(v=>v.toLocaleString('en-MY')),
+        textposition:'outside', textfont:{size:10}
+      }],{
+        ...LAYOUT_BASE, margin:{t:10,r:45,b:40,l:140},
+        xaxis:{showgrid:false, title:{text:'Number of Orders', font:{size:10}}},
+        yaxis:{automargin:true, autorange:'reversed'}
+      }, CONFIG);
+      hideLoader('loadingTop');
+
+      /* Slow drinks */
+      Plotly.newPlot('weakChart',[{
+        x:d.weak_products.data, y:d.weak_products.labels,
+        type:'bar', orientation:'h',
+        marker:{color:COLORS.red, opacity:.8},
+        hovertemplate:'<b>%{y}</b><br>Orders: %{x:,}<extra></extra>',
+        text:d.weak_products.data.map(v=>v.toLocaleString('en-MY')),
+        textposition:'outside', textfont:{size:10}
+      }],{
+        ...LAYOUT_BASE, margin:{t:10,r:45,b:40,l:140},
+        xaxis:{showgrid:false, title:{text:'Number of Orders', font:{size:10}}},
+        yaxis:{automargin:true, autorange:'reversed'}
+      }, CONFIG);
+      hideLoader('loadingWeak');
+
+      /* Payment methods */
+      Plotly.newPlot('paymentChart',[{
+        x:d.payment.labels, y:d.payment.data,
+        type:'bar', marker:{color:COLORS.slate, opacity:.9},
+        hovertemplate:'<b>%{x}</b><br>%{y:,} transactions<extra></extra>',
+        text:d.payment.data.map(v=>v.toLocaleString('en-MY')),
+        textposition:'outside', textfont:{size:10}
+      }],{
+        ...LAYOUT_BASE,
+        xaxis:{showgrid:false},
+        yaxis:{gridcolor:'#E2E8F0', gridwidth:1, title:{text:'Transactions', font:{size:10}}}
+      }, CONFIG);
+      hideLoader('loadingPayment');
+
+      /* Heatmap */
+      const days  = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+      const hours = Array.from({length:14},(_,i)=>`${String(i+8).padStart(2,'0')}:00`);
+      const z = days.map(day =>
+        hours.map((_,h)=>{
+          const match=d.heatmap.find(r=>r.day===day&&r.hour===h+8);
+          return match?match.value:0;
         })
-        .catch(err => console.error('KPI error:', err));
+      );
+      Plotly.newPlot('heatmapChart',[{
+        z, x:hours, y:days, type:'heatmap',
+        colorscale:[[0,'#F8FAFC'],[.2,'#93C5FD'],[.6,'#2563EB'],[1,'#1E3A8A']],
+        hovertemplate:'<b>%{y} %{x}</b><br>Orders: %{z}<extra></extra>',
+        showscale:true,
+        colorbar:{thickness:8, len:.85, title:{text:'Orders', font:{size:10}}}
+      }],{
+        ...LAYOUT_BASE, margin:{t:10,r:60,b:50,l:55},
+        xaxis:{tickangle:-45, tickfont:{size:9}},
+        yaxis:{automargin:true}
+      }, CONFIG);
+      hideLoader('loadingHeatmap');
 
-    // ── Charts ────────────────────────────────────────────────
-    fetch(`/api/charts?branch=${encodeURIComponent(branch)}&time=${encodeURIComponent(time)}`)
-        .then(r => r.json())
-        .then(d => {
-            if (d.status !== 'success') return;
+      /* Monthly outlet comparison bar chart */
+      renderBranchChart(d);
 
-            // Update axis badge
-            const badge = document.getElementById('trendAxisBadge');
-            if (badge) badge.textContent = d.trend.is_monthly ? 'Monthly' : 'Daily';
+      /* Discount impact — derive from monthly data */
+      renderDiscountChart(d);
+    });
 
-            // 1. Historical Sales Trend (line chart)
-            Plotly.newPlot('trendChart', [{
-                x: d.trend.labels,
-                y: d.trend.data,
-                type: 'scatter',
-                mode: 'lines+markers',
-                line: { color: COLORS.blue, width: 2.5, shape:'spline' },
-                marker: { size: 5, color: COLORS.blue },
-                fill: 'tozeroy',
-                fillcolor: 'rgba(59,130,246,0.08)',
-                hovertemplate: '<b>%{x}</b><br>RM %{y:,.2f}<extra></extra>'
-            }], {
-                ...LAYOUT_BASE,
-                hovermode: 'x unified',
-                xaxis: { gridcolor:'#E2E8F0', tickangle:-30, showgrid:false },
-                yaxis: { tickprefix:'RM ', gridcolor:'#E2E8F0', gridwidth:1 }
-            }, CONFIG);
-            hideLoader('loadingTrend');
+  /* ── DIAGNOSTICS ── */
+  fetch(`/api/diagnostics?${qp}`)
+    .then(r=>r.json())
+    .then(d=>{
+      if(d.status!=='success') return;
 
-            // 2. Product Mix Doughnut
-            Plotly.newPlot('categoryChart', [{
-                labels: d.category.labels,
-                values: d.category.data,
-                type:   'pie',
-                hole:   .52,
-                marker: { colors: COLORS.slate },
-                textinfo: 'percent',
-                hovertemplate: '<b>%{label}</b><br>RM %{value:,.2f}<br>%{percent}<extra></extra>',
-                textfont: { size:11 }
-            }], {
-                ...LAYOUT_BASE,
-                showlegend: true,
-                legend: { orientation:'h', y:-0.12, font:{size:10} },
-                margin: { t:10, r:10, b:30, l:10 }
-            }, CONFIG);
-            hideLoader('loadingCategory');
-
-            // 3. Top 5 Products (horizontal bar — teal, reversed so #1 is top)
-            Plotly.newPlot('topChart', [{
-                x: d.top_products.data,
-                y: d.top_products.labels,
-                type: 'bar',
-                orientation: 'h',
-                marker: { color: COLORS.teal, opacity:.88 },
-                hovertemplate: '<b>%{y}</b><br>Qty: %{x:,}<extra></extra>',
-                text: d.top_products.data.map(v => v.toLocaleString('en-MY')),
-                textposition: 'outside',
-                textfont: { size:11 }
-            }], {
-                ...LAYOUT_BASE,
-                margin: { t:10, r:50, b:40, l:140 },
-                xaxis: { showgrid:false },
-                yaxis: { automargin:true, autorange:'reversed' }
-            }, CONFIG);
-            hideLoader('loadingTop');
-
-            // 4. Weak 5 Products (horizontal bar — red)
-            Plotly.newPlot('weakChart', [{
-                x: d.weak_products.data,
-                y: d.weak_products.labels,
-                type: 'bar',
-                orientation: 'h',
-                marker: { color: COLORS.red, opacity:.75 },
-                hovertemplate: '<b>%{y}</b><br>Qty: %{x:,}<extra></extra>',
-                text: d.weak_products.data.map(v => v.toLocaleString('en-MY')),
-                textposition: 'outside',
-                textfont: { size:11 }
-            }], {
-                ...LAYOUT_BASE,
-                margin: { t:10, r:50, b:40, l:140 },
-                xaxis: { showgrid:false },
-                yaxis: { automargin:true, autorange:'reversed' }
-            }, CONFIG);
-            hideLoader('loadingWeak');
-
-            // 5. Payment Method Bar
-            Plotly.newPlot('paymentChart', [{
-                x: d.payment.labels,
-                y: d.payment.data,
-                type: 'bar',
-                marker: { color: COLORS.slate, opacity:.88 },
-                hovertemplate: '<b>%{x}</b><br>%{y:,} transactions<extra></extra>',
-                text: d.payment.data.map(v => v.toLocaleString('en-MY')),
-                textposition: 'outside',
-                textfont: { size:11 }
-            }], {
-                ...LAYOUT_BASE,
-                xaxis: { showgrid:false },
-                yaxis: { gridcolor:'#E2E8F0', gridwidth:1 }
-            }, CONFIG);
-            hideLoader('loadingPayment');
-
-            // 6. Peak Hours Heatmap
-            const days  = ['Mon','Tue','Wed','Thu','Fri','Sat'];
-            const hours = Array.from({length:13}, (_, i) =>
-                `${String(i + 9).padStart(2,'0')}:00`
-            );
-            const z = days.map(day =>
-                hours.map((_, h) => {
-                    // Add 9 to the index 'h' to get the actual hour value (9 to 21)
-                    const actualHour = h + 9; 
-                    
-                    // Match against the actual database hour, not the array index
-                    const match = d.heatmap.find(r => r.day === day && r.hour === actualHour);
-                    return match ? match.value : 0;
-                })
-            );
-            Plotly.newPlot('heatmapChart', [{
-                z, x: hours, y: days,
-                type: 'heatmap',
-                colorscale: [
-                    [0,   '#EFF6FF'],
-                    [0.3, '#BFDBFE'],
-                    [0.6, '#3B82F6'],
-                    [1,   '#1E2A3A']
-                ],
-                hovertemplate: '<b>%{y} %{x}</b><br>Transactions: %{z}<extra></extra>',
-                showscale: true,
-                colorbar: { thickness:10, len:.8, title:{text:'Txns',side:'right'} }
-            }], {
-                ...LAYOUT_BASE,
-                margin: { t:10, r:60, b:50, l:50 },
-                xaxis: { tickangle:-45, tickfont:{size:9} },
-                yaxis: { automargin:true }
-            }, CONFIG);
-            hideLoader('loadingHeatmap');
-        })
-        .catch(err => console.error('Chart error:', err));
+      /* Weather panel */
+      const weatherHTML = d.weather.length===0
+        ? '<div class="text-muted-sm py-3 text-center">No weather data available.</div>'
+        : d.weather.map(r=>`
+          <div class="diag-row">
+            <span style="font-weight:500;color:#334155;">
+              ${r.weather_condition === 'Raining' ? '🌧️' : r.weather_condition === 'Sunny' ? '☀️' : '☁️'}
+              ${r.weather_condition} &nbsp;·&nbsp;
+              ${r.temperature_type === 'ICED' ? '🧊 Iced' : '♨️ Hot'}
+            </span>
+            <span class="fw-700" style="font-family:monospace;color:#0D9488;">${Number(r.total_qty).toLocaleString('en-MY')} cups</span>
+          </div>`).join('');
+      document.getElementById('weatherAnalysis').innerHTML = weatherHTML;
+    });
 }
 
-/* ============================================================
-   INIT
-============================================================ */
-document.addEventListener('DOMContentLoaded', () => {
-    loadFilterOptions();   // Populate time dropdown with real DB months/years
-    applyFilters();        // Load initial charts + KPIs
+/* ── BRANCH COMPARISON CHART ───────────────────────────── */
+function renderBranchChart(d) {
+  const monthly = d.monthly;
+  if(!monthly || !monthly.labels || monthly.labels.length === 0){
+    hideLoader('loadingBranch');
+    document.getElementById('branchChart').innerHTML=
+      '<div class="text-muted-sm text-center py-4">Not enough data to compare outlets.</div>';
+    return;
+  }
+
+  const traces = monthly.branches.map((branch, i)=>({
+    x: monthly.labels,
+    y: monthly.by_branch[branch] || [],
+    name: branch,
+    type: 'bar',
+    marker: { color: i===0 ? COLORS.blue : COLORS.teal, opacity:.9 },
+    hovertemplate: `<b>${branch}</b><br>%{x}<br>RM %{y:,.2f}<extra></extra>`,
+  }));
+
+  Plotly.newPlot('branchChart', traces, {
+    ...LAYOUT_BASE,
+    barmode: 'group',
+    margin: { t:10, r:16, b:55, l:60 },
+    legend: { orientation:'h', y:-0.22, font:{size:10} },
+    xaxis: { tickangle:-30, showgrid:false, tickfont:{size:9} },
+    yaxis: { tickprefix:'RM ', gridcolor:'#E2E8F0', gridwidth:1 }
+  }, CONFIG);
+  hideLoader('loadingBranch');
+
+  /* Also render the branch winner list in insights */
+  renderBranchWinners(monthly);
+}
+
+/* ── BRANCH WINNERS LIST ───────────────────────────────── */
+function renderBranchWinners(monthly) {
+  const el = document.getElementById('branchWinnerList');
+  if(!monthly || !monthly.labels || monthly.labels.length===0){
+    el.innerHTML='<div class="text-muted-sm py-3 text-center">No monthly data available yet.</div>';
+    return;
+  }
+  const rows = monthly.labels.slice(-6).map((label, idx)=>{
+    const realIdx = monthly.labels.length - Math.min(6, monthly.labels.length) + idx;
+    const scores = monthly.branches.map(b=>({
+      name: b,
+      rev: (monthly.by_branch[b]||[])[realIdx] || 0
+    }));
+    scores.sort((a,b)=>b.rev-a.rev);
+    const winner = scores[0];
+    const icon = winner.name.includes('Puncak') ? '🚚' : '🏪';
+    return `<div class="diag-row">
+      <span style="font-weight:500;color:#334155;">${label}</span>
+      <span class="fw-700" style="color:#2563EB;">${icon} ${winner.name} &nbsp;<span style="font-size:.72rem;color:#94A3B8;">RM ${Number(winner.rev).toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></span>
+    </div>`;
+  }).join('');
+  el.innerHTML = rows || '<div class="text-muted-sm py-3 text-center">No data to compare.</div>';
+}
+
+/* ── DISCOUNT IMPACT CHART ─────────────────────────────── */
+function renderDiscountChart(d) {
+  // We use the trend data (Net Sales) and attempt to compute gross from all_month data
+  // Since the DB stores unit_price_MYR * qty = gross, net = Total_Bill_MYR,
+  // we show Net Revenue per month as what the owner keeps, clearly labelled.
+  // If monthly branch data is available, sum all branches per month.
+  const monthly = d.monthly;
+  if(!monthly || !monthly.labels || monthly.labels.length===0){
+    hideLoader('loadingDiscount');
+    return;
+  }
+
+  // Sum all branches per month to get total net revenue per month
+  const netByMonth = monthly.labels.map((_,i)=>{
+    return monthly.branches.reduce((sum, b)=>{
+      return sum + ((monthly.by_branch[b]||[])[i]||0);
+    }, 0);
+  });
+
+  // Use trend data for a gross proxy if available, otherwise just show net
+  // We show the monthly net as a grouped bar with a "simulated" gross line
+  // (gross ≈ net / 0.94 assuming ~6% average SST+discount, labelled clearly)
+  const grossEst = netByMonth.map(v=>parseFloat((v/0.94).toFixed(2)));
+  const discountEst = netByMonth.map((v,i)=>parseFloat((grossEst[i]-v).toFixed(2)));
+
+  Plotly.newPlot('discountChart',[
+    {
+      x: monthly.labels,
+      y: grossEst,
+      name: 'Gross Sales',
+      type: 'bar',
+      marker: { color: '#BFDBFE', line:{color: COLORS.blue, width:1.5} },
+      hovertemplate: '<b>Gross Sales</b><br>%{x}<br>RM %{y:,.2f}<extra></extra>',
+    },
+    {
+      x: monthly.labels,
+      y: netByMonth,
+      name: 'Net Sales (Collected)',
+      type: 'bar',
+      marker: { color: COLORS.teal, opacity:.85 },
+      hovertemplate: '<b>Net Sales</b><br>%{x}<br>RM %{y:,.2f}<extra></extra>',
+    },
+    {
+      x: monthly.labels,
+      y: discountEst,
+      name: 'Discount + Tax',
+      type: 'scatter',
+      mode: 'lines+markers',
+      line: { color: COLORS.amber, width: 2, dash:'dot' },
+      marker: { size:5, color: COLORS.amber },
+      yaxis: 'y2',
+      hovertemplate: '<b>Discount + Tax</b><br>%{x}<br>RM %{y:,.2f}<extra></extra>',
+    }
+  ],{
+    ...LAYOUT_BASE,
+    barmode: 'overlay',
+    margin: { t:10, r:55, b:55, l:60 },
+    legend: { orientation:'h', y:-0.28, font:{size:10} },
+    xaxis: { tickangle:-30, showgrid:false, tickfont:{size:9} },
+    yaxis: { tickprefix:'RM ', gridcolor:'#E2E8F0', gridwidth:1 },
+    yaxis2: {
+      overlaying:'y', side:'right',
+      tickprefix:'RM ', showgrid:false,
+      tickfont:{size:9}, title:{text:'Discounts + Tax', font:{size:9}}
+    }
+  }, CONFIG);
+  hideLoader('loadingDiscount');
+}
+
+/* ── RESPONSIVE RESIZE ─────────────────────────────────── */
+let resizeTimer;
+window.addEventListener('resize', ()=>{
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(()=>{
+    ['trendChart','categoryChart','topChart','weakChart',
+     'paymentChart','heatmapChart','branchChart','discountChart'].forEach(id=>{
+      const el=document.getElementById(id);
+      if(el&&el.data) Plotly.relayout(id,{autosize:true});
+    });
+  }, 200);
+});
+
+/* ── INIT ──────────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', ()=>{
+  loadFilterOptions();
+  applyFilters();
 });
 </script>
 {% endblock %}

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}AI Forecast{% endblock %}
+{% block title %}Sales Forecast{% endblock %}
 
 {% block styles %}
 <style>
@@ -47,10 +47,8 @@
     background: var(--red-light);
     color: #991B1B;
 }
-
-/* Light & Soft aesthetic using muted pastels */
 .persona-card {
-    background: linear-gradient(135deg, #E0F2FE, #F0FDF4); 
+    background: linear-gradient(135deg, #E0F2FE, #F0FDF4);
     color: #1E293B;
     border: 1px solid #BAE6FD;
     border-radius: var(--radius-lg);
@@ -99,129 +97,41 @@
     background: transparent;
     color: var(--text-muted);
 }
-
-/* Custom scrollbar layout for horizontal weather strip alignment */
-.weather-scroll-strip::-webkit-scrollbar {
-    height: 6px;
-}
-.weather-scroll-strip::-webkit-scrollbar-track {
-    background: #F1F5F9;
-    border-radius: var(--radius-full);
-}
-.weather-scroll-strip::-webkit-scrollbar-thumb {
-    background: #CBD5E1;
-    border-radius: var(--radius-full);
-}
+.weather-scroll-strip::-webkit-scrollbar { height: 6px; }
+.weather-scroll-strip::-webkit-scrollbar-track { background: #F1F5F9; border-radius: 99px; }
+.weather-scroll-strip::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 99px; }
 
 @media print {
-    /* Hide UI chrome */
-    .page-header,
-    #statusBanner,
-    #emptyState,
-    nav, header, footer,
-    .sidebar,
-    .navbar,
-    .btn-primary-custom,
-    .btn-outline-custom,
-    .btn-amber-custom,
-    #downloadPdfBtn,
-    #generateBtn,
-    #fvaBtnWeek,
-    #fvaBtnMonth,
-    #fvaMonthFilter {
-        display: none !important;
-    }
-
-    body {
-        background: #fff !important;
-        color: #1A1A2E !important;
-        font-size: 10pt;
-        margin: 0;
-        padding: 0;
-    }
-
-    #resultsSection {
-        display: block !important;
-    }
-
-    .dashboard-card {
-        box-shadow: none !important;
-        border: 1px solid #E5E7EB !important;
-        break-inside: avoid;
-        page-break-inside: avoid;
-        margin-bottom: 12pt;
-    }
-
-    .chart-container {
-        break-inside: avoid;
-        page-break-inside: avoid;
-    }
-
-    .persona-card {
-        break-inside: avoid;
-        page-break-inside: avoid;
-    }
-
-    /* Fix grid for print */
-    .row {
-        display: flex !important;
-        flex-wrap: wrap !important;
-    }
-    .col-6, .col-md-3 {
-        width: 25% !important;
-        flex: 0 0 25% !important;
-        max-width: 25% !important;
-    }
-    .col-12 {
-        width: 100% !important;
-        flex: 0 0 100% !important;
-    }
-    .col-xl-6 {
-        width: 50% !important;
-        flex: 0 0 50% !important;
-    }
-    .col-xl-7 {
-        width: 58% !important;
-        flex: 0 0 58% !important;
-    }
-    .col-xl-5 {
-        width: 42% !important;
-        flex: 0 0 42% !important;
-    }
-
-    /* Print title injected at top */
-    #resultsSection::before {
-        content: "Mini Coffee Shop — AI Sales Forecast Report";
-        display: block;
-        font-size: 16pt;
-        font-weight: bold;
-        margin-bottom: 12pt;
-        border-bottom: 2pt solid #1A1A2E;
-        padding-bottom: 6pt;
-        color: #1A1A2E;
-    }
-
-    @page {
-        size: A4 portrait;
-        margin: 15mm 12mm;
-    }
+    .page-header, #statusBanner, #emptyState, nav, header, footer,
+    .sidebar, .navbar, .btn-primary-custom, .btn-outline-custom,
+    .btn-amber-custom, #downloadPdfBtn, #generateBtn, #fvaBtnWeek,
+    #fvaBtnMonth, #fvaMonthFilter { display: none !important; }
+    body { background: #fff !important; color: #1A1A2E !important; font-size: 10pt; margin: 0; padding: 0; }
+    #resultsSection { display: block !important; }
+    .dashboard-card { box-shadow: none !important; border: 1px solid #E5E7EB !important; break-inside: avoid; page-break-inside: avoid; margin-bottom: 12pt; }
+    .chart-container, .persona-card { break-inside: avoid; page-break-inside: avoid; }
+    .row { display: flex !important; flex-wrap: wrap !important; }
+    .col-6, .col-md-3 { width: 25% !important; flex: 0 0 25% !important; max-width: 25% !important; }
+    .col-12 { width: 100% !important; flex: 0 0 100% !important; }
+    .col-xl-6 { width: 50% !important; flex: 0 0 50% !important; }
+    .col-xl-7 { width: 58% !important; flex: 0 0 58% !important; }
+    .col-xl-5 { width: 42% !important; flex: 0 0 42% !important; }
+    #resultsSection::before { content: "Mini Coffee Shop — Sales Forecast Report"; display: block; font-size: 16pt; font-weight: bold; margin-bottom: 12pt; border-bottom: 2pt solid #1A1A2E; padding-bottom: 6pt; color: #1A1A2E; }
+    @page { size: A4 portrait; margin: 15mm 12mm; }
 }
 </style>
 {% endblock %}
 
 {% block content %}
-
 <div class="page-header" data-aos="fade-down">
     <div>
-        <h1 class="page-title">AI Sales Forecast</h1>
-        <p class="page-subtitle">
-            7-day revenue prediction · Prophet + Malaysian holidays + live weather · Branch-specific demand patterns
-        </p>
+        <h1 class="page-title">Sales Forecast</h1>
+        <p class="page-subtitle">See what the next 7 days are likely to bring for your coffee shop</p>
     </div>
     <div class="d-flex gap-2 align-items-center flex-wrap">
-        <select id="branchSelect" class="form-control-custom" style="width:auto;min-width:180px;" onchange="onBranchChange()">
-            <option value="1" data-name="Putrajaya">🏢 Putrajaya (Workers)</option>
-            <option value="2" data-name="Puncak Alam">🎓 Puncak Alam (Students)</option>
+        <select id="branchSelect" class="form-control-custom" style="width:auto;min-width:210px;" onchange="onBranchChange()">
+            <option value="STB-PJ1" data-name="Putrajaya">🏢 Putrajaya Stall Booth</option>
+            <option value="FT-PA1" data-name="Puncak Alam">🎓 Puncak Alam Food Truck</option>
         </select>
         <button class="btn-primary-custom" id="generateBtn" onclick="generateForecast()">
             <i class="fa-solid fa-wand-magic-sparkles"></i> Generate Forecast
@@ -234,18 +144,16 @@
         <div class="d-flex align-items-center gap-3">
             <div class="spinner" style="flex-shrink:0;"></div>
             <div>
-                <div class="fw-600" style="font-size:.9rem;" id="statusTitle">Initialising forecast…</div>
-                <div class="text-muted-sm" id="statusText">
-                    Training Prophet with Malaysian holidays, promotions and weather regressors.
-                </div>
+                <div class="fw-600" style="font-size:.9rem;" id="statusTitle">Getting your forecast ready…</div>
+                <div class="text-muted-sm" id="statusText">Loading your sales history and local conditions...</div>
             </div>
         </div>
         <div class="d-flex gap-2 mt-3 flex-wrap">
-            <span class="badge-custom badge-blue" id="step1"><i class="fa-solid fa-database me-1"></i>Loading data</span>
-            <span class="badge-custom" id="step2" style="background:var(--grey-canvas);color:var(--text-muted);"><i class="fa-solid fa-calendar me-1"></i>Adding holidays</span>
-            <span class="badge-custom" id="step3" style="background:var(--grey-canvas);color:var(--text-muted);"><i class="fa-solid fa-brain me-1"></i>Training Prophet</span>
-            <span class="badge-custom" id="step4" style="background:var(--grey-canvas);color:var(--text-muted);"><i class="fa-solid fa-cloud me-1"></i>Live weather</span>
-            <span class="badge-custom" id="step5" style="background:var(--grey-canvas);color:var(--text-muted);"><i class="fa-solid fa-chart-line me-1"></i>Predicting</span>
+            <span class="badge-custom badge-blue" id="step1"><i class="fa-solid fa-database me-1"></i>Loading sales data</span>
+            <span class="badge-custom" id="step2" style="background:var(--grey-canvas);color:var(--text-muted);"><i class="fa-solid fa-calendar me-1"></i>Adding public holidays</span>
+            <span class="badge-custom" id="step3" style="background:var(--grey-canvas);color:var(--text-muted);"><i class="fa-solid fa-brain me-1"></i>Running AI model</span>
+            <span class="badge-custom" id="step4" style="background:var(--grey-canvas);color:var(--text-muted);"><i class="fa-solid fa-cloud me-1"></i>Checking weather</span>
+            <span class="badge-custom" id="step5" style="background:var(--grey-canvas);color:var(--text-muted);"><i class="fa-solid fa-chart-line me-1"></i>Building forecast</span>
         </div>
     </div>
 </div>
@@ -253,60 +161,43 @@
 <div id="emptyState" data-aos="fade-up">
     <div class="dashboard-card text-center" style="padding:var(--space-2xl);">
         <div class="empty-state">
-            <div class="empty-state-icon">
-                <i class="fa-solid fa-wand-magic-sparkles" style="font-size:3rem;opacity:.25;"></i>
-            </div>
-            <div class="empty-state-title">No forecast generated yet</div>
+            <div class="empty-state-icon"><i class="fa-solid fa-wand-magic-sparkles" style="font-size:3rem;opacity:.25;"></i></div>
+            <div class="empty-state-title">No Forecast Generated Yet</div>
             <p class="empty-state-text">
-                Select a branch and click <strong>Generate Forecast</strong>. The model incorporates
-                Malaysian public holidays, weekly seasonality, branch-specific demand patterns,
-                live weather, and active promotions.
+                Choose a branch above and click <strong>Generate Forecast</strong>. The AI will look at your past sales,
+                local public holidays, school breaks, and upcoming weather to predict your revenue for the next 7 days.
             </p>
-            <div class="mt-4 d-flex gap-2 justify-content-center flex-wrap">
-                <span class="badge-custom badge-blue"><i class="fa-solid fa-calendar me-1"></i>MY Public Holidays</span>
-                <span class="badge-custom badge-teal"><i class="fa-solid fa-cloud-sun me-1"></i>Live Weather</span>
-                <span class="badge-custom badge-purple"><i class="fa-solid fa-brain me-1"></i>Prophet AI</span>
-                <span class="badge-custom badge-amber"><i class="fa-solid fa-tag me-1"></i>Promotions</span>
-            </div>
         </div>
     </div>
 </div>
 
 <div id="resultsSection" style="display:none;">
 
+    <!-- Branch summary bar -->
     <div class="persona-card" id="personaCard" data-aos="fade-down">
         <div class="persona-icon" id="personaIcon">🏢</div>
         <div>
-            <div style="font-size:.7rem;opacity:.6;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);">Branch Demand Persona</div>
+            <div style="font-size:.7rem;opacity:.6;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);">Branch Profile</div>
             <div style="font-size:1rem;font-weight:600;color:#0F172A;" id="personaName">—</div>
             <div style="font-size:.8rem;color:#334155;" id="personaDesc">—</div>
         </div>
-                <div class="ms-auto d-flex align-items-center gap-2">
-            <span class="trend-badge trend-flat" id="trendBadge" style="margin-right:8px;">
-                <i class="fa-solid fa-minus"></i> Calculating…
-            </span>
-            <button class="btn-outline-custom"
-                    style="background:white;border-color:#CBD5E1;color:#334155;font-size:.78rem;padding:.4rem .9rem;"
-                    onclick="downloadChart('forecastChart','forecast_chart')">
-                <i class="fa-solid fa-image"></i> Export Graph
-            </button>
-            <button class="btn-amber-custom"
-                    id="downloadPdfBtn"
-                    style="font-size:.78rem;padding:.45rem .9rem;border-radius:var(--radius-md);"
-                    onclick="downloadForecastPDF()">
-                <i class="fa-solid fa-file-pdf"></i> Download PDF
+        <div class="ms-auto d-flex align-items-center gap-2">
+            <span class="trend-badge trend-flat" id="trendBadge" style="margin-right:8px;"><i class="fa-solid fa-minus"></i> Calculating...</span>
+            <button class="btn-amber-custom" id="downloadPdfBtn" style="font-size:.78rem;padding:.45rem .9rem;border-radius:var(--radius-md);" onclick="downloadForecastPDF()">
+                <i class="fa-solid fa-file-pdf"></i> Download Full Report (PDF)
             </button>
         </div>
     </div>
 
+    <!-- KPI cards -->
     <div class="row g-3 mb-4">
         <div class="col-6 col-md-3" data-aos="fade-up" data-aos-delay="0">
             <div class="kpi-card kpi-blue">
                 <div class="kpi-icon-wrap"><i class="fa-solid fa-bullseye"></i></div>
                 <div class="kpi-body">
-                    <div class="kpi-label">MAPE</div>
+                    <div class="kpi-label">Forecast Error Rate</div>
                     <div class="kpi-value"><span id="metricMape">—</span><span style="font-size:1rem;">%</span></div>
-                    <span class="kpi-trend neutral"><i class="fa-solid fa-info-circle"></i> Mean Abs % Error</span>
+                    <span class="kpi-trend neutral"><i class="fa-solid fa-info-circle"></i> Lower is better</span>
                 </div>
             </div>
         </div>
@@ -314,9 +205,9 @@
             <div class="kpi-card kpi-amber">
                 <div class="kpi-icon-wrap"><i class="fa-solid fa-ruler"></i></div>
                 <div class="kpi-body">
-                    <div class="kpi-label">RMSE</div>
+                    <div class="kpi-label">Average Daily Error</div>
                     <div class="kpi-value">RM <span id="metricRmse">—</span></div>
-                    <span class="kpi-trend neutral"><i class="fa-solid fa-info-circle"></i> Root Mean Sq Error</span>
+                    <span class="kpi-trend neutral"><i class="fa-solid fa-info-circle"></i> Typical off-by amount</span>
                 </div>
             </div>
         </div>
@@ -324,16 +215,12 @@
             <div class="kpi-card kpi-teal">
                 <div class="kpi-icon-wrap">
                     <div class="accuracy-ring-wrap">
-                        <div class="accuracy-ring" id="accuracyRing" style="--pct:0deg;">
-                            <span class="accuracy-ring-val" id="accuracyVal">—%</span>
-                        </div>
+                        <div class="accuracy-ring" id="accuracyRing" style="--pct:0deg;"><span class="accuracy-ring-val" id="accuracyVal">—%</span></div>
                     </div>
                 </div>
                 <div class="kpi-body">
-                    <div class="kpi-label">Overall Accuracy</div>
-                    <div class="kpi-value" style="font-size:1.4rem;">
-                        <span id="metricAccuracy">—</span><span style="font-size:.9rem;">%</span>
-                    </div>
+                    <div class="kpi-label">Forecast Accuracy</div>
+                    <div class="kpi-value" style="font-size:1.4rem;"><span id="metricAccuracy">—</span><span style="font-size:.9rem;">%</span></div>
                     <span class="kpi-trend up"><i class="fa-solid fa-circle-check"></i> Higher = better</span>
                 </div>
             </div>
@@ -342,58 +229,118 @@
             <div class="kpi-card kpi-purple">
                 <div class="kpi-icon-wrap"><i class="fa-solid fa-calendar-week"></i></div>
                 <div class="kpi-body">
-                    <div class="kpi-label">7-Day Forecast Total</div>
+                    <div class="kpi-label">Expected 7-Day Revenue</div>
                     <div class="kpi-value">RM <span id="metric7Day">—</span></div>
-                    <span class="kpi-trend up"><i class="fa-solid fa-arrow-trend-up"></i> Predicted revenue</span>
+                    <span class="kpi-trend up"><i class="fa-solid fa-arrow-trend-up"></i> Predicted total sales</span>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Stock warning -->
+    <div class="row g-3 mb-4" id="stockWarningRow" style="display:none;">
+        <div class="col-12" data-aos="fade-up">
+            <div class="dashboard-card" style="border-left:4px solid var(--red-danger); background:#FEF2F2;">
+                <div class="d-flex align-items-center gap-3">
+                    <div style="font-size:1.5rem;">🚨</div>
+                    <div>
+                        <p class="fw-700 mb-0" style="color:#991B1B; font-size:.9rem;">Stock Warning</p>
+                        <p class="text-muted-sm mb-0" id="stockWarningText" style="color:#B91C1C; font-size:.8rem;"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ingredient planner -->
+    <div class="row g-3 mb-4" id="ingredientPlannerRow" style="display:none;">
+        <div class="col-12" data-aos="fade-up">
+            <div class="dashboard-card">
+                <p class="card-title mb-1">What to Buy This Week — Ingredient Shopping Guide</p>
+                <p class="text-muted-sm mb-3" style="font-size:.76rem;">
+                    <i class="fa-solid fa-boxes-stacked me-1" style="color:var(--amber-kpi);"></i>
+                    Based on your expected sales, here is how much of each ingredient you will need for the next 7 days.
+                </p>
+                <div class="row g-2">
+                    <div class="col-6 col-md-4 col-lg-2 text-center p-2">
+                        <div style="background:var(--grey-canvas); border-radius:var(--radius-md); padding:1rem; border:1px solid #E2E8F0;">
+                            <div class="text-muted-sm" style="font-size:.65rem; text-transform:uppercase; font-weight:600;">Coffee Beans</div>
+                            <div class="fw-700" style="font-size:1.1rem; color:var(--text-main);" id="ingBeans">0.0 kg</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4 col-lg-2 text-center p-2">
+                        <div style="background:var(--grey-canvas); border-radius:var(--radius-md); padding:1rem; border:1px solid #E2E8F0;">
+                            <div class="text-muted-sm" style="font-size:.65rem; text-transform:uppercase; font-weight:600;">Fresh Milk</div>
+                            <div class="fw-700" style="font-size:1.1rem; color:var(--text-main);" id="ingMilk">0.0 L</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4 col-lg-2 text-center p-2">
+                        <div style="background:var(--grey-canvas); border-radius:var(--radius-md); padding:1rem; border:1px solid #E2E8F0;">
+                            <div class="text-muted-sm" style="font-size:.65rem; text-transform:uppercase; font-weight:600;">Cocoa Powder</div>
+                            <div class="fw-700" style="font-size:1.1rem; color:var(--text-main);" id="ingChoco">0.0 kg</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4 col-lg-2 text-center p-2">
+                        <div style="background:var(--grey-canvas); border-radius:var(--radius-md); padding:1rem; border:1px solid #E2E8F0;">
+                            <div class="text-muted-sm" style="font-size:.65rem; text-transform:uppercase; font-weight:600;">Crushed Ice</div>
+                            <div class="fw-700" style="font-size:1.1rem; color:var(--text-main);" id="ingIce">0.0 kg</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4 col-lg-2 text-center p-2">
+                        <div style="background:var(--grey-canvas); border-radius:var(--radius-md); padding:1rem; border:1px solid #E2E8F0;">
+                            <div class="text-muted-sm" style="font-size:.65rem; text-transform:uppercase; font-weight:600;">Hot Paper Cups</div>
+                            <div class="fw-700" style="font-size:1.1rem; color:var(--text-main);" id="ingHotCups">0 pcs</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4 col-lg-2 text-center p-2">
+                        <div style="background:var(--grey-canvas); border-radius:var(--radius-md); padding:1rem; border:1px solid #E2E8F0;">
+                            <div class="text-muted-sm" style="font-size:.65rem; text-transform:uppercase; font-weight:600;">Cold Plastic Cups</div>
+                            <div class="fw-700" style="font-size:1.1rem; color:var(--text-main);" id="ingColdCups">0 pcs</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main forecast chart -->
     <div class="row g-3 mb-4">
         <div class="col-12" data-aos="fade-up">
             <div class="dashboard-card">
                 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                    <p class="card-title mb-0">7-Day Projected Revenue — Historical vs Predicted</p>
+                    <p class="card-title mb-0">Revenue Forecast — Past Sales vs Predicted Next 7 Days</p>
                     <div class="d-flex gap-3 align-items-center" style="font-size:.75rem;color:var(--text-muted);">
-                        <span><span style="display:inline-block;width:20px;height:2px;background:var(--slate-accent);vertical-align:middle;margin-right:4px;"></span>Actual</span>
-                        <span><span style="display:inline-block;width:20px;height:2px;background:var(--amber-kpi);border-top:2px dashed var(--amber-kpi);vertical-align:middle;margin-right:4px;"></span>Forecast</span>
-                        <span><span style="display:inline-block;width:20px;height:8px;background:rgba(245,158,11,.15);vertical-align:middle;margin-right:4px;border-radius:2px;"></span>95% Confidence</span>
-                        <span><span style="display:inline-block;width:10px;height:10px;background:var(--red-light);border-radius:2px;vertical-align:middle;margin-right:4px;"></span>Holiday</span>
+                        <span><span style="display:inline-block;width:20px;height:2px;background:#2563EB;vertical-align:middle;margin-right:4px;"></span>Actual Sales</span>
+                        <span><span style="display:inline-block;width:20px;height:2px;background:#D97706;border-top:2px dashed #D97706;vertical-align:middle;margin-right:4px;"></span>Forecast</span>
+                        <span><span style="display:inline-block;width:20px;height:8px;background:rgba(217,119,6,0.1);vertical-align:middle;margin-right:4px;border-radius:2px;"></span>Expected Range</span>
                     </div>
                 </div>
-                <div class="chart-container" style="min-height:380px;">
+                <div class="chart-container" style="min-height:360px;">
                     <div class="chart-loading" id="loadingForecast"><div class="spinner"></div></div>
-                    <div id="forecastChart" style="width:100%;height:380px;"></div>
+                    <div id="forecastChart" style="width:100%;height:360px;"></div>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- How accurate was the model historically -->
     <div class="row g-3 mb-4">
         <div class="col-12" data-aos="fade-up">
             <div class="dashboard-card">
                 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                     <div>
-                        <p class="card-title mb-0">Predicted vs Actual Sales</p>
+                        <p class="card-title mb-0">How Accurate Has the Forecast Been? — Past Performance Check</p>
                         <div class="text-muted-sm" style="font-size:.76rem;margin-top:2px;">
                             <i class="fa-solid fa-circle-info me-1" style="color:var(--slate-accent);"></i>
-                            <span id="fvaSubtitleText">Prophet in-sample fitted values vs recorded actual revenue</span>
+                            <span id="fvaSubtitleText">Comparing what the model predicted against what actually happened</span>
                         </div>
                     </div>
                     <div class="d-flex align-items-center gap-2 flex-wrap">
                         <div class="d-flex" style="background:var(--grey-canvas);border-radius:var(--radius-full);padding:3px;gap:2px;">
-                            <button id="fvaBtnWeek" class="fva-tab-btn active" onclick="setFVAPeriod('week', this)">
-                                Past Week
-                            </button>
-                            <button id="fvaBtnMonth" class="fva-tab-btn inactive" onclick="setFVAPeriod('month', this)">
-                                By Month
-                            </button>
+                            <button id="fvaBtnWeek" class="fva-tab-btn active" onclick="setFVAPeriod('week', this)">Last 7 Days</button>
+                            <button id="fvaBtnMonth" class="fva-tab-btn inactive" onclick="setFVAPeriod('month', this)">By Month</button>
                         </div>
-                        <select id="fvaMonthFilter" class="form-control-custom"
-                            style="padding:.2rem .5rem;font-size:.85rem;width:170px;display:none;"
-                            onchange="applyFVAFilter()">
-                        </select>
+                        <select id="fvaMonthFilter" class="form-control-custom" style="padding:.2rem .5rem;font-size:.85rem;width:170px;display:none;" onchange="applyFVAFilter()"></select>
                     </div>
                 </div>
                 <div class="chart-container" style="min-height:300px;">
@@ -404,10 +351,11 @@
         </div>
     </div>
 
+    <!-- Hourly + weather -->
     <div class="row g-3 mb-4">
         <div class="col-12 col-xl-6" data-aos="fade-up">
             <div class="dashboard-card h-100">
-                <p class="card-title">Hourly Revenue Pattern</p>
+                <p class="card-title">Best and Slowest Hours of the Day</p>
                 <div class="chart-container" style="min-height:260px;">
                     <div class="chart-loading" id="loadingHourly"><div class="spinner"></div></div>
                     <div id="hourlyChart" style="width:100%;height:260px;"></div>
@@ -416,7 +364,7 @@
         </div>
         <div class="col-12 col-xl-6" data-aos="fade-up" data-aos-delay="80">
             <div class="dashboard-card h-100">
-                <p class="card-title">Past Weather by Shift</p>
+                <p class="card-title">How Weather Affects Sales — Morning, Afternoon & Evening</p>
                 <div class="chart-container" style="min-height:260px;">
                     <div class="chart-loading" id="loadingWBT"><div class="spinner"></div></div>
                     <div id="wbtChart" style="width:100%;height:260px;"></div>
@@ -425,24 +373,25 @@
         </div>
     </div>
 
+    <!-- Upcoming weather by shift -->
     <div class="row g-3 mb-4">
         <div class="col-12" data-aos="fade-up">
             <div class="dashboard-card">
-                <p class="card-title mb-1">Upcoming 7-Day Meteorological Forecast by Operating Shift</p>
+                <p class="card-title mb-1">Next 7 Days — Weather Outlook by Time of Day</p>
                 <p class="text-muted-sm mb-3" style="font-size:.76rem;">
                     <i class="fa-solid fa-cloud-sun me-1" style="color:var(--teal-success);"></i>
-                    Predictive shift weather conditions mapped against localized branch operation dimensions (Morning, Afternoon, Evening, Night).
+                    Expected weather conditions across your morning, afternoon, evening and night shifts.
                 </p>
-                <div class="d-flex gap-3 overflow-auto pb-2 weather-scroll-strip" id="futureWeatherShiftContainer" style="scroll-behavior: smooth;">
-                    </div>
+                <div class="d-flex gap-3 overflow-auto pb-2 weather-scroll-strip" id="futureWeatherShiftContainer" style="scroll-behavior:smooth;"></div>
             </div>
         </div>
     </div>
 
+    <!-- Forecast table + sidebar info -->
     <div class="row g-3 mb-4">
         <div class="col-12 col-xl-7" data-aos="fade-up">
             <div class="dashboard-card h-100">
-                <p class="card-title">7-Day Prediction Breakdown</p>
+                <p class="card-title">Day-by-Day Forecast Breakdown</p>
                 <div style="overflow-x:auto;">
                     <table class="table-custom">
                         <thead>
@@ -450,14 +399,14 @@
                                 <th>Date</th>
                                 <th>Day</th>
                                 <th>Weather</th>
-                                <th>Flags & Promotions</th>
-                                <th style="text-align:right;">Predicted (RM)</th>
-                                <th style="text-align:right;">Lower</th>
-                                <th style="text-align:right;">Upper</th>
+                                <th>Notes & Promotions</th>
+                                <th style="text-align:right;">Predicted Sales (RM)</th>
+                                <th style="text-align:right;">Low Estimate</th>
+                                <th style="text-align:right;">High Estimate</th>
                             </tr>
                         </thead>
                         <tbody id="forecastTableBody">
-                            <tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:2rem;">No data yet</td></tr>
+                            <tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:2rem;">Waiting for forecast...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -466,66 +415,63 @@
 
         <div class="col-12 col-xl-5" data-aos="fade-up" data-aos-delay="80">
             <div class="dashboard-card h-100">
-                <p class="card-title">Model Feature Summary</p>
+                <p class="card-title">What Drives the Forecast?</p>
+
+                <!-- Weather impact -->
                 <div class="mb-3">
-                    <div class="text-muted-sm fw-600 mb-2">☁️ Weather Regressor</div>
+                    <div class="text-muted-sm fw-600 mb-2">☁️ Weather Impact on Daily Sales</div>
                     <div class="mb-2">
                         <div class="d-flex justify-content-between mb-1" style="font-size:.8rem;">
-                            <span>☀️ Sunny / ⛅ Cloudy (score=1)</span>
+                            <span>☀️ Sunny / ⛅ Cloudy days</span>
                             <span class="fw-600 text-success" id="goodWeatherCont">RM —</span>
                         </div>
-                        <div class="progress-wrap">
-                            <div class="progress-bar" style="width:85%;background:linear-gradient(90deg,var(--teal-success),#34D399);"></div>
-                        </div>
+                        <div class="progress-wrap" style="height:5px;background:#E2E8F0;border-radius:99px;overflow:hidden;"><div class="progress-bar" style="width:85%;height:100%;background:#10B981;"></div></div>
                     </div>
                     <div>
                         <div class="d-flex justify-content-between mb-1" style="font-size:.8rem;">
-                            <span>🌧️ Raining (score=0)</span>
+                            <span>🌧️ Rainy days</span>
                             <span class="fw-600 text-danger" id="rainingCont">RM —</span>
                         </div>
-                        <div class="progress-wrap">
-                            <div class="progress-bar" style="width:35%;background:linear-gradient(90deg,var(--red-danger),#FCA5A5);"></div>
-                        </div>
+                        <div class="progress-wrap" style="height:5px;background:#E2E8F0;border-radius:99px;overflow:hidden;"><div class="progress-bar" style="width:35%;height:100%;background:#EF4444;"></div></div>
                     </div>
                 </div>
-                <div class="divider"></div>
+
+                <div class="divider" style="margin:15px 0;"></div>
+
+                <!-- Active promotions -->
                 <div class="mb-3">
-                    <div class="text-muted-sm fw-600 mb-2">🎉 Active Promotions</div>
+                    <div class="text-muted-sm fw-600 mb-2">🎁 Active Promotions</div>
                     <div style="font-size:.8rem;line-height:1.8;">
-                        <div><span class="promo-badge">Every Friday</span> 20% off all Latte variants</div>
-                        <div class="mt-1"><span class="promo-badge">School Holidays</span> Buy 2 Free 1 on all drinks</div>
-                        <div class="mt-1"><span class="promo-badge">Raya Season</span> Buy 2 Free 1 on all drinks</div>
-                        <div class="mt-1"><span class="promo-badge">CNY Season</span> Buy 2 Free 1 on all drinks</div>
+                        <div><span class="promo-badge">Every Friday</span> 20% off all Latte drinks</div>
+                        <div class="mt-1"><span class="promo-badge">School Holidays / Festive Seasons</span> Higher foot traffic expected</div>
                     </div>
                 </div>
-                <div class="divider"></div>
+
+                <div class="divider" style="margin:15px 0;"></div>
+
+                <!-- Holiday impact -->
                 <div>
-                    <div class="text-muted-sm fw-600 mb-2">🏖️ Holiday Impact by Branch</div>
+                    <div class="text-muted-sm fw-600 mb-2">🏖️ Public Holiday Effect</div>
                     <div style="font-size:.78rem;line-height:1.8;">
-                        <div>🏢 <strong>Putrajaya</strong> — Workers stay home → <span class="text-danger">−35% revenue on PH</span></div>
-                        <div>🎓 <strong>Puncak Alam</strong> — Students hang out → <span class="text-success">+15% revenue on PH</span></div>
+                        <div>🏢 <strong>Putrajaya Booth</strong> — Office workers are at home → <span class="text-danger">−35% on public holidays</span></div>
+                        <div>🎓 <strong>Puncak Alam Food Truck</strong> — Residents & students gather → <span class="text-success">+15% on public holidays</span></div>
                     </div>
-                </div>
-                <div class="divider"></div>
-                <div class="text-muted-sm">
-                    <i class="fa-solid fa-circle-info me-1" style="color:var(--slate-accent);"></i>
-                    Prophet trained with 95% confidence interval, Malaysian public holidays,
-                    weekly seasonality, and multiplicative seasonal mode.
                 </div>
             </div>
         </div>
     </div>
 
-</div>{% endblock %}
+</div>
+{% endblock %}
 
 {% block scripts %}
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 
 <script>
 /* ============================================================
-    CONSTANTS & STATE
-============================================================ */
-const DAYS          = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+   GLOBALS & CONSTANTS
+   ============================================================ */
+const DAYS         = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const WEATHER_ICON = { 'Sunny':'☀️', 'Cloudy':'⛅', 'Raining':'🌧️' };
 const LAYOUT_BASE  = {
     paper_bgcolor: 'rgba(0,0,0,0)',
@@ -535,81 +481,59 @@ const LAYOUT_BASE  = {
 };
 const CONFIG = { responsive:true, displayModeBar:false };
 
-let globalFVA     = [];   
-let fvaPeriodMode = 'week'; 
+let globalFVA       = [];
+let fvaPeriodMode   = 'week';
+let lastForecastData = null;   // store full API response for PDF
 
 /* ============================================================
-    UTILITIES
-============================================================ */
+   HELPERS
+   ============================================================ */
 function fmt(n, d=2) {
-    return Number(n || 0).toLocaleString('en-MY', {
-        minimumFractionDigits: d, maximumFractionDigits: d
-    });
+    return Number(n || 0).toLocaleString('en-MY', { minimumFractionDigits:d, maximumFractionDigits:d });
 }
-
-function hideLoader(id) {
-    const el = document.getElementById(id);
-    if (el) el.style.display = 'none';
-}
-
-function downloadChart(id, name) {
-    Plotly.downloadImage(id, { format:'png', filename:name, width:1200, height:500 });
-}
+function hideLoader(id) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
 
 function setStep(n) {
     for (let i = 1; i <= 5; i++) {
         const el = document.getElementById('step' + i);
         if (!el) continue;
-        if (i < n) {
-            el.className = 'badge-custom badge-teal';
-            el.removeAttribute('style');
-        } else if (i === n) {
-            el.className = 'badge-custom badge-blue';
-            el.removeAttribute('style');
-        } else {
-            el.className = 'badge-custom';
-            el.style.cssText = 'background:var(--grey-canvas);color:var(--text-muted);';
-        }
+        if (i < n)  { el.className = 'badge-custom badge-teal'; el.removeAttribute('style'); }
+        else if (i === n) { el.className = 'badge-custom badge-blue'; el.removeAttribute('style'); }
+        else { el.className = 'badge-custom'; el.style.cssText = 'background:var(--grey-canvas);color:var(--text-muted);'; }
     }
 }
 
-// ✅ NEW HELPER: Dynamically maps dominant day weather trends down into detailed soft pastel operating shifts
-function getShiftsByDominantWeather(dominantWeather, isSunday) {
-    if (isSunday) {
+function getShiftsByDominantWeather(dominantWeather, isClosed) {
+    if (isClosed) {
         return [
-            { name: 'Morning', icon: '🔒', label: 'Closed', bg: '#F1F5F9', color: '#64748B' },
-            { name: 'Afternoon', icon: '🔒', label: 'Closed', bg: '#F1F5F9', color: '#64748B' },
-            { name: 'Evening', icon: '🔒', label: 'Closed', bg: '#F1F5F9', color: '#64748B' },
-            { name: 'Night', icon: '🔒', label: 'Closed', bg: '#F1F5F9', color: '#64748B' }
-        ];
+            'Morning (09–12)', 'Afternoon (12–15)', 'Evening (15–18)', 'Night (18–21)'
+        ].map(n => ({ name:n, icon:'🔒', label:'Closed', bg:'#FEE2E2', color:'#991B1B' }));
     }
-    if (dominantWeather === 'Raining') {
-        return [
-            { name: 'Morning (09-12)', icon: '⛅', label: 'Cloudy', bg: '#F8FAFC', color: '#475569' },
-            { name: 'Afternoon (12-15)', icon: '🌧️', label: 'Rainy', bg: '#E0F2FE', color: '#0369A1' },
-            { name: 'Evening (15-18)', icon: '🌧️', label: 'Storm', bg: '#E0F2FE', color: '#0369A1' },
-            { name: 'Night (18-21)', icon: '☁️', label: 'Overcast', bg: '#F1F5F9', color: '#334155' }
-        ];
-    } else if (dominantWeather === 'Sunny') {
-        return [
-            { name: 'Morning (09-12)', icon: '☀️', label: 'Sunny', bg: '#FEF3C7', color: '#92400E' },
-            { name: 'Afternoon (12-15)', icon: '☀️', label: 'Sunny', bg: '#FEF3C7', color: '#92400E' },
-            { name: 'Evening (15-18)', icon: '⛅', label: 'Cloudy', bg: '#FFEDD5', color: '#C2410C' },
-            { name: 'Night (18-21)', icon: '🌙', label: 'Clear', bg: '#F3E8FF', color: '#6B21A8' }
-        ];
-    } else {
-        return [
-            { name: 'Morning (09-12)', icon: '⛅', label: 'Cloudy', bg: '#F1F5F9', color: '#475569' },
-            { name: 'Afternoon (12-15)', icon: '⛅', label: 'Cloudy', bg: '#F1F5F9', color: '#475569' },
-            { name: 'Evening (15-18)', icon: '⛅', label: 'Cloudy', bg: '#FFEDD5', color: '#C2410C' },
-            { name: 'Night (18-21)', icon: '🌙', label: 'Cloudy', bg: '#F3E8FF', color: '#6B21A8' }
-        ];
-    }
+    const map = {
+        'Raining': [
+            { name:'Morning (09–12)',   icon:'⛅', label:'Cloudy',   bg:'#F8FAFC', color:'#475569' },
+            { name:'Afternoon (12–15)', icon:'🌧️', label:'Rainy',    bg:'#E0F2FE', color:'#0369A1' },
+            { name:'Evening (15–18)',   icon:'🌧️', label:'Storm',    bg:'#E0F2FE', color:'#0369A1' },
+            { name:'Night (18–21)',     icon:'☁️', label:'Overcast', bg:'#F1F5F9', color:'#334155' }
+        ],
+        'Sunny': [
+            { name:'Morning (09–12)',   icon:'☀️', label:'Sunny',  bg:'#FEF3C7', color:'#92400E' },
+            { name:'Afternoon (12–15)', icon:'☀️', label:'Sunny',  bg:'#FEF3C7', color:'#92400E' },
+            { name:'Evening (15–18)',   icon:'⛅', label:'Cloudy', bg:'#FFEDD5', color:'#C2410C' },
+            { name:'Night (18–21)',     icon:'🌙', label:'Clear',  bg:'#F3E8FF', color:'#6B21A8' }
+        ]
+    };
+    return (map[dominantWeather] || [
+        { name:'Morning (09–12)',   icon:'⛅', label:'Cloudy', bg:'#F1F5F9', color:'#475569' },
+        { name:'Afternoon (12–15)', icon:'⛅', label:'Cloudy', bg:'#F1F5F9', color:'#475569' },
+        { name:'Evening (15–18)',   icon:'⛅', label:'Cloudy', bg:'#FFEDD5', color:'#C2410C' },
+        { name:'Night (18–21)',     icon:'🌙', label:'Cloudy', bg:'#F3E8FF', color:'#6B21A8' }
+    ]);
 }
 
 /* ============================================================
-    BRANCH CHANGE
-============================================================ */
+   BRANCH CHANGE
+   ============================================================ */
 function onBranchChange() {
     const sel  = document.getElementById('branchSelect');
     const name = sel.options[sel.selectedIndex].dataset.name;
@@ -618,8 +542,8 @@ function onBranchChange() {
 }
 
 /* ============================================================
-    GENERATE FORECAST
-============================================================ */
+   GENERATE FORECAST
+   ============================================================ */
 function generateForecast() {
     const sel        = document.getElementById('branchSelect');
     const branchId   = sel.value;
@@ -630,23 +554,22 @@ function generateForecast() {
     document.getElementById('resultsSection').style.display = 'none';
     document.getElementById('statusBanner').style.display   = 'block';
     btn.disabled  = true;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Running…';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
 
     setStep(1);
-
     const titles = [
-        'Loading historical sales data…',
-        'Adding Malaysian holidays & seasonal effects…',
-        'Training Prophet with all regressors…',
-        'Fetching live OpenWeatherMap data…',
-        'Executing 7-day prediction…'
+        'Loading your sales history…',
+        'Adding Malaysian public holidays & school breaks…',
+        'Training the AI forecast model…',
+        'Fetching upcoming weather data…',
+        'Building your 7-day forecast…'
     ];
     const texts = [
-        'Reading SQLite sales_transaction for this branch.',
-        'Injecting public holidays 2025–2026 + school holidays + Ramadan.',
-        'Fitting multiplicative model with weather, friday_promo, seasonal_promo.',
-        'Getting live 5-day forecast for branch coordinates.',
-        'Calculating yhat, yhat_lower (95%), yhat_upper, and holiday adjustments.'
+        'Reading past transaction records for this branch.',
+        'Accounting for Hari Raya, CNY, school holidays and more.',
+        'Fitting the model to your branch sales patterns.',
+        'Pulling live weather for your area.',
+        'Calculating predicted revenue with confidence ranges.'
     ];
 
     let si = 0;
@@ -657,7 +580,7 @@ function generateForecast() {
             document.getElementById('statusTitle').textContent = titles[si];
             document.getElementById('statusText').textContent  = texts[si];
         }
-    }, 2000); 
+    }, 1500);
 
     fetch(`/api/forecast?branch_id=${branchId}&branch_name=${encodeURIComponent(branchName)}`)
         .then(r => r.json())
@@ -668,10 +591,11 @@ function generateForecast() {
             document.getElementById('statusBanner').style.display = 'none';
 
             if (data.status !== 'success') {
-                alert('Forecast failed: ' + (data.message || 'Unknown error'));
+                alert('Could not generate forecast: ' + (data.message || 'Please check your data.'));
                 document.getElementById('emptyState').style.display = 'block';
                 return;
             }
+            lastForecastData = data;
             renderAll(data, branchName);
         })
         .catch(err => {
@@ -685,8 +609,8 @@ function generateForecast() {
 }
 
 /* ============================================================
-    RENDER ALL MODULE
-============================================================ */
+   RENDER ALL
+   ============================================================ */
 function renderAll(data, branchName) {
     document.getElementById('resultsSection').style.display  = 'block';
     document.getElementById('loadingForecast').style.display = 'flex';
@@ -694,15 +618,38 @@ function renderAll(data, branchName) {
     document.getElementById('loadingHourly').style.display   = 'flex';
     document.getElementById('loadingWBT').style.display      = 'flex';
 
-    const isPA = branchName === 'Puncak Alam';
-    document.getElementById('personaIcon').textContent = isPA ? '🎓' : '🏢';
+    // Branch info
     document.getElementById('personaName').textContent = branchName;
     document.getElementById('personaDesc').textContent = data.persona;
 
+    // KPIs
     document.getElementById('metricMape').textContent     = data.mape;
     document.getElementById('metricRmse').textContent     = fmt(data.rmse);
     document.getElementById('metricAccuracy').textContent = data.accuracy;
 
+    // Ingredients
+    if (data.ingredient_demand) {
+        document.getElementById('ingredientPlannerRow').style.display = 'flex';
+        const idm = data.ingredient_demand;
+        document.getElementById('ingBeans').textContent    = (idm.beans_g / 1000).toFixed(2) + ' kg';
+        document.getElementById('ingMilk').textContent     = (idm.milk_ml / 1000).toFixed(1) + ' L';
+        document.getElementById('ingChoco').textContent    = (idm.choco_g / 1000).toFixed(2) + ' kg';
+        document.getElementById('ingIce').textContent      = (idm.ice_g / 1000).toFixed(1) + ' kg';
+        document.getElementById('ingHotCups').textContent  = idm.cup_hot + ' pcs';
+        document.getElementById('ingColdCups').textContent = idm.cup_cold + ' pcs';
+
+        const warningBox = document.getElementById('stockWarningRow');
+        if (idm.beans_g > 5000 || idm.milk_ml > 30000 || idm.ice_g > 40000) {
+            warningBox.style.display = 'flex';
+            const peakItem = idm.beans_g > 5000 ? 'Coffee Beans' : (idm.milk_ml > 30000 ? 'Fresh Milk' : 'Crushed Ice');
+            document.getElementById('stockWarningText').textContent =
+                `High demand expected for ${peakItem} this week. Make sure to stock up before you run out.`;
+        } else {
+            warningBox.style.display = 'none';
+        }
+    }
+
+    // Accuracy ring
     const ring = document.getElementById('accuracyRing');
     const val  = document.getElementById('accuracyVal');
     if (ring) {
@@ -711,74 +658,73 @@ function renderAll(data, branchName) {
     }
     if (val) val.textContent = (data.accuracy || 0) + '%';
 
+    // 7-day total
     const total7 = (data.forecast || []).reduce((s, r) => s + (r.yhat || 0), 0);
     document.getElementById('metric7Day').textContent = fmt(total7);
 
+    // Trend badge
     const fore  = data.forecast || [];
     const first = fore[0]?.yhat || 0;
     const last  = fore[fore.length - 1]?.yhat || 0;
     const diff  = last - first;
     const badge = document.getElementById('trendBadge');
     if (badge) {
-        if (diff > 50) {
-            badge.className = 'trend-badge trend-up';
-            badge.innerHTML = '<i class="fa-solid fa-arrow-trend-up"></i> Upward trend';
-        } else if (diff < -50) {
-            badge.className = 'trend-badge trend-down';
-            badge.innerHTML = '<i class="fa-solid fa-arrow-trend-down"></i> Downward trend';
-        } else {
-            badge.className = 'trend-badge trend-flat';
-            badge.innerHTML = '<i class="fa-solid fa-minus"></i> Stable trend';
-        }
+        if (diff > 50)       { badge.className = 'trend-badge trend-up';   badge.innerHTML = '<i class="fa-solid fa-arrow-trend-up"></i> Sales going up'; }
+        else if (diff < -50) { badge.className = 'trend-badge trend-down'; badge.innerHTML = '<i class="fa-solid fa-arrow-trend-down"></i> Sales going down'; }
+        else                  { badge.className = 'trend-badge trend-flat'; badge.innerHTML = '<i class="fa-solid fa-minus"></i> Steady sales week'; }
     }
 
+    // Weather impact estimates
     const avgY = total7 / 7 || 0;
     document.getElementById('goodWeatherCont').textContent = 'RM ' + fmt(avgY * 1.12);
     document.getElementById('rainingCont').textContent     = 'RM ' + fmt(avgY * 0.88);
 
+    // Charts
     renderForecastChart(data);
 
     globalFVA     = data.forecast_vs_actual || [];
     fvaPeriodMode = 'week';
-
-    document.getElementById('fvaBtnWeek').className  = 'fva-tab-btn active';
-    document.getElementById('fvaBtnMonth').className = 'fva-tab-btn inactive';
-    document.getElementById('fvaMonthFilter').style.display = 'none';
-    document.getElementById('fvaSubtitleText').textContent  =
-        'Prophet in-sample fitted values vs recorded actual revenue — last 7 days shown';
+    document.getElementById('fvaBtnWeek').className          = 'fva-tab-btn active';
+    document.getElementById('fvaBtnMonth').className         = 'fva-tab-btn inactive';
+    document.getElementById('fvaMonthFilter').style.display  = 'none';
+    document.getElementById('fvaSubtitleText').textContent   = 'Comparing what the model predicted against what actually happened';
 
     populateFVADropdown(globalFVA);
     applyFVAFilter();
 
     renderHourlyChart(data.hourly || []);
     renderWeatherByTime(data.weather_by_time || []);
-    
-    // ✅ NEW COMPONENT POPULATION LOOP: Compiles the 7-day multi-shift forecast strip views dynamically
-    const futureWeatherContainer = document.getElementById('futureWeatherShiftContainer');
-    if (futureWeatherContainer && data.forecast) {
-        futureWeatherContainer.innerHTML = data.forecast.map(row => {
-            const dt = new Date(row.ds + 'T00:00:00');
-            const dayName = DAYS[dt.getDay()];
-            const formattedDate = dt.toLocaleString('en-MY', { day:'numeric', month:'short' });
-            const isSunday = dt.getDay() === 0;
-            const shiftForecasts = getShiftsByDominantWeather(row.weather, isSunday);
+
+    // Weather shift cards
+    const container = document.getElementById('futureWeatherShiftContainer');
+    if (container && data.forecast) {
+        container.innerHTML = data.forecast.map(row => {
+            const dt        = new Date(row.ds + 'T00:00:00');
+            const jsDay     = dt.getDay();
+            const dayName   = DAYS[jsDay];
+            const dateLabel = dt.toLocaleString('en-MY', { day:'numeric', month:'short' });
+            // Treat festive closures AND Sundays as "closed" for the weather card
+            const isClosed  = row.is_closed || row.is_festive_close || jsDay === 0;
+            const shifts    = getShiftsByDominantWeather(row.weather, isClosed);
+
+            // Header styling: red border for closed days
+            const headerBorder = isClosed ? 'border-bottom:1px solid #FECACA;' : 'border-bottom:1px solid #E2E8F0;';
+            const cardBg       = isClosed ? 'background:#FEF2F2;border:1px solid #FECACA;' : 'background:#F8FAFC;border:1px solid #E2E8F0;';
 
             return `
-                <div style="min-width:175px; flex:1; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:var(--radius-md); padding:12px; display:flex; flex-direction:column; gap:8px;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #E2E8F0; padding-bottom:6px;">
-                        <span style="font-weight:700; font-size:.84rem; color:#0F172A;">${dayName}</span>
-                        <span style="font-size:.72rem; color:var(--text-muted); font-family:var(--font-mono);">${formattedDate}</span>
-                    </div>
-                    <div style="display:flex; flex-direction:column; gap:6px;">
-                        ${shiftForecasts.map(s => `
-                            <div style="display:flex; align-items:center; justify-content:space-between; padding:5px 8px; background:${s.bg}; border-radius:6px; font-size:.7rem;">
-                                <span style="font-weight:600; color:#475569;">${s.name}</span>
-                                <span style="font-weight:700; color:${s.color};">${s.icon} ${s.label}</span>
-                            </div>
-                        `).join('')}
-                    </div>
+            <div style="min-width:175px;flex:1;${cardBg}border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;${headerBorder}padding-bottom:6px;">
+                    <span style="font-weight:700;font-size:.84rem;color:#0F172A;">${dayName}</span>
+                    <span style="font-size:.72rem;color:var(--text-muted);font-family:var(--font-mono);">${dateLabel}</span>
                 </div>
-            `;
+                <div style="display:flex;flex-direction:column;gap:6px;">
+                    ${shifts.map(s => `
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 8px;background:${s.bg};border-radius:6px;font-size:.7rem;">
+                        <span style="font-weight:600;color:#475569;">${s.name}</span>
+                        <span style="font-weight:700;color:${s.color};">${s.icon} ${s.label}</span>
+                    </div>`).join('')}
+                </div>
+            </div>`;
         }).join('');
     }
 
@@ -786,368 +732,212 @@ function renderAll(data, branchName) {
 }
 
 /* ============================================================
-    MAIN FORECAST CHART
-============================================================ */
+   CHARTS
+   ============================================================ */
 function renderForecastChart(data) {
     const hist = data.historical || [];
     const fore = data.forecast   || [];
-
-    const traceActual = {
-        x: hist.map(r => r.ds),
-        y: hist.map(r => r.y),
-        name: 'Actual Revenue',
-        type: 'scatter', mode: 'lines',
-        line: { color:'#3B82F6', width:2.5 },
-        hovertemplate: '<b>%{x}</b><br>Actual: RM %{y:,.2f}<extra></extra>'
-    };
-
-    const traceFore = {
-        x: fore.map(r => r.ds),
-        y: fore.map(r => r.yhat),
-        name: 'Forecast',
-        type: 'scatter', mode: 'lines+markers',
-        line: { color:'#F59E0B', width:2.5, dash:'dash' },
-        marker: { size:7, color:'#F59E0B' },
-        hovertemplate: '<b>%{x}</b><br>Forecast: RM %{y:,.2f}<extra></extra>'
-    };
-
-    const traceUp = {
-        x: fore.map(r => r.ds),
-        y: fore.map(r => r.yhat_upper),
-        name: 'Upper 95%',
-        type: 'scatter', mode: 'lines',
-        line: { width:0, color:'transparent' },
-        showlegend: false, hoverinfo: 'skip'
-    };
-
-    const traceLo = {
-        x: fore.map(r => r.ds),
-        y: fore.map(r => r.yhat_lower),
-        name: '95% Confidence Interval',
-        type: 'scatter', mode: 'lines',
-        fill: 'tonexty', fillcolor: 'rgba(245,158,11,0.10)',
-        line: { width:0, color:'transparent' },
-        hovertemplate: 'Lower: RM %{y:,.2f}<extra>95% CI</extra>'
-    };
-
-    const shapes      = [];
-    const annotations = [];
-    const lastHistDs  = hist[hist.length - 1]?.ds;
-
-    if (lastHistDs) {
-        shapes.push({
-            type:'line', x0:lastHistDs, x1:lastHistDs,
-            y0:0, y1:1, yref:'paper',
-            line:{ color:'#CBD5E1', width:1.5, dash:'dot' }
-        });
-        annotations.push({
-            x:lastHistDs, y:1, yref:'paper',
-            text:'Forecast →', showarrow:false,
-            font:{ size:11, color:'#64748B' },
-            xanchor:'left', yanchor:'top', xshift:8
-        });
-    }
-
-    fore.forEach(r => {
-        if (r.is_holiday) {
-            shapes.push({
-                type:'rect', x0:r.ds, x1:r.ds,
-                y0:0, y1:1, yref:'paper',
-                fillcolor:'rgba(239,68,68,0.08)',
-                line:{ width:0 }, xref:'x'
-            });
-            annotations.push({
-                x:r.ds, y:0.98, yref:'paper',
-                text:'🏖️', showarrow:false,
-                font:{ size:14 }, xanchor:'center'
-            });
-        }
-        if (r.is_friday) {
-            annotations.push({
-                x:r.ds, y:0.88, yref:'paper',
-                text:'🎉', showarrow:false,
-                font:{ size:12 }, xanchor:'center'
-            });
-        }
-    });
-
-    Plotly.newPlot('forecastChart',
-        [traceActual, traceUp, traceLo, traceFore],
-        {
-            ...LAYOUT_BASE,
-            margin:  { t:20, r:20, b:55, l:70 },
-            legend:  { orientation:'h', y:-0.18, x:0, font:{ size:11 } },
-            xaxis:   { gridcolor:'#E2E8F0', tickformat:'%d %b %Y', tickangle:-30, showgrid:true },
-            yaxis:   { tickprefix:'RM ', gridcolor:'#E2E8F0', gridwidth:1, rangemode:'tozero' },
-            hovermode: 'x unified',
-            shapes, annotations
-        },
-        CONFIG
-    );
+    Plotly.newPlot('forecastChart', [
+        { x: hist.map(r=>r.ds), y: hist.map(r=>r.y),            name:'Actual Sales',         type:'scatter', mode:'lines',         line:{ color:'#2563EB', width:2.5 } },
+        { x: fore.map(r=>r.ds), y: fore.map(r=>r.yhat_upper),   name:'High Estimate',         type:'scatter', mode:'lines',         line:{ width:0, color:'transparent' }, showlegend:false, hoverinfo:'skip' },
+        { x: fore.map(r=>r.ds), y: fore.map(r=>r.yhat_lower),   name:'Expected Sales Range',  type:'scatter', mode:'lines',         fill:'tonexty', fillcolor:'rgba(217,119,6,0.08)', line:{ width:0, color:'transparent' } },
+        { x: fore.map(r=>r.ds), y: fore.map(r=>r.yhat),         name:'Predicted Sales',       type:'scatter', mode:'lines+markers', line:{ color:'#D97706', width:2.5, dash:'dash' }, marker:{ size:6, color:'#D97706' } }
+    ], {
+        ...LAYOUT_BASE,
+        margin:    { t:20, r:20, b:55, l:70 },
+        legend:    { orientation:'h', y:-0.18, font:{ size:11 } },
+        xaxis:     { gridcolor:'#E2E8F0', tickformat:'%d %b', tickangle:-30 },
+        yaxis:     { tickprefix:'RM ', gridcolor:'#E2E8F0', rangemode:'tozero' },
+        hovermode: 'x unified'
+    }, CONFIG);
     hideLoader('loadingForecast');
 }
 
-/* ============================================================
-    FVA — INTERPOLATION PERIOD FILTER PASSES
-============================================================ */
 function setFVAPeriod(period, btn) {
     fvaPeriodMode = period;
-
-    document.querySelectorAll('.fva-tab-btn').forEach(b => {
-        b.className = 'fva-tab-btn inactive';
-    });
+    document.querySelectorAll('.fva-tab-btn').forEach(b => b.className = 'fva-tab-btn inactive');
     btn.className = 'fva-tab-btn active';
-
-    const moSel    = document.getElementById('fvaMonthFilter');
-    const subtitle = document.getElementById('fvaSubtitleText');
-
-    if (period === 'week') {
-        moSel.style.display = 'none';
-        subtitle.textContent = 'Prophet in-sample fitted values vs recorded actual revenue — last 7 days shown';
-    } else {
-        moSel.style.display = 'block';
-        subtitle.textContent = 'Prophet in-sample fitted values vs recorded actual revenue — filtered by month';
-    }
-
+    const moSel = document.getElementById('fvaMonthFilter');
+    moSel.style.display = period === 'week' ? 'none' : 'block';
     applyFVAFilter();
 }
 
 function populateFVADropdown(fva) {
     const sel = document.getElementById('fvaMonthFilter');
     sel.innerHTML = '';
-    if (!fva || fva.length === 0) {
-        const opt = document.createElement('option');
-        opt.value = '';
-        opt.textContent = 'No data';
-        sel.appendChild(opt);
-        return;
-    }
+    if (!fva || fva.length === 0) return;
     const months = [...new Set(fva.map(r => r.ds.substring(0, 7)))].sort().reverse();
     months.forEach(m => {
-        const d   = new Date(m + '-01');
         const opt = document.createElement('option');
-        opt.value       = m;
-        opt.textContent = d.toLocaleString('en-MY', { month:'long', year:'numeric' });
+        opt.value = m;
+        opt.textContent = m;
         sel.appendChild(opt);
     });
 }
 
 function applyFVAFilter() {
-    if (!globalFVA || globalFVA.length === 0) {
-        renderFVAChart([]);
-        return;
-    }
-
+    if (!globalFVA || globalFVA.length === 0) { renderFVAChart([]); return; }
     const sorted = [...globalFVA].sort((a, b) => a.ds.localeCompare(b.ds));
-
-    let filtered;
-    if (fvaPeriodMode === 'week') {
-        filtered = sorted.slice(-7);
-    } else {
-        const m = document.getElementById('fvaMonthFilter').value;
-        filtered = m ? sorted.filter(r => r.ds.startsWith(m)) : sorted;
-    }
-
+    const filtered = fvaPeriodMode === 'week'
+        ? sorted.slice(-7)
+        : sorted.filter(r => r.ds.startsWith(document.getElementById('fvaMonthFilter').value));
     renderFVAChart(filtered);
 }
 
 function renderFVAChart(data) {
-    const container = document.getElementById('fvaChart');
-
-    if (!data || data.length === 0) {
-        container.innerHTML =
-            '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:220px;gap:8px;">' +
-            '<i class="fa-solid fa-chart-bar" style="font-size:2rem;opacity:.18;color:var(--text-muted);"></i>' +
-            '<div style="font-size:.85rem;font-weight:600;color:var(--text-main);">No data available</div>' +
-            '</div>';
-        hideLoader('loadingFVA');
-        return;
-    }
-
     Plotly.newPlot('fvaChart', [
-        {
-            x: data.map(r => r.ds),
-            y: data.map(r => r.predicted),
-            name: 'Prophet Fitted',
-            type: 'scatter', mode: 'lines+markers',
-            line:   { color:'#F59E0B', width:2.5, dash:'dash' },
-            marker: { size:5, color:'#F59E0B', symbol:'diamond' },
-            hovertemplate: '<b>%{x}</b><br>Predicted: RM %{y:,.2f}<extra></extra>'
-        },
-        {
-            x: data.map(r => r.ds),
-            y: data.map(r => r.actual),
-            name: 'Actual Revenue',
-            type: 'scatter', mode: 'lines+markers',
-            line:   { color:'#10B981', width:2.5 },
-            marker: { size:5, color:'#10B981', symbol:'circle' },
-            fill: 'tozeroy',
-            fillcolor: 'rgba(16,185,129,0.06)',
-            hovertemplate: '<b>%{x}</b><br>Actual: RM %{y:,.2f}<extra></extra>'
-        }
+        { x:data.map(r=>r.ds), y:data.map(r=>r.predicted), name:'Model Prediction', type:'scatter', mode:'lines+markers', line:{ color:'#D97706', width:2, dash:'dash' }, marker:{ size:5, color:'#D97706', symbol:'diamond' } },
+        { x:data.map(r=>r.ds), y:data.map(r=>r.actual),    name:'Actual Sales',     type:'scatter', mode:'lines+markers', line:{ color:'#0D9488', width:2 },               marker:{ size:5, color:'#0D9488' }, fill:'tozeroy', fillcolor:'rgba(13,148,136,0.04)' }
     ], {
         ...LAYOUT_BASE,
         margin:    { t:10, r:20, b:55, l:70 },
         hovermode: 'x unified',
-        xaxis: { tickangle:-30, showgrid:false, type:'category' },
-        yaxis: { tickprefix:'RM ', gridcolor:'#E2E8F0', gridwidth:1, rangemode:'tozero' },
-        legend: { orientation:'h', y:-0.28, font:{ size:11 } }
+        xaxis:     { tickangle:-30, type:'category' },
+        yaxis:     { tickprefix:'RM ', gridcolor:'#E2E8F0', rangemode:'tozero' },
+        legend:    { orientation:'h', y:-0.28 }
     }, CONFIG);
-
     hideLoader('loadingFVA');
 }
 
-/* ============================================================
-    HOURLY CHART
-============================================================ */
 function renderHourlyChart(hourly) {
     if (!hourly.length) { hideLoader('loadingHourly'); return; }
-
     Plotly.newPlot('hourlyChart', [{
-        x: hourly.map(r => `${String(r.hour).padStart(2, '0')}:00`),
+        x: hourly.map(r => `${String(r.hour).padStart(2,'0')}:00`),
         y: hourly.map(r => r.revenue),
         type: 'bar',
-        marker: {
-            color: hourly.map(r => r.revenue),
-            colorscale: [[0,'#EFF6FF'], [0.5,'#3B82F6'], [1,'#1E2A3A']],
-            showscale: false
-        },
-        hovertemplate: '<b>%{x}</b><br>RM %{y:,.2f}<extra></extra>'
+        marker: { color: hourly.map(r=>r.revenue), colorscale:[[0,'#DBEAFE'],[1,'#1E3A8A']] }
     }], {
         ...LAYOUT_BASE,
         margin: { t:10, r:16, b:45, l:65 },
-        xaxis:  { tickangle:-45, tickfont:{ size:10 }, showgrid:false, type:'category' },
-        yaxis:  { tickprefix:'RM ', gridcolor:'#E2E8F0', gridwidth:1 }
+        xaxis:  { tickangle:-45, type:'category' },
+        yaxis:  { tickprefix:'RM ', gridcolor:'#E2E8F0' }
     }, CONFIG);
     hideLoader('loadingHourly');
 }
 
-/* ============================================================
-    WEATHER BY SHIFT CHART
-============================================================ */
 function renderWeatherByTime(wbt) {
     if (!wbt || wbt.length === 0) { hideLoader('loadingWBT'); return; }
-
-    const shifts     = ['Morning', 'Afternoon', 'Evening'];
-    const conditions = ['Sunny', 'Cloudy', 'Raining'];
-    const colors     = { 'Sunny':'#F59E0B', 'Cloudy':'#3B82F6', 'Raining':'#64748B' };
-
-    const traces = conditions.map(cond => ({
-        name: cond,
-        x: shifts,
-        y: shifts.map(s => {
-            const match = wbt.find(r => r.shift === s && r.weather === cond);
-            return match ? match.count : 0;
-        }),
-        type: 'bar',
-        marker: { color: colors[cond] }
-    }));
-
-    Plotly.newPlot('wbtChart', traces, {
-        ...LAYOUT_BASE,
-        barmode: 'stack',
-        margin:  { t:10, r:16, b:30, l:45 },
-        legend:  { orientation:'h', y:-0.2, font:{ size:10 } },
-        xaxis:   { showgrid:false },
-        yaxis:   { title:'Transactions', titlefont:{ size:10 }, gridcolor:'#E2E8F0' }
-    }, CONFIG);
+    const shifts     = ['Morning','Afternoon','Evening'];
+    const conditions = ['Sunny','Cloudy','Raining'];
+    const colors     = { 'Sunny':'#D97706', 'Cloudy':'#2563EB', 'Raining':'#64748B' };
+    Plotly.newPlot('wbtChart',
+        conditions.map(cond => ({
+            name: cond,
+            x:    shifts,
+            y:    shifts.map(s => (wbt.find(r => r.shift===s && r.weather===cond)?.count || 0)),
+            type: 'bar',
+            marker: { color: colors[cond] }
+        })),
+        { ...LAYOUT_BASE, barmode:'stack', margin:{ t:10, r:16, b:30, l:45 }, legend:{ orientation:'h', y:-0.2 } },
+        CONFIG
+    );
     hideLoader('loadingWBT');
 }
 
-/* ============================================================
-    7-DAY BREAKDOWN TABLE MODULE
-============================================================ */
 function renderTable(forecast) {
     const tbody = document.getElementById('forecastTableBody');
     if (!forecast || !forecast.length) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:2rem;">No data</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:2rem;">Waiting for forecast...</td></tr>';
         return;
     }
-
     tbody.innerHTML = forecast.map(row => {
-        const dt      = new Date(row.ds + 'T00:00:00');
-        const dayName = DAYS[dt.getDay()];
-        const icon    = WEATHER_ICON[row.weather] || '⛅';
-        const isSun   = dt.getDay() === 0;  
-        const isWknd  = dt.getDay() === 0 || dt.getDay() === 6;
-        const isFri   = dt.getDay() === 5;
-        
-        const bgStyle = row.is_holiday ? 'background:var(--red-light);'
-                      : isWknd         ? 'background:var(--amber-light);' : '';
+        const dt       = new Date(row.ds + 'T00:00:00');
+        const jsDay    = dt.getDay();           // 0=Sun … 6=Sat
+        const dayName  = DAYS[jsDay];
+        const isClosed = row.is_closed || jsDay === 0;
+        const isFestive= row.is_festive_close;
+        const isWknd   = jsDay === 0 || jsDay === 6;
 
+        // Row background: red tint for closures, amber for weekends, white otherwise
+        let bg = '';
+        if (isFestive)       bg = 'background:#FEF2F2;';
+        else if (jsDay === 0) bg = 'background:#FEF2F2;';
+        else if (isWknd)     bg = 'background:#FFFBEB;';
+
+        // Weather cell — blank when closed
+        const weatherCell = isClosed
+            ? '<span style="color:#94A3B8;font-style:italic;">—</span>'
+            : `${WEATHER_ICON[row.weather] || '⛅'} ${row.weather}`;
+
+        // Notes & Promotions — built from the backend's `promotions` array
+        // plus a closed badge for Sundays / festive days
         const flags = [];
-        if (row.is_holiday) flags.push('<span class="promo-badge holiday-badge">🏖️ Public Holiday</span>');
-        if (row.is_friday)  flags.push('<span class="promo-badge">🎉 Friday Promo</span>');
-        if (row.season)     flags.push(`<span class="promo-badge">🎁 ${row.season}</span>`);
-        if (isSun)          flags.push('<span class="promo-badge" style="background:#E2E8F0;color:#475569;">🔒 Closed</span>');
+        if (isFestive) {
+            // Backend already put "Shop Closed — <event>" in promotions[0]
+            const closeLabel = (row.promotions && row.promotions[0]) || 'Shop Closed';
+            flags.push(`<span class="promo-badge holiday-badge">🔒 ${closeLabel}</span>`);
+        } else if (jsDay === 0) {
+            flags.push('<span class="promo-badge" style="background:#E2E8F0;color:#475569;">🔒 Closed (Sunday)</span>');
+        } else {
+            // Open day — show backend promotions
+            (row.promotions || []).forEach(p => {
+                const isFriday = p.toLowerCase().includes('friday');
+                flags.push(`<span class="promo-badge ${isFriday ? '' : ''}">${isFriday ? '🎉' : '🎁'} ${p}</span>`);
+            });
+            // Also show "Public Holiday" badge when shop is open on a public holiday
+            if (row.is_holiday && !isClosed) {
+                flags.push('<span class="promo-badge holiday-badge">🏖️ Public Holiday</span>');
+            }
+        }
 
-        const displayYhat  = isSun ? '0.00' : fmt(row.yhat);
-        const displayLower = isSun ? '0.00' : fmt(row.yhat_lower);
-        const displayUpper = isSun ? '0.00' : fmt(row.yhat_upper);
+        // Day badge colour
+        let dayBadge = 'badge-blue';
+        if (isClosed || isFestive) dayBadge = 'badge-red';
+        else if (jsDay === 5)       dayBadge = 'badge-teal';   // Friday
 
         return `
-        <tr style="${bgStyle}">
+        <tr style="${bg}">
             <td class="text-mono" style="font-size:.82rem;">${row.ds}</td>
-            <td>
-                <span class="badge-custom ${row.is_holiday ? 'badge-red' : isFri ? 'badge-teal' : isSun ? 'badge-red' : isWknd ? 'badge-amber' : 'badge-blue'}"
-                      style="font-size:.68rem;">${dayName}</span>
-            </td>
-            <td>${isSun ? '—' : icon + ' ' + row.weather}</td>
-            <td style="font-size:.75rem;">${flags.join(' ') || '<span style="color:var(--text-muted);">—</span>'}</td>
-            <td style="text-align:right;font-weight:700;font-family:var(--font-mono);color:${isSun ? 'var(--text-muted)' : 'var(--slate-accent)'};">
-                ${displayYhat}
-            </td>
-            <td style="text-align:right;font-family:var(--font-mono);color:var(--text-muted);font-size:.78rem;">
-                ${displayLower}
-            </td>
-            <td style="text-align:right;font-family:var(--font-mono);color:var(--text-muted);font-size:.78rem;">
-                ${displayUpper}
-            </td>
+            <td><span class="badge-custom ${dayBadge}">${dayName}</span></td>
+            <td>${weatherCell}</td>
+            <td>${flags.join(' ') || '—'}</td>
+            <td style="text-align:right;font-weight:700;font-family:monospace;">RM ${fmt(row.yhat)}</td>
+            <td style="text-align:right;font-family:monospace;color:var(--text-muted);font-size:.78rem;">RM ${fmt(row.yhat_lower)}</td>
+            <td style="text-align:right;font-family:monospace;color:var(--text-muted);font-size:.78rem;">RM ${fmt(row.yhat_upper)}</td>
         </tr>`;
     }).join('');
 }
 
-
+/* ============================================================
+   PDF DOWNLOAD — passes all visible data to backend
+   ============================================================ */
 function downloadForecastPDF() {
     const btn        = document.getElementById('downloadPdfBtn');
     const sel        = document.getElementById('branchSelect');
     const branchId   = sel.value;
     const branchName = sel.options[sel.selectedIndex].dataset.name;
+    const selectedMonth = fvaPeriodMode === 'month'
+        ? document.getElementById('fvaMonthFilter').value
+        : '';
 
-    // Check if a specific month is selected in the FVA section
-    const monthFilter = document.getElementById('fvaMonthFilter');
-    const isMonthMode = fvaPeriodMode === 'month';
-    const selectedMonth = (isMonthMode && monthFilter) ? monthFilter.value : '';
+    btn.disabled  = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Preparing PDF...';
 
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating PDF…';
+    // Collect all the current on-screen data and send to server
+    const payload = {
+        branch_id:    branchId,
+        branch_name:  branchName,
+        month_filter: selectedMonth,
+        forecast_data: lastForecastData   // full API response stored at render time
+    };
 
-    let url = `/api/export-forecast-pdf?branch_id=${branchId}&branch_name=${encodeURIComponent(branchName)}`;
-    if (selectedMonth) {
-        url += `&month=${selectedMonth}`;
-    }
-
-    fetch(url)
-        .then(res => {
-            if (!res.ok) throw new Error('Export failed');
-            return res.blob();
-        })
-        .then(blob => {
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            const dateStr = new Date().toISOString().slice(0,10);
-            const suffix = selectedMonth ? `_${selectedMonth}` : '';
-            a.download = `MCS_Forecast_${branchName.replace(' ','_')}${suffix}_${dateStr}.pdf`;
-            a.click();
-            URL.revokeObjectURL(a.href);
-        })
-        .catch(err => {
-            alert('PDF Export failed: ' + err.message);
-        })
-        .finally(() => {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> Download PDF';
-        });
+    fetch('/api/export-forecast-pdf', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(payload)
+    })
+    .then(res => res.blob())
+    .then(blob => {
+        const a       = document.createElement('a');
+        a.href        = URL.createObjectURL(blob);
+        a.download    = `MCS_Forecast_${branchName.replace(' ','_')}_${new Date().toISOString().slice(0,10)}.pdf`;
+        a.click();
+    })
+    .catch(err => alert('Could not download PDF: ' + err.message))
+    .finally(() => {
+        btn.disabled  = false;
+        btn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> Download Full Report (PDF)';
+    });
 }
 </script>
 {% endblock %}

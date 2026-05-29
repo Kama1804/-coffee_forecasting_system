@@ -3,8 +3,8 @@
 {% block content %}
 <div class="page-header" data-aos="fade-down">
     <div>
-        <h1 class="page-title">Data Ingestion</h1>
-        <p class="page-subtitle">Upload your sales CSV — the ETL pipeline will clean, validate, and load it automatically</p>
+        <h1 class="page-title">Data Ingestion Engine</h1>
+        <p class="page-subtitle">Upload your enterprise POS CSV — the ETL pipeline will clean, validate, and load it automatically</p>
     </div>
 </div>
 
@@ -15,17 +15,19 @@
             <div class="alert alert-info d-flex gap-2 align-items-start mb-4" style="font-size:.85rem;">
                 <i class="fa-solid fa-circle-info mt-1"></i>
                 <div>
-                    <strong>Required columns:</strong><br>
-                    <code style="font-size:.8rem;color:#1E40AF;">
-                        Transaction_ID, Date, Time, Outlet, Category, Product_Name,
-                        Quantity_Sold, Unit_Price_RM, Total_Revenue_RM, Payment_Method
+                    <strong>Required 17-Column Enterprise Schema Layout:</strong><br>
+                    <code style="font-size:.78rem;color:#1E40AF;word-break:break-all;">
+                        Transaction_ID, Timestamp, Register_ID, Cashier_Name, Store_ID, Item_Name, Item_Category, Quantity_Sold, Modifiers, Order_Type, Gross_Sales, Discount_Amount, Promo_Code, Discount_Reason, Tax_Amount, Net_Sales, Payment_Type
                     </code>
+                    <div style="font-size:.72rem; margin-top:6px; color:var(--text-secondary);">
+                        * Ensure <strong>Store_ID</strong> contains valid branch mapping tokens (<code>STB-PJ1</code> or <code>FT-PA1</code>).
+                    </div>
                 </div>
             </div>
             <form action="{{ url_for('upload_file') }}" method="POST" enctype="multipart/form-data" id="uploadForm">
                 <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
                     <div class="drop-zone-icon">
-                        <i class="fa-solid fa-file-csv" style="color:var(--teal-success);"></i>
+                        <i class="fa-solid fa-file-csv" style="color:var(--teal-success); font-size:2.5rem;"></i>
                     </div>
                     <div class="drop-zone-text" id="dropText">
                         <strong>Click to browse</strong> or drag &amp; drop your CSV here
@@ -44,31 +46,29 @@
                 </div>
                 <div class="d-flex gap-2 mt-4">
                     <button type="submit" class="btn-primary-custom w-100" id="uploadBtn" style="justify-content:center;" disabled>
-                        <i class="fa-solid fa-cloud-arrow-up"></i>
-                        Upload &amp; Process
+                        <i class="fa-solid fa-cloud-arrow-up"></i> Upload &amp; Process Ingestion
                     </button>
-
                     <button type="button" id="cancelBtn" 
-                            style="display:none; align-items:center; gap:8px; background:var(--red-danger); color:white; border:none; border-radius:50px; padding:0.6rem 1.5rem; font-weight:600; transition:0.2s; flex-shrink:0;" 
+                            style="display:none; align-items:center; gap:8px; background:#EF4444; color:white; border:none; border-radius:50px; padding:0.6rem 1.5rem; font-weight:600; transition:0.2s; flex-shrink:0;" 
                             onclick="cancelSelection()">
                         <i class="fa-solid fa-trash-can"></i> Cancel
                     </button>
                 </div>
             </form>
-            <div class="divider"></div>
-            <p class="card-title">ETL Pipeline Steps</p>
+            <div class="divider" style="margin:20px 0;"></div>
+            <p class="card-title">ETL Pipeline Automated Ingestion Steps</p>
             <div class="row g-2">
                 {% for step, icon, desc in [
-                    ('1. Validate', 'fa-check-circle', 'Check required columns exist'),
-                    ('2. Clean',    'fa-broom',        'Drop nulls, fix dates & types'),
-                    ('3. Enrich',   'fa-cloud-sun',    'Backfill weather via Open-Meteo'),
-                    ('4. Load',     'fa-database',     'Bulk insert into SQLite')
+                    ('1. Validate', 'fa-check-circle', 'Verify 17 raw columns map perfectly'),
+                    ('2. Clean',    'fa-broom',        'Purge duplicates, negative values & null fields'),
+                    ('3. Enrich',   'fa-cloud-sun',    'Fetch historical meteorological indices via Open-Meteo'),
+                    ('4. Load',     'fa-database',     'Bulk insert all parsed fields into 23-column SQLite schema')
                 ] %}
                 <div class="col-6 col-md-3">
-                    <div style="text-align:center;padding:var(--space-md);background:var(--grey-canvas);border-radius:var(--radius-md);font-size:.8rem;">
-                        <i class="fa-solid {{ icon }}" style="font-size:1.4rem;color:var(--slate-accent);margin-bottom:6px;display:block;"></i>
+                    <div style="text-align:center;padding:12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;font-size:.8rem;height:100%;">
+                        <i class="fa-solid {{ icon }}" style="font-size:1.4rem;color:#3B82F6;margin-bottom:6px;display:block;"></i>
                         <strong>{{ step }}</strong><br>
-                        <span style="color:var(--text-muted);">{{ desc }}</span>
+                        <span style="color:#64748B;font-size:.7rem;">{{ desc }}</span>
                     </div>
                 </div>
                 {% endfor %}
@@ -78,79 +78,78 @@
 
     <div class="col-12 col-xl-5" data-aos="fade-up" data-aos-delay="100">
         <div class="dashboard-card h-100">
-            <p class="card-title">Current Database Profile</p>
+            <p class="card-title">Current Warehouse Profile</p>
             {% if profile and profile.total_records > 0 %}
             <div class="row g-3 mb-4">
                 <div class="col-6">
-                    <div style="background:var(--slate-light);border-radius:var(--radius-md);padding:var(--space-md);text-align:center;">
-                        <div style="font-size:1.5rem;font-weight:700;font-family:var(--font-mono);color:var(--slate-accent);">
+                    <div style="background:#EFF6FF;border-radius:12px;padding:15px;text-align:center;border:1px solid #DBEAFE;">
+                        <div style="font-size:1.5rem;font-weight:700;font-family:monospace;color:#1E3A8A;">
                             {{ "{:,}".format(profile.total_records) }}
                         </div>
-                        <div style="font-size:.75rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">
+                        <div style="font-size:.75rem;color:#64748B;text-transform:uppercase;letter-spacing:.5px;font-weight:600;">
                             Total Records
                         </div>
                     </div>
                 </div>
                 <div class="col-6">
-                    <div style="background:var(--teal-light);border-radius:var(--radius-md);padding:var(--space-md);text-align:center;">
-                        <div style="font-size:1.5rem;font-weight:700;font-family:var(--font-mono);color:var(--teal-success);">
+                    <div style="background:#ECFDF5;border-radius:12px;padding:15px;text-align:center;border:1px solid #D1FAE5;">
+                        <div style="font-size:1.5rem;font-weight:700;font-family:monospace;color:#065F46;">
                             {{ profile.categories }}
                         </div>
-                        <div style="font-size:.75rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">
+                        <div style="font-size:.75rem;color:#64748B;text-transform:uppercase;letter-spacing:.5px;font-weight:600;">
                             Categories
                         </div>
                     </div>
                 </div>
             </div>
-            <div style="background:var(--grey-canvas);border-radius:var(--radius-md);padding:var(--space-md);margin-bottom:var(--space-md);">
+            <div style="background:#F8FAFC;border-radius:12px;padding:15px;margin-bottom:20px;border:1px solid #E2E8F0;">
                 <div class="d-flex align-items-center gap-2 mb-1">
-                    <i class="fa-solid fa-calendar-days" style="color:var(--slate-accent);font-size:.9rem;"></i>
-                    <span class="fw-600" style="font-size:.85rem;">Date Range</span>
+                    <i class="fa-solid fa-calendar-days" style="color:#3B82F6;font-size:.9rem;"></i>
+                    <span class="fw-600" style="font-size:.85rem;color:#1E293B;">Active Date Range</span>
                 </div>
-                <div style="font-family:var(--font-mono);font-size:.85rem;color:var(--text-secondary);">
+                <div style="font-family:monospace;font-size:.85rem;color:#334155;font-weight:600;">
                     {{ profile.date_from }} &nbsp;→&nbsp; {{ profile.date_to }}
                 </div>
             </div>
             <div class="d-flex align-items-center gap-2 mb-2">
-                <i class="fa-solid fa-store" style="color:var(--amber-kpi);font-size:.9rem;"></i>
-                <span class="fw-600" style="font-size:.85rem;">Records per Branch</span>
+                <i class="fa-solid fa-store" style="color:#F59E0B;font-size:.9rem;"></i>
+                <span class="fw-600" style="font-size:.85rem;color:#1E293B;">Records per Branch Matrix</span>
             </div>
             {% for branch in profile.branches %}
             <div class="mb-3">
                 <div class="d-flex justify-content-between align-items-center mb-1">
-                    <span style="font-size:.85rem;color:var(--text-secondary);">{{ branch.name }}</span>
-                    <span style="font-size:.82rem;font-family:var(--font-mono);color:var(--text-muted);">
-                        {{ "{:,}".format(branch.count) }}
+                    <span style="font-size:.85rem;color:#334155;font-weight:500;">{{ branch.name }}</span>
+                    <span style="font-size:.82rem;font-family:monospace;color:#64748B;">
+                        {{ "{:,}".format(branch.count) }} lines
                     </span>
                 </div>
-                <div class="progress-wrap">
+                <div class="progress-wrap" style="height:6px;background:#E2E8F0;border-radius:99px;overflow:hidden;">
                     {% set pct = ((branch.count / profile.total_records) * 100)|round(1) %}
-                    <div class="progress-bar" style="width:{{ pct }}%;"></div>
+                    <div class="progress-bar" style="width:{{ pct }}%;height:100%;background:#10B981;"></div>
                 </div>
-                <div style="font-size:.72rem;color:var(--text-muted);margin-top:2px;">
-                    {{ pct }}% of total
+                <div style="font-size:.72rem;color:#94A3B8;margin-top:2px;">
+                    {{ pct }}% of total data footprint
                 </div>
             </div>
             {% endfor %}
             {% else %}
             <div class="empty-state">
                 <div class="empty-state-icon"><i class="fa-solid fa-database"></i></div>
-                <div class="empty-state-title">No data loaded yet</div>
-                <p class="empty-state-text">Upload your first CSV file to see the database profile summary here.</p>
+                <div class="empty-state-title">No Data Ingested Yet</div>
+                <p class="empty-state-text">Upload your first transaction CSV file to generate your real-time data warehouse summary profiles.</p>
             </div>
             {% endif %}
         </div>
     </div>
 </div>
 
-<div class="row mt-4" data-aos="fade-up" data-aos-delay="200">
+<div class="row mt-4" data-aos="fade-up" data-aos-delay="100">
     <div class="col-12">
         <div class="dashboard-card">
             <div class="d-flex justify-content-between align-items-center mb-3">
-                <p class="card-title mb-0">Upload History</p>
+                <p class="card-title mb-0">POS File Upload Audit History</p>
                 <div class="badge-custom badge-blue">{{ past_uploads|length }} Processed Files</div>
             </div>
-            
             {% if past_uploads %}
             <div style="overflow-x: auto;">
                 <table class="table-custom">
@@ -169,7 +168,7 @@
                                 <i class="fa-solid fa-file-csv" style="color:var(--teal-success); margin-right: 8px;"></i>
                                 {{ file.filename }}
                             </td>
-                            <td style="font-family:var(--font-mono); font-size:0.85rem; color:var(--text-muted);">
+                            <td style="font-family:monospace; font-size:0.85rem; color:var(--text-muted);">
                                 {{ file.size }} MB
                             </td>
                             <td style="font-size:0.85rem; color:var(--text-secondary);">
@@ -177,7 +176,7 @@
                             </td>
                             <td>
                                 <span class="badge-custom badge-teal" style="font-size: 0.7rem;">
-                                    <i class="fa-solid fa-check"></i> Loaded to Database
+                                    <i class="fa-solid fa-check"></i> Loaded to Warehouse
                                 </span>
                             </td>
                         </tr>
@@ -195,30 +194,25 @@
         </div>
     </div>
 </div>
-
 {% endblock %}
+
 {% block scripts %}
 <script>
     const dropZone   = document.getElementById('dropZone');
     const fileInput  = document.getElementById('fileInput');
     const dropText   = document.getElementById('dropText');
     const uploadBtn  = document.getElementById('uploadBtn');
-    const cancelBtn  = document.getElementById('cancelBtn'); // NEW
+    const cancelBtn  = document.getElementById('cancelBtn');
     const uploadForm = document.getElementById('uploadForm');
     const progWrap   = document.getElementById('progressWrap');
     const progBar    = document.getElementById('progressBar');
     const progLabel  = document.getElementById('progressLabel');
     
-    // NEW: Function to clear the selection
     function cancelSelection() {
-        fileInput.value = ""; // Clear the file
+        fileInput.value = ""; 
         dropText.innerHTML = "<strong>Click to browse</strong> or drag &amp; drop your CSV here";
-        
-        // Remove the green success styling
         dropZone.style.borderColor = "";
         dropZone.style.background = "";
-        
-        // Reset buttons
         uploadBtn.disabled = true;
         cancelBtn.style.display = "none";
     }
@@ -227,9 +221,9 @@
         if (this.files.length > 0) {
             dropText.innerHTML         = `<strong>${this.files[0].name}</strong> selected — ready to upload`;
             dropZone.style.borderColor = 'var(--teal-success)';
-            dropZone.style.background  = 'var(--teal-light)';
+            dropZone.style.background  = 'rgba(16,185,129,0.04)';
             uploadBtn.disabled         = false;
-            cancelBtn.style.display    = 'flex'; // Show cancel button
+            cancelBtn.style.display    = 'flex'; 
         }
     });
     
@@ -243,26 +237,27 @@
             fileInput.files            = e.dataTransfer.files;
             dropText.innerHTML         = `<strong>${file.name}</strong> selected — ready to upload`;
             dropZone.style.borderColor = 'var(--teal-success)';
-            dropZone.style.background  = 'var(--teal-light)';
+            dropZone.style.background  = 'rgba(16,185,129,0.04)';
             uploadBtn.disabled         = false;
-            cancelBtn.style.display    = 'flex'; // Show cancel button
+            cancelBtn.style.display    = 'flex'; 
         } else {
-            dropText.innerHTML = '<strong style="color:var(--red-danger);">Only .csv files accepted</strong>';
+            dropText.innerHTML = '<strong style="color:#EF4444;">Only .csv files accepted</strong>';
         }
     });
     
     uploadForm.addEventListener('submit', function () {
         progWrap.style.display  = 'block';
         uploadBtn.disabled      = true;
-        cancelBtn.style.display = 'none'; // Hide cancel button while uploading
-        uploadBtn.innerHTML     = '<i class="fa-solid fa-spinner fa-spin"></i> Processing…';
+        cancelBtn.style.display = 'none'; 
+        uploadBtn.innerHTML     = '<i class="fa-solid fa-spinner fa-spin"></i> Running ETL pipeline...';
         let width = 0;
         setInterval(() => {
             width += Math.random() * 12;
-            if (width > 90) width = 90;
+            if (width > 92) width = 92;
             progBar.style.width   = width + '%';
             progLabel.textContent = Math.floor(width) + '%';
-        }, 300);
+        }, 250);
     });
+
 </script>
 {% endblock %}
