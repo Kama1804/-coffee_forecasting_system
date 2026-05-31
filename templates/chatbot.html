@@ -29,7 +29,6 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* ── PAGE LAYOUT ── */
 .dss-wrap {
   display: grid;
   grid-template-columns: 240px 1fr 264px;
@@ -39,55 +38,27 @@
   font-family: var(--font-main, 'DM Sans', sans-serif);
 }
 
-/* ── HISTORY SIDEBAR ── */
 .hist-panel {
-  display: flex;
-  flex-direction: column;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
+  display: flex; flex-direction: column;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); overflow: hidden;
 }
-.hist-top {
-  background: var(--navy);
-  padding: 14px 14px 12px;
-}
-.hist-top .lbl {
-  font-size: .68rem;
-  font-weight: 600;
-  color: rgba(255,255,255,.45);
-  text-transform: uppercase;
-  letter-spacing: .6px;
-  margin-bottom: 10px;
-}
+.hist-top { background: var(--navy); padding: 14px 14px 12px; }
+.hist-top .lbl { font-size: .68rem; font-weight: 600; color: rgba(255,255,255,.45); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 10px; }
 .btn-newchat {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 7px 10px;
-  background: rgba(59,130,246,.18);
-  border: 1px solid rgba(59,130,246,.3);
-  border-radius: 9px;
-  color: #93C5FD;
-  font-size: .8rem;
-  font-family: inherit;
-  cursor: pointer;
-  font-weight: 500;
-  transition: background .15s;
+  width: 100%; display: flex; align-items: center; gap: 7px;
+  padding: 7px 10px; background: rgba(59,130,246,.18);
+  border: 1px solid rgba(59,130,246,.3); border-radius: 9px;
+  color: #93C5FD; font-size: .8rem; font-family: inherit;
+  cursor: pointer; font-weight: 500; transition: background .15s;
 }
 .btn-newchat:hover { background: rgba(59,130,246,.28); color: #fff; }
-.hist-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 8px;
-}
+.hist-list { flex: 1; overflow-y: auto; padding: 8px; }
 .hist-grp { font-size: .66rem; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .5px; padding: 6px 6px 3px; }
 .hist-item {
   display: flex; align-items: center; gap: 7px;
   padding: 7px 8px; border-radius: 8px; cursor: pointer;
-  border: 1px solid transparent; margin-bottom: 2px;
-  transition: background .12s;
+  border: 1px solid transparent; margin-bottom: 2px; transition: background .12s;
 }
 .hist-item:hover { background: var(--surface3); border-color: var(--border); }
 .hist-item.active { background: var(--blue-dim); border-color: rgba(59,130,246,.25); }
@@ -102,38 +73,24 @@
 .hist-item .del:hover { color: var(--red); background: #FEE2E2; }
 .hist-empty { text-align: center; padding: 2rem 1rem; color: var(--text3); font-size: .78rem; line-height: 1.6; }
 
-/* ── MAIN PANEL ── */
 .main-panel {
-  display: flex;
-  flex-direction: column;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
+  display: flex; flex-direction: column;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); overflow: hidden;
 }
-
-/* header */
 .chat-hdr {
-  background: var(--navy);
-  padding: 14px 20px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-shrink: 0;
+  background: var(--navy); padding: 14px 20px;
+  display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
 }
 .chat-hdr-l { display: flex; align-items: center; gap: 12px; }
 .ai-av {
   width: 40px; height: 40px;
   background: linear-gradient(135deg,#3B82F6,#8B5CF6);
-  border-radius: 10px;
-  display: flex; align-items: center; justify-content: center;
-  color: white; font-size: 1.1rem; flex-shrink: 0;
-  position: relative;
+  border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  color: white; font-size: 1.1rem; flex-shrink: 0; position: relative;
 }
 .ai-av::after {
-  content: '';
-  position: absolute; inset: -3px;
-  border-radius: 13px;
+  content: ''; position: absolute; inset: -3px; border-radius: 13px;
   border: 1.5px solid rgba(59,130,246,.4);
   animation: pring 2.5s ease-in-out infinite;
 }
@@ -152,13 +109,9 @@
 }
 .hdr-btn:hover { background: rgba(255,255,255,.14); color: #fff; }
 
-/* canvas */
 .chat-canvas {
-  flex: 1; overflow-y: auto;
-  background: var(--surface2);
-  padding: 20px;
-  display: flex; flex-direction: column; gap: 18px;
-  scroll-behavior: smooth;
+  flex: 1; overflow-y: auto; background: var(--surface2);
+  padding: 20px; display: flex; flex-direction: column; gap: 18px; scroll-behavior: smooth;
 }
 .date-sep {
   display: flex; align-items: center; gap: 8px;
@@ -167,7 +120,6 @@
 }
 .date-sep::before,.date-sep::after { content:''; flex:1; height:1px; background:var(--border); }
 
-/* messages */
 .msg-row { display: flex; gap: 9px; animation: fadein .28s ease; }
 @keyframes fadein { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
 .msg-row.user { flex-direction: row-reverse; }
@@ -178,33 +130,20 @@
 }
 .msg-av.bot { background: linear-gradient(135deg,#3B82F6,#8B5CF6); color: #fff; }
 .msg-av.usr { background: linear-gradient(135deg,#1E293B,#334155); color: rgba(255,255,255,.8); }
-
 .bubble {
-  max-width: 74%;
-  padding: 11px 14px;
-  font-size: .875rem;
-  line-height: 1.65;
-  border-radius: 16px;
-  position: relative;
+  max-width: 74%; padding: 11px 14px; font-size: .875rem;
+  line-height: 1.65; border-radius: 16px; position: relative;
 }
 .msg-row.bot .bubble {
-  background: var(--surface);
-  color: var(--text1);
-  border: 1px solid var(--border);
-  border-bottom-left-radius: 4px;
+  background: var(--surface); color: var(--text1);
+  border: 1px solid var(--border); border-bottom-left-radius: 4px;
 }
 .msg-row.user .bubble {
   background: linear-gradient(135deg,#2563EB,#1D4ED8);
-  color: #fff;
-  border-bottom-right-radius: 4px;
+  color: #fff; border-bottom-right-radius: 4px;
 }
-.bubble-meta {
-  font-size: .65rem; color: var(--text3);
-  margin-top: 4px; padding: 0 4px;
-}
+.bubble-meta { font-size: .65rem; color: var(--text3); margin-top: 4px; padding: 0 4px; }
 .msg-row.user .bubble-meta { text-align: right; }
-
-/* copy btn */
 .copy-row { display:flex; justify-content:flex-end; margin-top:5px; opacity:0; transition:opacity .15s; }
 .msg-row.bot:hover .copy-row { opacity:1; }
 .copy-btn {
@@ -214,8 +153,6 @@
   transition: color .12s, border-color .12s;
 }
 .copy-btn:hover { color:var(--blue); border-color:var(--blue); }
-
-/* typing */
 .typing-row { display:flex; gap:9px; animation: fadein .28s ease; }
 .typing-bub {
   background:var(--surface); border:1px solid var(--border);
@@ -226,31 +163,26 @@
 .td:nth-child(1){animation-delay:-.24s} .td:nth-child(2){animation-delay:-.12s}
 @keyframes tdot { 0%,80%,100%{transform:scale(.65);opacity:.4} 40%{transform:scale(1);opacity:1} }
 
-/* inline chart */
+/* Chart container */
 .chart-wrap {
-  margin-top: 12px;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 8px;
+  margin-top: 12px; background: var(--surface2);
+  border: 1px solid var(--border); border-radius: 10px; padding: 10px;
+  position: relative; height: 260px; width: 100%;
 }
 
-/* footer */
 .chat-ftr {
-  padding: 12px 18px;
-  background: var(--surface);
-  border-top: 1px solid var(--border);
-  flex-shrink: 0;
+  padding: 12px 18px; background: var(--surface);
+  border-top: 1px solid var(--border); flex-shrink: 0;
 }
 .inp-row { display:flex; gap:8px; align-items:flex-end; }
 .inp-wrap { flex:1; position:relative; }
 .chat-inp {
   width:100%; padding:.75rem 3rem .75rem 1rem;
-  border:2px solid var(--border2);
-  border-radius: var(--radius); font-family:inherit;
-  font-size:.88rem; color:var(--text1); background:var(--surface2);
-  resize:none; outline:none; transition:border-color .15s,background .15s;
-  line-height:1.5; max-height:110px; overflow-y:auto;
+  border:2px solid var(--border2); border-radius: var(--radius);
+  font-family:inherit; font-size:.88rem; color:var(--text1);
+  background:var(--surface2); resize:none; outline:none;
+  transition:border-color .15s,background .15s; line-height:1.5;
+  max-height:110px; overflow-y:auto;
 }
 .chat-inp:focus { border-color:var(--blue); background:#fff; box-shadow: 0 0 0 3px var(--blue-glow); }
 .inp-hint { position:absolute; right:10px; bottom:10px; font-size:.65rem; color:var(--text3); pointer-events:none; }
@@ -266,26 +198,13 @@
 .btn-send:hover { transform:translateY(-1px); box-shadow:0 4px 14px rgba(59,130,246,.4); }
 .btn-send:active { transform:translateY(0); }
 .btn-send:disabled { opacity:.45; cursor:not-allowed; transform:none; }
-.ftr-meta {
-  margin-top:7px; display:flex; gap:12px;
-  font-size:.68rem; color:var(--text3); align-items:center;
-}
+.ftr-meta { margin-top:7px; display:flex; gap:12px; font-size:.68rem; color:var(--text3); align-items:center; }
 .ftr-meta i { font-size:.7rem; }
 
-/* ── RIGHT PANEL ── */
 .side-panel { display:flex; flex-direction:column; gap:12px; }
-.side-card {
-  background:var(--surface); border:1px solid var(--border);
-  border-radius: var(--radius); padding:14px 16px;
-}
-.side-ttl {
-  font-size:.68rem; font-weight:600; color:var(--text3);
-  text-transform:uppercase; letter-spacing:.5px; margin-bottom:12px;
-  display:flex; align-items:center; gap:6px;
-}
+.side-card { background:var(--surface); border:1px solid var(--border); border-radius: var(--radius); padding:14px 16px; }
+.side-ttl { font-size:.68rem; font-weight:600; color:var(--text3); text-transform:uppercase; letter-spacing:.5px; margin-bottom:12px; display:flex; align-items:center; gap:6px; }
 .side-ttl i { font-size:.75rem; }
-
-/* prompt chips */
 .chip {
   display:block; width:100%; text-align:left;
   background:var(--surface2); border:1px solid var(--border);
@@ -297,8 +216,6 @@
 .chip:last-child { margin-bottom:0; }
 .chip:hover { background:var(--blue-dim); border-color:rgba(59,130,246,.3); color:var(--blue); }
 .chip i { margin-right:6px; font-size:.72rem; opacity:.65; }
-
-/* month chips */
 .month-chips { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:8px; }
 .mchip {
   padding:4px 10px; background:var(--surface2);
@@ -307,31 +224,26 @@
   transition:background .12s, color .12s;
 }
 .mchip:hover { background:var(--blue-dim); color:var(--blue); border-color:rgba(59,130,246,.3); }
-
-/* kpi rows */
-.krow {
-  display:flex; justify-content:space-between; align-items:center;
-  padding:6px 0; border-bottom:1px solid var(--border);
-  font-size:.8rem;
-}
+.krow { display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--border); font-size:.8rem; }
 .krow:last-child { border-bottom:none; }
 .klbl { color:var(--text2); }
 .kval { font-weight:600; font-family:var(--font-mono,'JetBrains Mono',monospace); color:var(--text1); font-size:.78rem; }
-
-/* session stat */
 .sstat { display:flex; align-items:center; gap:7px; padding:4px 0; font-size:.78rem; color:var(--text2); }
 .sstat i { color:var(--blue); width:13px; font-size:.72rem; }
 
-/* scrollbar */
 ::-webkit-scrollbar { width:4px; }
 ::-webkit-scrollbar-track { background:transparent; }
 ::-webkit-scrollbar-thumb { background:var(--border2); border-radius:99px; }
 
-/* responsive */
+.stream-cursor {
+  display: inline-block; animation: blink-cursor 0.7s step-end infinite;
+  color: var(--blue); font-weight: 700; margin-left: 2px;
+}
+@keyframes blink-cursor { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
 @media (max-width:1180px) { .dss-wrap { grid-template-columns:210px 1fr; } .side-panel{display:none;} }
 @media (max-width:860px) { .dss-wrap { grid-template-columns:1fr; height:auto; } .hist-panel{display:none;} .main-panel{height:calc(100vh - 200px); min-height:480px;} }
 
-/* markdown inside bubble */
 .bubble strong { font-weight:600; }
 .bubble em { font-style:italic; }
 .bubble .md-h3 { font-weight:700; color:var(--text1); margin:.5rem 0 .15rem; font-size:.9rem; }
@@ -354,7 +266,7 @@
 
 <div class="dss-wrap" data-aos="fade-up" data-aos-delay="60">
 
-  <!-- ─── HISTORY ─── -->
+  <!-- HISTORY -->
   <div class="hist-panel">
     <div class="hist-top">
       <div class="lbl"><i class="fa-solid fa-clock-rotate-left"></i> Chat History</div>
@@ -370,14 +282,14 @@
     </div>
   </div>
 
-  <!-- ─── MAIN CHAT ─── -->
+  <!-- MAIN CHAT -->
   <div class="main-panel">
     <div class="chat-hdr">
       <div class="chat-hdr-l">
         <div class="ai-av"><i class="fa-solid fa-robot"></i></div>
         <div class="ai-info">
-          <h3>Gemini AI Advisor</h3>
-          <div class="status"><span class="sdot"></span>Online · Gemini 3.1 Flash Lite</div>
+          <h3>AI Advisor</h3>
+          <div class="status"><span class="sdot"></span>Online · Live DB Context</div>
           <div class="sess-ttl" id="sessTtl">New conversation</div>
         </div>
       </div>
@@ -408,38 +320,23 @@
     </div>
   </div>
 
-  <!-- ─── RIGHT PANEL ─── -->
+  <!-- RIGHT PANEL -->
   <div class="side-panel">
-
     <div class="side-card">
       <div class="side-ttl"><i class="fa-solid fa-bolt" style="color:var(--amber);"></i>Quick Prompts</div>
-      <button class="chip" onclick="send(this.textContent.trim())">
-        <i class="fa-solid fa-chart-line"></i>Analyze my revenue trend and best month
-      </button>
-      <button class="chip" onclick="send(this.textContent.trim())">
-        <i class="fa-solid fa-users"></i>What staffing do I need during peak hours?
-      </button>
-      <button class="chip" onclick="send(this.textContent.trim())">
-        <i class="fa-solid fa-box-open"></i>Which products should I stock more of?
-      </button>
-      <button class="chip" onclick="send(this.textContent.trim())">
-        <i class="fa-solid fa-store"></i>Compare Putrajaya vs Puncak Alam branches
-      </button>
-      <button class="chip" onclick="send(this.textContent.trim())">
-        <i class="fa-solid fa-cloud-rain"></i>How does weather affect my sales?
-      </button>
-      <button class="chip" onclick="send(this.textContent.trim())">
-        <i class="fa-solid fa-file-lines"></i>Give me this week's executive business summary
-      </button>
+      <button class="chip" onclick="send(this.textContent.trim())"><i class="fa-solid fa-chart-line"></i>Analyze my revenue trend and best month</button>
+      <button class="chip" onclick="send(this.textContent.trim())"><i class="fa-solid fa-users"></i>What staffing do I need during peak hours?</button>
+      <button class="chip" onclick="send(this.textContent.trim())"><i class="fa-solid fa-box-open"></i>Which products should I stock more of?</button>
+      <button class="chip" onclick="send(this.textContent.trim())"><i class="fa-solid fa-store"></i>Compare Putrajaya vs Puncak Alam branches</button>
+      <button class="chip" onclick="send(this.textContent.trim())"><i class="fa-solid fa-cloud-rain"></i>How does weather affect my sales?</button>
+      <button class="chip" onclick="send(this.textContent.trim())"><i class="fa-solid fa-file-lines"></i>Give me this week's executive business summary</button>
     </div>
-
     <div class="side-card">
       <div class="side-ttl"><i class="fa-solid fa-calendar" style="color:var(--blue);"></i>Browse by Month</div>
       <div class="month-chips" id="monthChips">
         <span class="mchip" style="color:var(--text3);font-style:italic;">Loading…</span>
       </div>
     </div>
-
     <div class="side-card">
       <div class="side-ttl"><i class="fa-solid fa-database" style="color:var(--blue);"></i>Live Context</div>
       <div class="krow"><span class="klbl">Total Revenue</span><span class="kval" id="kRev">—</span></div>
@@ -447,19 +344,18 @@
       <div class="krow"><span class="klbl">Top Branch</span><span class="kval" id="kBr">—</span></div>
       <div class="krow"><span class="klbl">Data Range</span><span class="kval" id="kRng">—</span></div>
     </div>
-
     <div class="side-card">
       <div class="side-ttl"><i class="fa-solid fa-clock-rotate-left" style="color:var(--blue);"></i>This Session</div>
       <div class="sstat"><i class="fa-solid fa-comment"></i><span id="sMsgs">0 messages sent</span></div>
       <div class="sstat"><i class="fa-solid fa-clock"></i><span id="sTime">Started just now</span></div>
-      <div class="sstat"><i class="fa-solid fa-brain"></i>Gemini 3.1 Flash Lite</div>
+      <div class="sstat"><i class="fa-solid fa-brain"></i>AI Advisor</div>
     </div>
   </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 /* ============================================================
    STATE
@@ -609,13 +505,64 @@ function updateTimer(){
 }
 
 /* ============================================================
-   MARKDOWN RENDERER (robust)
+   ★ ROBUST CHART EXTRACTOR (GREEDY FIX)
+   Captures EVERYTHING from the first tag until the LAST closing bracket
+   to handle nested arrays/objects safely.
+============================================================ */
+function extractChartPayload(raw) {
+  // Strategy 1: standard [CHART_DATA={...}] with GREEDY capture to find the FINAL bracket
+  const m1 = raw.match(/\[CHART_DATA=([\s\S]*)\]/);
+  if (m1) {
+    const parsed = tryParseJson(m1[1].trim());
+    if (parsed) return parsed;
+  }
+
+  // Strategy 2: hunt for a standalone JSON object with chart keys anywhere in the text
+  const m2 = raw.match(/\{[\s\S]*?"(type|labels|datasets)"[\s\S]*?\}/);
+  if (m2) {
+    const parsed = tryParseJson(m2[0]);
+    if (parsed) return parsed;
+  }
+
+  return null;
+}
+
+function tryParseJson(str) {
+  if (!str) return null;
+  // Direct parse
+  try { return JSON.parse(str); } catch(_) {}
+  // Python-style sanitization (single quotes, True/False/None)
+  try {
+    const s = str
+      .replace(/'/g, '"')
+      .replace(/\bNone\b/g, 'null')
+      .replace(/\bTrue\b/g, 'true')
+      .replace(/\bFalse\b/g, 'false')
+      .replace(/,\s*([}\]])/g, '$1'); 
+    return JSON.parse(s);
+  } catch(_) {}
+  return null;
+}
+
+/* Strip ALL chart payload tokens from display text — GREEDY logic */
+function stripChartTokens(raw) {
+  // 🟢 FIX: Remove everything from the first [CHART_DATA to the LAST closing bracket
+  const out = raw.replace(/\[CHART_DATA=[\s\S]*\]/g, '').trim();
+  
+  // Also clean up any open but unclosed tags
+  const openIdx = out.lastIndexOf('[CHART_DATA=');
+  if (openIdx !== -1) return out.slice(0, openIdx).trim();
+  
+  return out;
+}
+
+/* ============================================================
+   MARKDOWN RENDERER
 ============================================================ */
 function mdToHtml(raw){
-  // strip any leftover [CHART_DATA=...] blocks from display text
-  let t = raw.replace(/\[CHART_DATA[\s\S]*?\]/g,'').trim();
+  let t = stripChartTokens(raw);
 
-  // tables: |col|col| rows
+  // tables
   t = t.replace(/(\|.+\|\n?)+/g, chunk=>{
     const rows = chunk.trim().split('\n').filter(r=>r.trim());
     let html='<table class="md-table">';
@@ -642,34 +589,6 @@ function mdToHtml(raw){
 }
 
 /* ============================================================
-   CHART EXTRACTION — multiple strategies
-============================================================ */
-function extractChart(raw){
-  // Strategy 1: exact [CHART_DATA={...}] anywhere in text (including multiline)
-  const re1 = /\[CHART_DATA=(\{[\s\S]*?\})\]/;
-  let m = raw.match(re1);
-  if (m) {
-    try { return JSON.parse(m[1]); } catch(e){ console.warn('[chart] parse fail s1',e); }
-  }
-  // Strategy 2: ```json blocks that look like chart data
-  const re2 = /```json\s*(\{[\s\S]*?"type"[\s\S]*?\})\s*```/;
-  m = raw.match(re2);
-  if (m) {
-    try {
-      const obj = JSON.parse(m[1]);
-      if (obj.type && obj.labels && obj.values) return obj;
-    } catch(e){ console.warn('[chart] parse fail s2',e); }
-  }
-  // Strategy 3: Gemini sometimes escapes quotes — try after unescaping
-  const re3 = /\[CHART_DATA=([\s\S]*?)\]/;
-  m = raw.replace(/&quot;/g,'"').replace(/\\"/g,'"').match(re3);
-  if (m) {
-    try { return JSON.parse(m[1]); } catch(e){ console.warn('[chart] parse fail s3',e); }
-  }
-  return null;
-}
-
-/* ============================================================
    DOM — APPEND MESSAGES
 ============================================================ */
 function appendUserDOM(text, ts, animate=true){
@@ -684,22 +603,25 @@ function appendUserDOM(text, ts, animate=true){
   cv.appendChild(d); scrollBot();
 }
 
-function appendBotDOM(raw, ts, isErr=false, animate=true){
-  const cv  = document.getElementById('canvas');
-  const d   = document.createElement('div');
-  d.className = 'msg-row bot'+(animate?'':' no-anim');
+function appendBotDOM(rawText, ts, isErr=false, animate=true) {
+  const chartData = isErr ? null : extractChartPayload(rawText);
+  const cleanText = isErr ? rawText : stripChartTokens(rawText);
 
-  const chart  = extractChart(raw);
-  const html   = isErr ? raw : mdToHtml(raw);
-  const chartId= 'c_'+Date.now()+'_'+Math.floor(Math.random()*9999);
-  const chartH = chart ? `<div class="chart-wrap"><div id="${chartId}" style="width:100%;height:200px;"></div></div>` : '';
-  const errStyle= isErr?'border-left:3px solid var(--red);background:#FEF2F2;':'';
+  const cv = document.getElementById('canvas');
+  const d = document.createElement('div');
+  d.className = 'msg-row bot' + (animate ? '' : ' no-anim');
+  const canvasId = 'chart_' + Date.now() + '_' + Math.floor(Math.random()*9999);
+  const errStyle = isErr ? 'border-left:3px solid var(--red);background:#FEF2F2;' : '';
 
-  d.innerHTML=`<div class="msg-av bot"><i class="fa-solid fa-robot"></i></div>
+  d.innerHTML = `
+    <div class="msg-av bot"><i class="fa-solid fa-robot"></i></div>
     <div style="max-width:74%">
-      <div class="bubble" style="${errStyle}">${html}${chartH}</div>
+      <div class="bubble" style="${errStyle}">
+        <div class="message-text">${isErr ? rawText : mdToHtml(cleanText)}</div>
+        ${chartData ? `<div class="chart-wrap"><canvas id="${canvasId}"></canvas></div>` : ''}
+      </div>
       <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
-        <div class="bubble-meta">${ts} · Gemini AI Advisor</div>
+        <div class="bubble-meta">${ts} · AI Advisor</div>
         <div class="copy-row">
           <button class="copy-btn" onclick="copyBubble(this)">
             <i class="fa-regular fa-copy"></i> Copy
@@ -707,44 +629,102 @@ function appendBotDOM(raw, ts, isErr=false, animate=true){
         </div>
       </div>
     </div>`;
+
   cv.appendChild(d);
 
-  if (chart) {
-    setTimeout(()=>renderChart(chartId, chart), 60);
+  if (chartData) {
+    setTimeout(() => renderChart(canvasId, chartData), 80);
   }
   scrollBot();
 }
 
-function renderChart(id, cfg){
-  const el = document.getElementById(id);
-  if (!el || typeof Plotly==='undefined') return;
+/* ============================================================
+   ★ CHART RENDERER — professional palette
+============================================================ */
+function renderChart(canvasId, data) {
+  const el = document.getElementById(canvasId);
+  if (!el) return;
 
-  const isPct = cfg.title && cfg.title.toLowerCase().includes('%');
-  const isRev = cfg.title && cfg.title.toLowerCase().includes('revenue');
-  const prefix= isRev ? 'RM ' : (isPct ? '' : '');
+  const softFills = [
+    'rgba(52,211,153,0.75)',
+    'rgba(96,165,250,0.75)',
+    'rgba(251,191,36,0.75)',
+    'rgba(167,139,250,0.75)',
+    'rgba(244,114,182,0.75)',
+    'rgba(251,113,133,0.75)',
+  ];
+  const solidBorders = [
+    'rgba(16,185,129,1)',
+    'rgba(37,99,235,1)',
+    'rgba(217,119,6,1)',
+    'rgba(124,58,237,1)',
+    'rgba(219,39,119,1)',
+    'rgba(225,29,72,1)',
+  ];
 
-  const data = [{
-    x: cfg.type==='bar' ? cfg.labels : cfg.values,
-    y: cfg.type==='bar' ? cfg.values : cfg.labels,
-    type: cfg.type==='line' ? 'scatter' : (cfg.type==='horizontal' ? 'bar' : 'bar'),
-    orientation: cfg.type==='horizontal' ? 'h' : 'v',
-    mode: cfg.type==='line' ? 'lines+markers' : undefined,
-    marker: { color:'#3B82F6', opacity:.85 },
-    line: { color:'#3B82F6', width:2.5 }
-  }];
+  const type = (data.type || 'bar').toLowerCase();
+  let datasets = JSON.parse(JSON.stringify(data.datasets || [])); // deep clone
 
-  const layout = {
-    margin: {t:28,r:12,b:42,l:60},
-    paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
-    title: {text: cfg.title||'', font:{size:11,color:'#0F172A'}},
-    xaxis: {showgrid:false, tickfont:{size:9,color:'#64748B'}, automargin:true,
-            tickprefix: cfg.type!=='horizontal' ? '' : prefix},
-    yaxis: {gridcolor:'#F1F5F9', tickfont:{size:9,color:'#64748B'},
-            tickprefix: cfg.type==='horizontal' ? '' : prefix, automargin:true},
-    font: {family:"'DM Sans',sans-serif"}
-  };
+  const isPie = type === 'pie' || type === 'doughnut';
 
-  Plotly.newPlot(id, data, layout, {responsive:true, displayModeBar:false});
+  if (isPie && datasets.length > 0) {
+    const n = (data.labels || []).length;
+    datasets[0].backgroundColor = softFills.slice(0, n);
+    datasets[0].borderColor     = solidBorders.slice(0, n);
+    datasets[0].borderWidth      = 1.5;
+  } else {
+    datasets.forEach((ds, i) => {
+      ds.backgroundColor = softFills[i % softFills.length];
+      ds.borderColor     = solidBorders[i % solidBorders.length];
+      ds.borderWidth     = type === 'line' ? 2.5 : 1;
+      if (type === 'line') { ds.tension = 0.35; ds.fill = false; ds.pointRadius = 4; }
+    });
+  }
+
+  new Chart(el.getContext('2d'), {
+    type,
+    data: { labels: data.labels || [], datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        title: {
+          display: !!(data.title),
+          text: data.title || '',
+          font: { size: 12, weight: '600' },
+          color: '#334155',
+          padding: { bottom: 8 }
+        },
+        legend: {
+          display: true,
+          position: isPie ? 'right' : 'top',
+          labels: { boxWidth: 11, font: { size: 10 }, color: '#475569' }
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const v = ctx.parsed.y ?? ctx.parsed;
+              return ` ${ctx.dataset.label || ''}: RM ${Number(v).toLocaleString('en-MY', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+            }
+          }
+        }
+      },
+      scales: isPie ? {} : {
+        y: {
+          beginAtZero: true,
+          grid: { color: 'rgba(0,0,0,.05)' },
+          ticks: {
+            font: { size: 10 }, color: '#64748B',
+            callback: v => 'RM ' + Number(v).toLocaleString('en-MY')
+          }
+        },
+        x: {
+          grid: { display: false },
+          ticks: { font: { size: 10 }, color: '#64748B' }
+        }
+      }
+    }
+  });
 }
 
 function copyBubble(btn){
@@ -757,60 +737,135 @@ function copyBubble(btn){
 }
 
 /* ============================================================
-   TYPING INDICATOR
+   SEND — streaming with robust chart interception
 ============================================================ */
-function showTyping(){
-  const cv=document.getElementById('canvas');
-  const d=document.createElement('div');
-  d.className='typing-row'; d.id='typing';
-  d.innerHTML=`<div class="msg-av bot"><i class="fa-solid fa-robot"></i></div>
-    <div class="typing-bub"><div class="td"></div><div class="td"></div><div class="td"></div></div>`;
-  cv.appendChild(d); scrollBot();
-}
-function hideTyping(){ const t=document.getElementById('typing'); if(t)t.remove(); }
-
-/* ============================================================
-   SEND MESSAGE
-============================================================ */
-function send(text){
-  text = (text||'').trim();
+async function send(text) {
+  text = (text || '').trim();
   if (!text) return;
   const inp = document.getElementById('inp');
   const btn = document.getElementById('sendBtn');
-  inp.value=''; inp.style.height='auto'; btn.disabled=true;
+  const statusTxt = document.querySelector('.ai-info .status');
+  const originalStatus = statusTxt.innerHTML;
+
+  inp.value = ''; inp.style.height = 'auto'; btn.disabled = true;
 
   const ts = fmtTime(new Date());
   appendUserDOM(text, ts);
-  current.messages.push({r:'u',t:text,ts});
-  current.updated=Date.now();
+  current.messages.push({ r: 'u', t: text, ts });
+  current.updated = Date.now();
   saveNow(); renderHist(); msgCount++;
-  document.getElementById('sMsgs').textContent=`${msgCount} message${msgCount!==1?'s':''} sent`;
+  document.getElementById('sMsgs').textContent = `${msgCount} message${msgCount !== 1 ? 's' : ''} sent`;
 
-  showTyping();
+  // Create streaming bubble
+  const cv = document.getElementById('canvas');
+  const msgDiv = document.createElement('div');
+  msgDiv.className = 'msg-row bot';
+  const bubbleId = 'b_' + Date.now();
+  msgDiv.innerHTML = `
+    <div class="msg-av bot"><i class="fa-solid fa-robot"></i></div>
+    <div style="max-width:74%">
+      <div class="bubble" id="${bubbleId}">
+        <div class="message-text"><span class="stream-cursor">▌</span></div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
+        <div class="bubble-meta">${fmtTime(new Date())} · AI Advisor</div>
+        <div class="copy-row">
+          <button class="copy-btn" onclick="copyBubble(this)">
+            <i class="fa-regular fa-copy"></i> Copy
+          </button>
+        </div>
+      </div>
+    </div>`;
+  cv.appendChild(msgDiv);
+  scrollBot();
 
-  fetch('/api/chat',{
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({message:text})
-  })
-  .then(r=>r.json())
-  .then(d=>{
-    hideTyping();
-    const raw = d.status==='success' ? d.response : `<i class="fa-solid fa-circle-exclamation" style="color:var(--red);margin-right:6px;"></i>${d.message||d.response||'Error.'}`;
-    const isErr = d.status!=='success';
-    const rts = fmtTime(new Date());
-    appendBotDOM(raw, rts, isErr);
-    if (!isErr){
-      current.messages.push({r:'b',t:raw,ts:rts});
-      current.updated=Date.now();
-      autoTitle(); saveNow(); renderHist();
-      document.getElementById('sessTtl').textContent=current.title;
+  const bubbleEl   = document.getElementById(bubbleId);
+  const textEl     = bubbleEl.querySelector('.message-text');
+  let accumulated  = '';
+  let chartDone    = false;
+
+  statusTxt.innerHTML = '<span class="sdot" style="background:var(--amber);box-shadow:0 0 5px var(--amber);"></span>Thinking...';
+
+  try {
+    const resp = await fetch('/api/chat/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text })
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+    const reader  = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer    = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const payload = line.slice(6).trim();
+        if (!payload) continue;
+
+        let parsed;
+        try { parsed = JSON.parse(payload); } catch { continue; }
+
+        if (parsed.error) {
+          textEl.innerHTML = `<i class="fa-solid fa-circle-exclamation" style="color:var(--red);margin-right:6px;"></i>${parsed.error}`;
+          break;
+        }
+
+        if (parsed.done) {
+          // ── FINAL RENDER ────────────────────────────────────
+          const chartData = extractChartPayload(accumulated);
+          const cleanText = stripChartTokens(accumulated);
+
+          textEl.innerHTML = mdToHtml(cleanText);
+
+          if (chartData && !chartDone) {
+            chartDone = true;
+            const cid  = 'chart_final_' + Date.now();
+            const wrap = document.createElement('div');
+            wrap.className = 'chart-wrap';
+            wrap.innerHTML = `<canvas id="${cid}"></canvas>`;
+            bubbleEl.appendChild(wrap);
+            setTimeout(() => renderChart(cid, chartData), 80);
+          }
+
+          // Persist
+          fetch('/api/chat/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user: text, bot: accumulated })
+          }).catch(()=>{});
+
+          current.messages.push({ r: 'b', t: accumulated, ts: fmtTime(new Date()) });
+          current.updated = Date.now();
+          autoTitle(); saveNow(); renderHist();
+          document.getElementById('sessTtl').textContent = current.title;
+          scrollBot();
+          break;
+        }
+
+        if (parsed.chunk) {
+          accumulated += parsed.chunk;
+          // During streaming: show clean text (hide chart tokens from view)
+          textEl.innerHTML = mdToHtml(accumulated) + '<span class="stream-cursor">▌</span>';
+          scrollBot();
+        }
+      }
     }
-  })
-  .catch(()=>{
-    hideTyping();
-    appendBotDOM('<i class="fa-solid fa-wifi" style="color:var(--red);margin-right:6px;"></i>Request failed. Check server logs.',fmtTime(new Date()),true);
-  })
-  .finally(()=>{ btn.disabled=false; inp.focus(); });
+  } catch (err) {
+    textEl.innerHTML = `<i class="fa-solid fa-wifi" style="color:var(--red);margin-right:6px;"></i>Stream failed: ${err.message}`;
+  } finally {
+    btn.disabled = false;
+    inp.focus();
+    statusTxt.innerHTML = originalStatus;
+  }
 }
 
 /* ============================================================
@@ -834,7 +889,7 @@ function exportChat(){
 }
 
 /* ============================================================
-   SIDE PANEL: KPIs + MONTH CHIPS
+   SIDE PANEL KPIs + MONTH CHIPS
 ============================================================ */
 function loadKPIs(){
   fetch('/api/kpis')
@@ -852,13 +907,9 @@ function loadKPIs(){
       if(d.status!=='success') return;
       const lbl=d.monthly?.labels||[];
       if(lbl.length) document.getElementById('kRng').textContent=lbl[0]+' → '+lbl[lbl.length-1];
-
-      // Build month chips from raw YYYY-MM values
       const raw=d.monthly?.raw||[];
       const mc=document.getElementById('monthChips');
       if(!raw.length){ mc.innerHTML='<span style="font-size:.72rem;color:var(--text3)">No data</span>'; return; }
-
-      // Keep last 12 months max, most recent first
       const uniq=[...new Set(raw)].reverse().slice(0,12);
       mc.innerHTML=uniq.map(ym=>{
         let label=ym;
@@ -867,7 +918,6 @@ function loadKPIs(){
       }).join('');
     }).catch(()=>{});
 }
-
 function sendMonthQuery(ym, label){
   send(`Give me a detailed performance breakdown for ${label} (${ym}) — revenue by branch, top products, transactions, and any notable trends.`);
 }

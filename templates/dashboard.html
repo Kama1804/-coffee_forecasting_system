@@ -435,16 +435,21 @@
 <!-- ══════════════════════════════════════════════════════════
      ROW 4 — OUTLET COMPARISON
 ══════════════════════════════════════════════════════════ -->
-<div class="section-label" data-aos="fade-up">Outlet Analysis</div>
-<div class="mb-3" data-aos="fade-up" data-aos-delay="40">
-  <div class="dashboard-card section-card-accent-blue">
-    <div>
-      <p class="card-title">Monthly Sales by Outlet</p>
-      <p class="card-subtitle">Compare Putrajaya Stall vs Puncak Alam Food Truck each month</p>
-    </div>
-    <div class="chart-wrap" style="min-height:260px;margin-top:.85rem;">
-      <div class="chart-loading" id="loadingBranch"><div class="spinner"></div></div>
-      <div id="branchChart" class="ch-branch" style="width:100%;height:260px;"></div>
+<div id="outletQualitySection">
+  <div class="section-label" data-aos="fade-up">Outlet Quality Analysis</div>
+  <div class="mb-3" data-aos="fade-up" data-aos-delay="40">
+    <div class="dashboard-card section-card-accent-blue">
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+        <div>
+          <p class="card-title">Average Order Value (AOV) by Outlet</p>
+          <p class="card-subtitle">Compare how much a single customer spends at each location on average</p>
+        </div>
+        <span class="badge-custom badge-blue">Sales Quality</span>
+      </div>
+      <div class="chart-wrap" style="min-height:260px;margin-top:.85rem;">
+        <div class="chart-loading" id="loadingBranch"><div class="spinner"></div></div>
+        <div id="branchChart" class="ch-branch" style="width:100%;height:260px;"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -452,82 +457,25 @@
 <!-- ══════════════════════════════════════════════════════════
      ROW 5 — DISCOUNT IMPACT
 ══════════════════════════════════════════════════════════ -->
-<div class="section-label" data-aos="fade-up">Discount Analysis</div>
-<div class="mb-3" data-aos="fade-up" data-aos-delay="60">
-  <div class="dashboard-card section-card-accent-blue">
-    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
-      <div>
-        <p class="card-title">Sales vs Discounts Given</p>
-        <p class="card-subtitle">How much revenue is retained after discounts & tax</p>
-      </div>
-      <span class="badge-custom badge-green"><i class="fa-solid fa-percent me-1"></i>Discount Impact</span>
-    </div>
-    <div class="chart-wrap" style="min-height:260px;margin-top:.85rem;">
-      <div class="chart-loading" id="loadingDiscount"><div class="spinner"></div></div>
-      <div id="discountChart" class="ch-disc" style="width:100%;height:260px;"></div>
-    </div>
-    <p class="text-muted-sm mt-2 mb-0" style="font-size:.67rem;">
-      <i class="fa-solid fa-circle-info me-1"></i>
-      Gross Sales = full price before discounts &amp; tax. Net Sales = what you actually collect.
-    </p>
-  </div>
-</div>
-
-<!-- ══════════════════════════════════════════════════════════
-     ROW 6 — BUSINESS INSIGHTS (diagnostics)
-══════════════════════════════════════════════════════════ -->
-<div class="section-label" data-aos="fade-up">Business Insights</div>
-<div data-aos="fade-up" data-aos-delay="80" class="mb-3">
-  <div class="dashboard-card section-card-accent">
-    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-      <div>
-        <p class="card-title">What's Affecting Your Sales?</p>
-        <p class="card-subtitle">External factors that may influence how much customers spend</p>
-      </div>
-      <span class="badge-custom badge-teal"><i class="fa-solid fa-lightbulb me-1"></i>Smart Insights</span>
-    </div>
-    <div class="diagnostics-grid">
-
-      <!-- Weather vs Drink preference -->
-      <div class="diag-inner">
-        <div class="d-flex align-items-center gap-2 mb-3">
-          <div class="diag-icon" style="background:rgba(16,185,129,.1);color:var(--teal-kpi);">
-            <i class="fa-solid fa-cloud-sun-rain" style="font-size:.9rem;"></i>
-          </div>
-          <div>
-            <p class="fw-700 mb-0" style="font-size:.84rem;color:#1E293B;">Weather vs Drink Preference</p>
-            <p class="text-muted-sm mb-0" style="font-size:.68rem;">Do customers order more hot or iced drinks on rainy days?</p>
-          </div>
+<div id="discountAnalysisSection">
+  <div class="section-label" data-aos="fade-up">Discount Analysis</div>
+  <div class="mb-3" data-aos="fade-up" data-aos-delay="60">
+    <div class="dashboard-card section-card-accent-blue">
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+        <div>
+          <p class="card-title">Sales vs Discounts Given</p>
+          <p class="card-subtitle">How much revenue is retained after discounts & tax</p>
         </div>
-        <div id="weatherAnalysis">
-          <div class="text-muted-sm py-3 text-center">Loading weather data…</div>
-        </div>
-        <p class="text-muted-sm mt-3 mb-0" style="font-size:.67rem;line-height:1.5;">
-          <i class="fa-solid fa-circle-info me-1"></i>
-          Based on historical weather data from Open-Meteo for both outlet locations.
-        </p>
+        <span class="badge-custom badge-green"><i class="fa-solid fa-percent me-1"></i>Discount Impact</span>
       </div>
-
-      <!-- Monthly outlet winner -->
-      <div class="diag-inner">
-        <div class="d-flex align-items-center gap-2 mb-3">
-          <div class="diag-icon" style="background:rgba(37,99,235,.1);color:var(--blue-kpi);">
-            <i class="fa-solid fa-ranking-star" style="font-size:.9rem;"></i>
-          </div>
-          <div>
-            <p class="fw-700 mb-0" style="font-size:.84rem;color:#1E293B;">Monthly Outlet Winners</p>
-            <p class="text-muted-sm mb-0" style="font-size:.68rem;">Which outlet sold more each month?</p>
-          </div>
-        </div>
-        <div id="branchWinnerList">
-          <div class="text-muted-sm py-3 text-center">Loading outlet data…</div>
-        </div>
-        <p class="text-muted-sm mt-3 mb-0" style="font-size:.67rem;line-height:1.5;">
-          <i class="fa-solid fa-circle-info me-1"></i>
-          Winner is the outlet with higher net sales in that month.
-        </p>
+      <div class="chart-wrap" style="min-height:260px;margin-top:.85rem;">
+        <div class="chart-loading" id="loadingDiscount"><div class="spinner"></div></div>
+        <div id="discountChart" class="ch-disc" style="width:100%;height:260px;"></div>
       </div>
-
+      <p class="text-muted-sm mt-2 mb-0" style="font-size:.67rem;">
+        <i class="fa-solid fa-circle-info me-1"></i>
+        Gross Sales = full price before discounts &amp; tax. Net Sales = what you actually collect.
+      </p>
     </div>
   </div>
 </div>
@@ -605,6 +553,18 @@ function loadFilterOptions() {
 function applyFilters() {
   const branch = document.getElementById('branchFilter').value;
   const time   = document.getElementById('timeFilter').value;
+
+  // Hide specific sections if "Last 7 Days" is selected
+  const outletSection = document.getElementById('outletQualitySection');
+  const discountSection = document.getElementById('discountAnalysisSection');
+  if (time === 'current_week') {
+    if (outletSection) outletSection.style.display = 'none';
+    if (discountSection) discountSection.style.display = 'none';
+  } else {
+    if (outletSection) outletSection.style.display = 'block';
+    if (discountSection) discountSection.style.display = 'block';
+  }
+
   const qp     = `branch=${encodeURIComponent(branch)}&time=${encodeURIComponent(time)}&temp=all`;
 
   ['loadingTrend','loadingCategory','loadingTop','loadingWeak',
@@ -666,19 +626,65 @@ function applyFilters() {
       const badge = document.getElementById('trendAxisBadge');
       if(badge) badge.textContent = d.trend.is_monthly ? 'Monthly View' : 'Daily View';
 
-      /* Sales trend line */
-      Plotly.newPlot('trendChart',[{
-        x:d.trend.labels, y:d.trend.data,
-        type:'scatter', mode:'lines+markers',
-        line:  {color:COLORS.blue, width:2.5, shape:'spline'},
-        marker:{size:5, color:COLORS.blue},
-        fill:'tozeroy', fillcolor:'rgba(37,99,235,0.06)',
-        hovertemplate:'<b>%{x}</b><br>Sales: RM %{y:,.2f}<extra></extra>'
-      }],{
-        ...LAYOUT_BASE, hovermode:'x unified',
-        xaxis:{gridcolor:'#E2E8F0', tickangle:-25, showgrid:false},
-        yaxis:{tickprefix:'RM ', gridcolor:'#E2E8F0', gridwidth:1}
-      }, CONFIG);
+      /* Sales trend line with optimizations and Empty State Handling */
+      const trendChartEl = document.getElementById('trendChart');
+      const trendData = d.trend.data || [];
+      
+      if (!d.trend.labels || d.trend.labels.length === 0) {
+        trendChartEl.innerHTML = '<div class="text-muted-sm text-center py-5"><i class="fa-solid fa-magnifying-glass me-2"></i>No sales data found for this selection.</div>';
+      } else {
+        const avgSales = trendData.length ? (trendData.reduce((a,b)=>a+b,0)/trendData.length) : 0;
+        
+        const traces = [
+          {
+            x: d.trend.labels, 
+            y: trendData,
+            name: 'Revenue',
+            type: 'scatter', 
+            mode: 'lines+markers',
+            line: { color: COLORS.blue, width: 3, shape: 'spline' },
+            marker: { size: 6, color: COLORS.blue, opacity: 0.8 },
+            fill: 'tozeroy', 
+            fillcolor: 'rgba(37,99,235,0.08)',
+            hovertemplate: '<b>%{x}</b><br>Sales: RM %{y:,.2f}<extra></extra>'
+          }
+        ];
+
+        // Add average line as a separate benchmark trace for unified hover
+        if (trendData.length > 2) {
+          traces.push({
+            x: d.trend.labels,
+            y: d.trend.labels.map(() => avgSales),
+            name: 'Average',
+            type: 'scatter',
+            mode: 'lines',
+            line: { color: COLORS.amber, width: 2, dash: 'dash' },
+            hovertemplate: 'Avg: RM %{y:,.2f}<extra></extra>'
+          });
+        }
+
+        Plotly.newPlot('trendChart', traces, {
+          ...LAYOUT_BASE, 
+          hovermode: 'x unified',
+          showlegend: true,
+          legend: { orientation: 'h', y: -0.3, font: { size: 10 } },
+          xaxis: {
+            gridcolor: '#F1F5F9', 
+            showgrid: false,
+            tickmode: 'auto',
+            nticks: 12,
+            automargin: true,
+            tickfont: { size: 10 }
+          },
+          yaxis: {
+            tickprefix: 'RM ', 
+            gridcolor: '#F1F5F9', 
+            gridwidth: 1,
+            zeroline: false
+          },
+          margin: { t: 20, r: 20, b: 60, l: 60 }
+        }, CONFIG);
+      }
       hideLoader('loadingTrend');
 
       /* Product type donut */
@@ -768,30 +774,9 @@ function applyFilters() {
       /* Discount impact — derive from monthly data */
       renderDiscountChart(d);
     });
-
-  /* ── DIAGNOSTICS ── */
-  fetch(`/api/diagnostics?${qp}`)
-    .then(r=>r.json())
-    .then(d=>{
-      if(d.status!=='success') return;
-
-      /* Weather panel */
-      const weatherHTML = d.weather.length===0
-        ? '<div class="text-muted-sm py-3 text-center">No weather data available.</div>'
-        : d.weather.map(r=>`
-          <div class="diag-row">
-            <span style="font-weight:500;color:#334155;">
-              ${r.weather_condition === 'Raining' ? '🌧️' : r.weather_condition === 'Sunny' ? '☀️' : '☁️'}
-              ${r.weather_condition} &nbsp;·&nbsp;
-              ${r.temperature_type === 'ICED' ? '🧊 Iced' : '♨️ Hot'}
-            </span>
-            <span class="fw-700" style="font-family:monospace;color:#0D9488;">${Number(r.total_qty).toLocaleString('en-MY')} cups</span>
-          </div>`).join('');
-      document.getElementById('weatherAnalysis').innerHTML = weatherHTML;
-    });
 }
 
-/* ── BRANCH COMPARISON CHART ───────────────────────────── */
+/* ── BRANCH COMPARISON CHART (AOV Focus) ──────────────── */
 function renderBranchChart(d) {
   const monthly = d.monthly;
   if(!monthly || !monthly.labels || monthly.labels.length === 0){
@@ -801,13 +786,18 @@ function renderBranchChart(d) {
     return;
   }
 
+  // Use aov_by_branch if available, fallback to total revenue (by_branch)
+  const isAOV = !!monthly.aov_by_branch;
+  const dataSrc = isAOV ? monthly.aov_by_branch : monthly.by_branch;
+  const valLabel = isAOV ? 'Avg Spend/Customer' : 'Monthly Sales';
+
   const traces = monthly.branches.map((branch, i)=>({
     x: monthly.labels,
-    y: monthly.by_branch[branch] || [],
+    y: dataSrc[branch] || [],
     name: branch,
     type: 'bar',
     marker: { color: i===0 ? COLORS.blue : COLORS.teal, opacity:.9 },
-    hovertemplate: `<b>${branch}</b><br>%{x}<br>RM %{y:,.2f}<extra></extra>`,
+    hovertemplate: `<b>${branch}</b><br>%{x}<br>${valLabel}: RM %{y:,.2f}<extra></extra>`,
   }));
 
   Plotly.newPlot('branchChart', traces, {
@@ -816,36 +806,14 @@ function renderBranchChart(d) {
     margin: { t:10, r:16, b:55, l:60 },
     legend: { orientation:'h', y:-0.22, font:{size:10} },
     xaxis: { tickangle:-30, showgrid:false, tickfont:{size:9} },
-    yaxis: { tickprefix:'RM ', gridcolor:'#E2E8F0', gridwidth:1 }
+    yaxis: { 
+      tickprefix:'RM ', 
+      gridcolor:'#E2E8F0', 
+      gridwidth:1,
+      title: { text: isAOV ? 'Average Spend (RM)' : 'Sales (RM)', font: { size: 10 } }
+    }
   }, CONFIG);
   hideLoader('loadingBranch');
-
-  /* Also render the branch winner list in insights */
-  renderBranchWinners(monthly);
-}
-
-/* ── BRANCH WINNERS LIST ───────────────────────────────── */
-function renderBranchWinners(monthly) {
-  const el = document.getElementById('branchWinnerList');
-  if(!monthly || !monthly.labels || monthly.labels.length===0){
-    el.innerHTML='<div class="text-muted-sm py-3 text-center">No monthly data available yet.</div>';
-    return;
-  }
-  const rows = monthly.labels.slice(-6).map((label, idx)=>{
-    const realIdx = monthly.labels.length - Math.min(6, monthly.labels.length) + idx;
-    const scores = monthly.branches.map(b=>({
-      name: b,
-      rev: (monthly.by_branch[b]||[])[realIdx] || 0
-    }));
-    scores.sort((a,b)=>b.rev-a.rev);
-    const winner = scores[0];
-    const icon = winner.name.includes('Puncak') ? '🚚' : '🏪';
-    return `<div class="diag-row">
-      <span style="font-weight:500;color:#334155;">${label}</span>
-      <span class="fw-700" style="color:#2563EB;">${icon} ${winner.name} &nbsp;<span style="font-size:.72rem;color:#94A3B8;">RM ${Number(winner.rev).toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></span>
-    </div>`;
-  }).join('');
-  el.innerHTML = rows || '<div class="text-muted-sm py-3 text-center">No data to compare.</div>';
 }
 
 /* ── DISCOUNT IMPACT CHART ─────────────────────────────── */

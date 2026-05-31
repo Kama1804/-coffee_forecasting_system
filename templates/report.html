@@ -1,10 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Executive Report{% endblock %}
-
 {% block styles %}
 <style>
 /* ============================================================
-   REPORT PAGE — CONFIG CARD
+   REPORT PAGE — CONFIG CARD (UI Only)
 ============================================================ */
 .report-config-card {
     background: var(--white-card);
@@ -15,986 +14,1135 @@
     margin-bottom: var(--space-lg);
 }
 
-/* ── A4 Canvas ─────────────────────────────────────────── */
+/* ── A4 Canvas wrapper ─────────────────────────────────── */
 .a4-preview-wrap {
     display: flex;
     justify-content: center;
-    padding: var(--space-xl) 0;
-    background: #6B7280;
+    padding: 24px 12px;
+    background: #374151;
     border-radius: var(--radius-lg);
     min-height: 500px;
-    transition: background 0.3s ease;
+    transition: background 0.4s ease;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
 }
-.a4-preview-wrap.loaded {
-    background: #FFFFFF;
-}
-.a4-page {
+.a4-preview-wrap.loaded { background: #6B7280; }
+
+/* ── Scale container ──────────────────────────────────── */
+.a4-scale-container {
     width: 794px;
-    min-height: 1123px;
-    background: white;
-    box-shadow: 0 12px 60px rgba(0,0,0,.5);
-    font-family: 'DM Sans', Arial, sans-serif;
-    font-size: 11px;
-    color: #1E293B;
-    position: relative;
+    transform-origin: top center;
 }
 
-/* ── Report Template Internals ─────────────────────────── */
-.rpt-header {
-    background: linear-gradient(135deg, #1E2A3A 0%, #2A3B52 100%);
-    padding: 28px 36px 24px;
-    color: white;
+/* ── Page separator label ─────────────────────────────── */
+.rpt-page-sep {
+    text-align: center;
+    font-size: 0.7rem;
+    color: #9CA3AF;
+    margin: 12px 0;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+}
+
+/* ============================================================
+   REPORT CONTENT STYLES (Mirrored from report_pdf_export.html)
+============================================================ */
+.a4-page {
+    width: 794px; /* 210mm */
+    height: 1123px; /* 297mm */
+    background: #FFFFFF;
+    box-shadow: 0 4px 32px rgba(0,0,0,.45), 0 1px 4px rgba(0,0,0,.2);
+    padding: 0;
+    box-sizing: border-box;
     position: relative;
     overflow: hidden;
+    color: #1E293B;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    font-size: 11pt;
+    line-height: 1.55;
+    margin-bottom: 24px;
 }
-.rpt-header::after {
-    content: ''; position: absolute; right: -40px; top: -40px;
-    width: 200px; height: 200px; border-radius: 50%;
-    background: rgba(59,130,246,.1);
-}
-.rpt-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
-.rpt-brand-icon {
-    width: 40px; height: 40px;
-    background: linear-gradient(135deg, #F59E0B, #D97706);
-    border-radius: 8px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 1.2rem; flex-shrink: 0;
-}
-.rpt-brand-name { font-size: 1.1rem; font-weight: 700; }
-.rpt-brand-sub  { font-size: .7rem; opacity: .6; margin-top: 1px; }
-.rpt-title-row  { display: flex; justify-content: space-between; align-items: flex-end; position: relative; z-index: 1; }
-.rpt-title      { font-size: 1.45rem; font-weight: 700; letter-spacing: -.3px; }
-.rpt-subtitle   { font-size: .78rem; opacity: .7; margin-top: 3px; }
-.rpt-meta       { text-align: right; font-size: .72rem; opacity: .7; line-height: 1.7; }
+.a4-page * { box-sizing: border-box; }
 
-.rpt-accent-bar { height: 4px; background: linear-gradient(90deg, #F59E0B, #3B82F6, #10B981); }
-
-.rpt-body { padding: 22px 36px; }
-
-.rpt-section-title {
-    font-size: .72rem; font-weight: 700;
-    color: #1E2A3A; text-transform: uppercase; letter-spacing: .8px;
-    border-left: 3px solid #3B82F6; padding-left: 8px;
-    margin: 16px 0 9px;
+/* ── Page inner body padding ───────────────────────────── */
+.rpt-body {
+    padding: 18px 36px 36px 36px;
 }
 
-/* KPI grids */
-.rpt-kpi-5col { display: grid; grid-template-columns: repeat(5,1fr); gap: 8px; }
-.rpt-kpi-4col { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; }
-.rpt-kpi-box {
-    border: 1px solid #E2E8F0; border-radius: 8px;
-    padding: 11px 13px; background: #F8FAFC;
-    position: relative; overflow: hidden;
-}
-.rpt-kpi-box::before {
-    content: ''; position: absolute;
-    top: 0; left: 0; right: 0; height: 3px; border-radius: 8px 8px 0 0;
-}
-.rpt-kpi-box.k-blue::before   { background: #3B82F6; }
-.rpt-kpi-box.k-amber::before  { background: #F59E0B; }
-.rpt-kpi-box.k-teal::before   { background: #10B981; }
-.rpt-kpi-box.k-cyan::before   { background: #06B6D4; }
-.rpt-kpi-box.k-purple::before { background: #8B5CF6; }
-.rpt-kpi-label { font-size: .6rem; color: #64748B; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 4px; }
-.rpt-kpi-value { font-size: 1.05rem; font-weight: 700; color: #1E293B; font-family: 'DM Mono', monospace; line-height: 1.2; }
-.rpt-kpi-sub   { font-size: .6rem; color: #94A3B8; margin-top: 3px; }
-
-/* Tables */
-.rpt-table { width: 100%; border-collapse: collapse; font-size: .76rem; }
-.rpt-table thead th {
-    background: #1E2A3A; color: white;
-    padding: 6px 9px; text-align: left;
-    font-size: .62rem; font-weight: 600;
-    letter-spacing: .4px; text-transform: uppercase;
-}
-.rpt-table thead th:first-child { border-radius: 4px 0 0 4px; }
-.rpt-table thead th:last-child  { border-radius: 0 4px 4px 0; }
-.rpt-table tbody tr:nth-child(even) { background: #F8FAFC; }
-.rpt-table tbody td { padding: 5px 9px; border-bottom: 1px solid #E2E8F0; color: #334155; }
-.rpt-table tbody tr:last-child td { border-bottom: none; }
-.rpt-table .num { text-align: right; font-family: 'DM Mono', monospace; }
-
-/* Layout helpers */
-.rpt-two-col   { display: grid; grid-template-columns: 1fr 1fr;     gap: 14px; }
-.rpt-three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
-
-/* Insight boxes */
-.rpt-insight-box {
-    background: #EFF6FF; border: 1px solid #BFDBFE;
-    border-radius: 6px; padding: 9px 12px;
-    font-size: .75rem; color: #1E40AF; line-height: 1.6;
-    margin-bottom: 6px;
-}
-.rpt-insight-box.amber { background: #FFFBEB; border-color: #FDE68A; color: #92400E; }
-.rpt-insight-box.teal  { background: #ECFDF5; border-color: #6EE7B7; color: #065F46; }
-.rpt-insight-box.red   { background: #FEF2F2; border-color: #FECACA; color: #991B1B; }
-.rpt-insight-box.slate { background: #F8FAFC; border-color: #CBD5E1; color: #475569; }
-
-/* Payment bars */
-.rpt-pay-item  { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; font-size: .73rem; }
-.rpt-pay-label { width: 100px; flex-shrink: 0; color: #334155; }
-.rpt-pay-bar-w { flex: 1; background: #E2E8F0; border-radius: 4px; height: 8px; overflow: hidden; }
-.rpt-pay-bar   { height: 100%; border-radius: 4px; }
-.rpt-pay-val   { width: 40px; text-align: right; font-family: 'DM Mono', monospace; color: #1E293B; font-weight: 600; font-size: .72rem; }
-
-/* AI box */
-.rpt-ai-box {
-    background: linear-gradient(135deg, #F8FAFC, #EFF6FF);
-    border: 1px solid #BFDBFE; border-radius: 8px; padding: 13px 15px;
-}
-.rpt-ai-header {
-    display: flex; align-items: center; gap: 8px;
-    font-weight: 700; font-size: .78rem; color: #1E293B; margin-bottom: 8px;
-}
-.rpt-ai-content { font-size: .75rem; color: #334155; line-height: 1.75; }
-
-/* Footer */
-.rpt-footer {
-    padding: 11px 36px;
-    background: #F8FAFC; border-top: 1px solid #E2E8F0;
-    display: flex; justify-content: space-between; align-items: center;
-    font-size: .63rem; color: #94A3B8;
-}
-
-/* Trend badge */
-.vs-badge {
-    font-size: .62rem; padding: 2px 7px;
-    border-radius: 20px; font-weight: 600;
-    display: inline-block; margin-top: 3px;
-}
-.vs-badge.up   { background: #ECFDF5; color: #065F46; }
-.vs-badge.down { background: #FEF2F2; color: #991B1B; }
-.vs-badge.flat { background: #F1F5F9; color: #64748B; }
-
-/* Data note */
-.data-note {
-    background: #FFFBEB; border: 1px solid #FDE68A;
-    border-radius: 5px; padding: 6px 10px;
-    font-size: .68rem; color: #92400E; margin-top: 6px;
-}
-
-/* Predicted vs Actual specific */
-.pva-legend {
-    display: flex; align-items: center; gap: 14px;
-    font-size: .68rem; color: #64748B; margin-bottom: 8px;
-}
-.pva-legend-dot {
-    display: inline-block; width: 12px; height: 6px;
-    border-radius: 2px; margin-right: 4px; vertical-align: middle;
-}
-.holiday-tag {
-    display: inline-block; padding: 1px 5px;
-    background: #FEF3C7; color: #92400E;
-    border-radius: 3px; font-size: .58rem; font-weight: 600; margin-left: 3px;
-}
-
-/* Page separator — visible only in preview (not print) */
-.rpt-page-sep {
-    background: #4B5563;
-    color: #D1D5DB;
+/* ── Confidentiality strip ─────────────────────────────── */
+.rpt-confid-strip {
+    background: #B45309;
+    color: #FEF3C7;
     text-align: center;
-    font-size: .65rem;
+    font-size: 7.5pt;
     font-weight: 700;
-    letter-spacing: .8px;
+    letter-spacing: 3px;
     text-transform: uppercase;
-    padding: 6px 12px;
+    padding: 4px 0;
 }
 
-/* Loading / empty states */
-.preview-loading {
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    min-height: 400px; gap: 14px; color: white;
+/* ── Main header band ──────────────────────────────────── */
+.rpt-header-band {
+    background: #0F172A;
+    background: linear-gradient(135deg, #0F172A 0%, #1E3A5F 100%);
+    padding: 18px 36px 14px 36px;
+    color: #FFFFFF;
+    border-bottom: 3px solid #F59E0B;
+}
+.rpt-header-eyebrow {
+    font-size: 7.5pt;
+    color: #93C5FD;
+    text-transform: uppercase;
+    letter-spacing: 2.5px;
+    margin-bottom: 5px;
+    font-weight: 600;
+}
+.rpt-header-title {
+    font-size: 20pt;
+    font-weight: 800;
+    color: #FFFFFF;
+    margin-bottom: 3px;
+    line-height: 1.15;
+    letter-spacing: -0.5px;
+}
+.rpt-header-subtitle {
+    font-size: 10.5pt;
+    color: #F59E0B;
+    margin-bottom: 10px;
+    font-weight: 600;
+}
+.rpt-header-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 8pt;
+    color: #94A3B8;
+    border-top: 1px solid #1E40AF;
+    padding-top: 8px;
+    margin-top: 6px;
+}
+.rpt-header-meta strong { color: #E2E8F0; }
+
+/* ── Continuation header (pages 2+) ───────────────────── */
+.rpt-cont-header {
+    background: #0F172A;
+    background: linear-gradient(135deg, #0F172A 0%, #1E3A5F 100%);
+    padding: 9px 36px;
+    border-bottom: 3px solid #F59E0B;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.rpt-cont-header span {
+    font-size: 8pt;
+    color: #93C5FD;
+    font-weight: 600;
+    letter-spacing: 0.3px;
 }
 
-/* ── PRINT STYLES ───────────────────────────────────────── */
+/* ── Section headings ──────────────────────────────────── */
+.rpt-section {
+    margin-top: 14px;
+    margin-bottom: 10px;
+}
+.rpt-section-eyebrow {
+    font-size: 7pt;
+    font-weight: 700;
+    color: #F59E0B;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 2px;
+}
+.rpt-section-title {
+    font-size: 12pt;
+    font-weight: 700;
+    color: #0F172A;
+    border-bottom: 2px solid #0F172A;
+    padding-bottom: 5px;
+    margin-bottom: 4px;
+}
+.rpt-section-desc {
+    font-size: 8.5pt;
+    color: #64748B;
+    margin-bottom: 10px;
+    line-height: 1.4;
+}
+
+/* ── KPI grid ──────────────────────────────────────────── */
+.rpt-kpi-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+.rpt-kpi-grid > div {
+    flex: 1;
+    min-width: 30%;
+}
+.rpt-kpi-grid-4 {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+.rpt-kpi-grid-4 > div {
+    flex: 1;
+    min-width: 23%;
+}
+.rpt-kpi-box {
+    border: 1px solid #E2E8F0;
+    border-top: 3px solid #1E3A5F;
+    padding: 9px 11px;
+    background: #F8FAFC;
+}
+.rpt-kpi-box.accent { border-top-color: #059669; }
+.rpt-kpi-box.warn   { border-top-color: #D97706; }
+.rpt-kpi-box.info   { border-top-color: #2563EB; }
+.rpt-kpi-label {
+    font-size: 7.5pt;
+    color: #64748B;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+    font-weight: 700;
+}
+.rpt-kpi-value {
+    font-size: 13pt;
+    font-weight: 800;
+    color: #0F172A;
+    line-height: 1.1;
+    word-break: break-word;
+}
+.rpt-kpi-value.green { color: #059669; }
+.rpt-kpi-value.blue  { color: #2563EB; }
+.rpt-kpi-sub {
+    font-size: 7.5pt;
+    color: #94A3B8;
+    margin-top: 3px;
+}
+
+/* ── Insight / AI box ─────────────────────────────────── */
+.rpt-insight-box {
+    border-left: 4px solid #059669;
+    background: #F0FDF4;
+    padding: 11px 14px;
+    font-size: 9.5pt;
+    color: #064E3B;
+    line-height: 1.6;
+    margin-bottom: 18px;
+    border-radius: 0 4px 4px 0;
+}
+.rpt-insight-label {
+    font-size: 7pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: #059669;
+    margin-bottom: 5px;
+}
+.rpt-ai-bullet {
+    font-size: 9.5pt;
+    color: #1E293B;
+    line-height: 1.65;
+    padding-left: 18px;
+    position: relative;
+    margin-bottom: 5px;
+}
+.rpt-ai-bullet::before { content: "▸"; color: #F59E0B; position: absolute; left: 0; }
+.rpt-ai-line {
+    font-size: 9.5pt;
+    color: #334155;
+    line-height: 1.65;
+    margin-bottom: 4px;
+}
+
+/* ── Tables ────────────────────────────────────────────── */
+.rpt-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 6px;
+    margin-bottom: 14px;
+    font-size: 9pt;
+}
+.rpt-table thead tr th {
+    background: #0F172A;
+    color: #FFFFFF;
+    padding: 7px 9px;
+    font-size: 8pt;
+    font-weight: 700;
+    text-align: left;
+    white-space: nowrap;
+}
+.rpt-table thead tr th.r { text-align: right; }
+.rpt-table thead tr th.c { text-align: center; }
+.rpt-table tbody tr td {
+    padding: 6px 8px;
+    border-bottom: 1px solid #E2E8F0;
+    color: #334155;
+    font-size: 9pt;
+    vertical-align: middle;
+}
+.rpt-table tbody tr td.r {
+    text-align: right;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 8.5pt;
+    white-space: nowrap;
+}
+.rpt-table tbody tr td.c { text-align: center; }
+.rpt-table tbody tr td.mono {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 8.5pt;
+}
+.rpt-table tbody tr:nth-child(even) td { background: #F8FAFC; }
+.rpt-table tbody tr.rpt-highlight td {
+    background: #EFF6FF !important;
+    font-weight: 700;
+    color: #1E40AF;
+}
+.rpt-table tfoot tr td {
+    background: #0F172A;
+    color: #FFFFFF;
+    padding: 7px 9px;
+    font-weight: 700;
+    font-size: 8pt;
+}
+.rpt-table tfoot tr td.r {
+    text-align: right;
+    font-family: 'Courier New', Courier, monospace;
+    color: #F59E0B;
+}
+
+/* ── Compact Table Style for Section 3 ── */
+.rpt-table-compact {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 7.5pt;
+}
+.rpt-table-compact thead tr th {
+    background: #0F172A;
+    color: #FFFFFF;
+    padding: 4px 8px;
+    font-weight: 700;
+    text-align: left;
+}
+.rpt-table-compact tbody tr td {
+    padding: 3px 8px;
+    border-bottom: 1px solid #E2E8F0;
+    color: #334155;
+    vertical-align: middle;
+}
+.rpt-table-compact tbody tr:nth-child(even) td { background: #F8FAFC; }
+
+/* ── Rank badge ────────────────────────────────────────── */
+.rpt-rank {
+    display: inline-block; text-align: center; line-height: 20px;
+    width: 20px; height: 20px;
+    background: #0F172A; color: #FFFFFF;
+    border-radius: 50%; font-size: 8.5pt; font-weight: 700;
+}
+.rpt-rank.gold { background: #D97706; color: #1A2744; }
+
+/* ── Bar track ─────────────────────────────────────────── */
+.rpt-bar-bg {
+    width: 100%; height: 6px; background: #E2E8F0;
+    border-radius: 3px; overflow: hidden;
+}
+.rpt-bar-fg { height: 100%; border-radius: 3px; }
+
+/* ── Two-column distribution ───────────────────────────── */
+.rpt-dist-grid {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 12px;
+}
+.rpt-dist-grid > div {
+    flex: 1;
+}
+.rpt-dist-head {
+    font-size: 8pt; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1px; color: #0F172A;
+    margin-bottom: 8px; padding-bottom: 4px;
+    border-bottom: 1px solid #E2E8F0;
+}
+.rpt-dist-item { margin-bottom: 9px; }
+.rpt-dist-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 6px; font-size: 9pt; color: #334155; margin-bottom: 3px;
+}
+.rpt-dist-row span { font-weight: 600; }
+.rpt-dist-row code { font-family: 'Courier New', monospace; font-size: 8.5pt; white-space: nowrap; }
+
+/* ── Status badge ──────────────────────────────────────── */
+.badge {
+    display: inline-block; padding: 1px 6px; border-radius: 3px;
+    font-size: 7.5pt; font-weight: 700;
+}
+.badge-green  { background: #D1FAE5; color: #065F46; }
+.badge-red    { background: #FEE2E2; color: #991B1B; }
+.badge-gold   { background: #FEF3C7; color: #92400E; }
+.badge-yellow { background: #FEF9C3; color: #854D0E; }
+.badge-blue   { background: #DBEAFE; color: #1E40AF; }
+.badge-gray   { background: #F1F5F9; color: #475569; }
+.badge-amber  { background: #FEF3C7; color: #92400E; }
+
+/* ── Summary finding table ─────────────────────────────── */
+.rpt-finding-table {
+    width: 100%; border-collapse: collapse;
+    font-size: 9pt; margin-bottom: 14px;
+}
+.rpt-finding-table td {
+    padding: 6px 10px; border-bottom: 1px solid #E2E8F0; color: #334155;
+}
+.rpt-finding-table td:first-child {
+    font-weight: 700; color: #0F172A; width: 40%;
+    background: #F8FAFC;
+}
+
+/* ── Warning / note box ────────────────────────────────── */
+.rpt-warning-box {
+    background: #FFFBEB; border: 1px solid #FCD34D;
+    border-radius: 4px; padding: 9px 13px;
+    font-size: 9pt; color: #78350F; margin-top: 16px; line-height: 1.5;
+}
+.rpt-note-box {
+    background: #EFF6FF; border: 1px dashed #BFDBFE;
+    border-radius: 4px; padding: 9px 13px;
+    font-size: 8.5pt; color: #1E40AF; margin-top: 10px; line-height: 1.5;
+}
+
+/* ── Footer band ───────────────────────────────────────── */
+.rpt-footer-band {
+    background: #0F172A;
+    color: #64748B;
+    padding: 8px 36px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 8pt;
+    position: absolute; bottom: 0; left: 0; right: 0;
+}
+.rpt-footer-band strong { color: #CBD5E1; }
+
+.rpt-hr { border: none; border-top: 1px solid #E2E8F0; margin: 14px 0; }
+.r { text-align: right; }
+.c { text-align: center; }
+
+/* ── PDF icon button (UI Only) ─────────────────────────── */
+.pdf-icon-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    white-space: nowrap;
+}
+
+/* ============================================================
+   PRINT STYLES
+============================================================ */
 @media print {
-    /* Hide everything except the a4-page content */
-    body > *:not(.a4-print-root) { display: none !important; }
-    .a4-print-root, .a4-print-root * { display: unset; }
-
-    @page {
-        size: A4 portrait;
-        margin: 12mm 10mm 14mm;
-    }
-
-    * {
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
-    }
-
-    body {
-        margin: 0;
-        padding: 0;
-        font-size: 10px;
-        width: 100%;
-    }
-
-    /* Remove grey wrap, shadow, fixed width */
-    .a4-preview-wrap {
-        background: none !important;
-        padding: 0 !important;
-        border-radius: 0 !important;
-    }
+    body * { display: none !important; }
+    html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
+    .a4-preview-wrap, #reportCanvas, #reportCanvas * { display: block !important; }
+    .a4-preview-wrap { padding: 0 !important; background: transparent !important; overflow: visible !important; }
+    .a4-scale-container { transform: none !important; width: 210mm !important; }
     .a4-page {
-        width: 100% !important;
-        box-shadow: none !important;
-        min-height: unset !important;
+        width: 210mm !important; height: 297mm !important;
+        box-shadow: none !important; margin: 0 !important;
+        page-break-after: always !important;
     }
-
-    /* Page break control */
-    .rpt-page-break { page-break-before: always !important; break-before: page !important; }
-    .rpt-no-break   { page-break-inside: avoid !important; break-inside: avoid !important; }
-    .rpt-keep-next  { page-break-after: avoid !important;  break-after: avoid !important; }
-    .rpt-page-sep   { display: none !important; }
-
-    /* Keep section titles with their content */
-    .rpt-section-title { page-break-after: avoid; break-after: avoid; }
-
-    /* Don't split table rows across pages */
-    .rpt-table tbody tr {
-        page-break-inside: avoid;
-        break-inside: avoid;
-    }
-
-    /* KPI boxes — keep together */
-    .rpt-kpi-5col,
-    .rpt-kpi-4col { page-break-inside: avoid; break-inside: avoid; }
-
-    /* Insight boxes — keep together */
-    .rpt-insight-box { page-break-inside: avoid; break-inside: avoid; }
-
-    /* Two-col grids — keep together */
-    .rpt-two-col { page-break-inside: avoid; break-inside: avoid; }
-
-    /* AI box */
-    .rpt-ai-box { page-break-inside: avoid; break-inside: avoid; }
-
-    /* Footer on every page */
-    .rpt-footer {
-        position: fixed;
-        bottom: 0; left: 0; right: 0;
-        border-top: 1px solid #E2E8F0;
-        background: #F8FAFC;
-        font-size: .6rem;
-        padding: 5px 24px;
-    }
+    .rpt-footer-band { position: absolute; bottom: 0 !important; }
+    .rpt-page-sep { display: none !important; }
+    .no-print { display: none !important; }
 }
 </style>
 {% endblock %}
 
-
 {% block content %}
-
-<div class="page-header" data-aos="fade-down">
+<div class="page-header no-print" data-aos="fade-down">
     <div>
-        <h1 class="page-title">Executive Report</h1>
-        <p class="page-subtitle">Generate a comprehensive A4 PDF executive sales performance report</p>
+        <h1 class="page-title">Executive Sales Reporting</h1>
+        <p class="page-subtitle">Generate professional analytical publications for multi-outlet performance appraisal</p>
     </div>
 </div>
 
-<!-- ── CONFIG CARD ───────────────────────────────────────── -->
-<div class="report-config-card" data-aos="fade-up">
-    <p class="card-title">Report Configuration</p>
+<div class="report-config-card no-print" data-aos="fade-up">
+    <p class="card-title mb-3">Report Configuration</p>
     <div class="row g-3 align-items-end">
-
-        <div class="col-12 col-md-4">
-            <label class="form-label-custom">Branch</label>
-            <select id="rptBranch" class="form-control-custom">
-                <option value="all">All Branches (Consolidated)</option>
-                <option value="Putrajaya">Putrajaya</option>
-                <option value="Puncak Alam">Puncak Alam</option>
+        <div class="col-12 col-md-3">
+            <label class="form-label-custom">Target Branch</label>
+            <select id="reportBranch" class="form-control-custom">
+                <option value="all">All Operational Outlets</option>
+                <option value="Putrajaya">Putrajaya Stall Booth</option>
+                <option value="Puncak Alam">Puncak Alam Food Truck</option>
             </select>
         </div>
-
         <div class="col-12 col-md-4">
             <label class="form-label-custom">Reporting Month</label>
-            <!--
-                Native <input type="month"> does not support per-option disabling.
-                We use a <select> populated by JS with only months that have data.
-                A fallback native month input is shown if the select has no options.
-            -->
-            <select id="rptMonthSelect" class="form-control-custom">
-                <option value="">— Loading available months… —</option>
+            <select id="reportMonth" class="form-control-custom">
+                <option value="">Loading available months…</option>
             </select>
-            <div id="rptMonthFallbackWrap" style="display:none;margin-top:6px;">
-                <input type="month" id="rptMonthFallback" class="form-control-custom"
-                       placeholder="YYYY-MM" style="font-family:monospace;">
-                <div style="font-size:.68rem;color:#94A3B8;margin-top:3px;">
-                    No data found — manual entry enabled.
+        </div>
+        <div class="col-12 col-md-5 d-flex gap-2">
+            <button class="btn-primary-custom w-100" id="previewBtn" onclick="generateReportPreview()">
+                <i class="fa-solid fa-file-invoice"></i> Generate Preview
+            </button>
+            <button class="btn-outline-custom" id="pdfBtn" onclick="downloadReportPDF()" disabled style="white-space:nowrap;">
+                <span class="pdf-icon-btn">
+                    <svg width="14" height="16" viewBox="0 0 14 16" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;">
+                        <rect x="0.5" y="0.5" width="13" height="15" rx="1.5" stroke="currentColor" stroke-width="1"/>
+                        <path d="M3 10.5h1.2c.55 0 .9-.35.9-.85 0-.5-.35-.85-.9-.85H3V10.5z" fill="currentColor"/>
+                        <path d="M6.2 8.8H5.5v1.7h.7c.65 0 1.05-.35 1.05-.85 0-.5-.4-.85-1.05-.85z" fill="currentColor"/>
+                        <path d="M2 7.5h10v4.5H2V7.5z" fill="currentColor" opacity="0.08"/>
+                        <path d="M2.5 7h9a.5.5 0 01.5.5v4a.5.5 0 01-.5.5h-9a.5.5 0 01-.5-.5v-4a.5.5 0 01.5-.5z" stroke="currentColor" stroke-width="0.75"/>
+                        <text x="7" y="10.8" text-anchor="middle" font-size="3.2" fill="currentColor" font-weight="700" font-family="Arial">PDF</text>
+                        <path d="M4 3.5h6M4 5.5h4" stroke="currentColor" stroke-width="0.75" stroke-linecap="round" opacity="0.5"/>
+                    </svg>
+                    Export PDF
+                </span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="a4-preview-wrap no-print" id="canvasWrapper" data-aos="fade-up" data-aos-delay="100">
+    <div class="a4-scale-container" id="scaleContainer">
+        <div id="reportCanvas">
+            <div class="a4-page" style="display:flex;align-items:center;justify-content:center;min-height:500px;">
+                <div class="empty-state" style="text-align:center;">
+                    <div class="empty-state-icon"><i class="fa-solid fa-print"></i></div>
+                    <div class="empty-state-title">Report Preview</div>
+                    <p class="empty-state-text">Select a branch and month, then click <strong>Generate Preview</strong>.</p>
                 </div>
             </div>
         </div>
-
-        <div class="col-12 col-md-4 d-flex align-items-end">
-            <div style="font-size:.72rem;color:#64748B;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:10px 12px;line-height:1.6;width:100%;">
-                <strong style="color:#1E293B;">Selected period:</strong><br>
-                <span id="periodDisplay" style="font-family:monospace;">—</span>
-            </div>
-        </div>
-
-        <div class="col-12">
-            <div class="d-flex gap-2 flex-wrap align-items-center">
-                <button class="btn-primary-custom" onclick="generatePreview()" id="previewBtn">
-                    <i class="fa-solid fa-eye"></i> Preview Report
-                </button>
-                <button class="btn-amber-custom" onclick="downloadPDF()" id="downloadBtn" disabled>
-                    <i class="fa-solid fa-file-pdf"></i> Download PDF
-                </button>
-                <button class="btn-secondary-custom" onclick="resetForm()" style="margin-left:auto;">
-                    <i class="fa-solid fa-rotate-left"></i> Reset
-                </button>
-                <span id="monthCountBadge"
-                      style="font-size:.68rem;color:#64748B;background:#F1F5F9;
-                             border:1px solid #E2E8F0;border-radius:20px;
-                             padding:3px 10px;display:none;">
-                    <i class="fa-solid fa-calendar-check" style="color:#3B82F6;margin-right:3px;"></i>
-                    <span id="monthCountText"></span>
-                </span>
-            </div>
-        </div>
     </div>
 </div>
-
-<!-- ── A4 PREVIEW ────────────────────────────────────────── -->
-<div class="a4-preview-wrap" data-aos="fade-up" data-aos-delay="80" id="previewWrap">
-    <div class="preview-loading" id="previewLoading" style="display:none;">
-        <div class="spinner" style="border-color:rgba(255,255,255,.3);border-top-color:white;width:40px;height:40px;border-width:4px;"></div>
-        <div style="font-size:.9rem;font-weight:500;">Compiling report…</div>
-        <div style="font-size:.78rem;opacity:.7;" id="loadingStep">Fetching data…</div>
-    </div>
-    <div class="preview-loading" id="previewEmpty">
-        <i class="fa-solid fa-file-chart-column" style="font-size:3rem;opacity:.3;"></i>
-        <div style="font-size:.9rem;font-weight:500;">Select a reporting month above</div>
-        <div style="font-size:.8rem;opacity:.6;">Then click Preview Report to generate the layout</div>
-    </div>
-    <div id="a4Page" style="display:none;"></div>
-</div>
-
 {% endblock %}
-
 
 {% block scripts %}
 <script>
-/* ============================================================
-   HELPERS
-============================================================ */
-function fmt(n, d=2) {
-    return Number(n||0).toLocaleString('en-MY', {minimumFractionDigits:d, maximumFractionDigits:d});
-}
-function fmtInt(n) {
-    return Number(n||0).toLocaleString('en-MY');
-}
-function setStep(msg) {
-    const el = document.getElementById('loadingStep');
-    if (el) el.textContent = msg;
-}
-function trendBadge(label) {
-    if (!label || label === 'No prior period data' || label === 'Trend N/A' || label === 'No data') {
-        return `<span class="vs-badge flat">${label || 'N/A'}</span>`;
+/* ── Scale A4 pages to fit the wrapper ────────────────────── */
+function scaleA4Pages() {
+    const wrap      = document.getElementById('canvasWrapper');
+    const container = document.getElementById('scaleContainer');
+    if (!wrap || !container) return;
+    const availW = wrap.clientWidth - 24;
+    const pageW  = 794;
+    const scale  = Math.min(1, availW / pageW);
+    container.style.transform       = `scale(${scale})`;
+    container.style.transformOrigin = 'top center';
+    const pages = container.querySelectorAll('.a4-page');
+    if (pages.length) {
+        let totalH = 0;
+        pages.forEach(p => { totalH += p.offsetHeight + 24; });
+        wrap.style.minHeight = (totalH * scale + 48) + 'px';
     }
-    return `<span class="vs-badge ${label.startsWith('+') ? 'up' : 'down'}">${label}</span>`;
+}
+window.addEventListener('resize', scaleA4Pages);
+window.addEventListener('load',   scaleA4Pages);
+
+let availableMonths   = [];
+let currentReportData = null;
+
+/* ── Load available months ────────────────────────────────── */
+function loadReportMonths() {
+    fetch('/api/report_months')
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success' && data.months.length > 0) {
+                availableMonths = data.months;
+                const sel = document.getElementById('reportMonth');
+                sel.innerHTML = '';
+                availableMonths.slice().sort().reverse().forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m;
+                    try {
+                        const dt = new Date(m + '-01T00:00:00');
+                        opt.textContent = dt.toLocaleString('en-MY', { month: 'long', year: 'numeric' });
+                    } catch(e) { opt.textContent = m; }
+                    sel.appendChild(opt);
+                });
+                document.getElementById('pdfBtn').disabled = false;
+            }
+        })
+        .catch(err => console.error('Month load failed:', err));
 }
 
-/* ============================================================
-   MONTH PICKER — derive date_from / date_to from YYYY-MM
-============================================================ */
-function getMonthDates(ym) {
-    if (!ym) return { from: null, to: null, label: '' };
-    const [y, m] = ym.split('-').map(Number);
-    const from   = `${ym}-01`;
-    const last   = new Date(y, m, 0).getDate();
-    const to     = `${ym}-${String(last).padStart(2,'0')}`;
-    const label  = new Date(y, m-1, 1).toLocaleDateString('en-MY', { month:'long', year:'numeric' });
-    return { from, to, label };
+/* ── Formatters ───────────────────────────────────────────── */
+function fmt(n, dp=2) {
+    return Number(n || 0).toLocaleString('en-MY', {
+        minimumFractionDigits: dp, maximumFractionDigits: dp
+    });
+}
+function fmtInt(n) { return Math.floor(Number(n || 0)).toLocaleString('en-MY'); }
+function pct(n)    { return Math.min(100, Math.max(0, parseFloat(n) || 0)); }
+
+/* ── SKU lookup ───────────────────────────────────────────── */
+const SKU = {
+    "SKU-1001":"Hot Espresso",     "SKU-1002":"Hot Americano",
+    "SKU-1003":"Iced Americano",   "SKU-1004":"Hot Latte",
+    "SKU-1005":"Ice Latte",        "SKU-1006":"Hot Cappuccino",
+    "SKU-1007":"Ice Cappuccino",   "SKU-1008":"Hot Mocha",
+    "SKU-1009":"Ice Mocha",        "SKU-1010":"Ice Blended Mocha",
+    "SKU-1011":"Ice Blended Choc Chip"
+};
+function skuName(id) { return SKU[id] || id; }
+
+/* ── Activity bar ─────────────────────────────────────────── */
+function pctBar(pctVal, color='#1E3A5F') {
+    const clamped = Math.min(100, Math.max(0, parseFloat(pctVal) || 0));
+    return `<div class="rpt-bar-bg"><div class="rpt-bar-fg" style="width:${clamped}%; background:${color};"></div></div>`;
 }
 
-function getSelectedYM() {
-    const sel = document.getElementById('rptMonthSelect');
-    const fb  = document.getElementById('rptMonthFallback');
-    const selVal = sel ? sel.value : '';
-    const fbVal  = fb  ? fb.value  : '';
-    return selVal || fbVal || '';
+/* ── Status badge ─────────────────────────────────────────── */
+function badge(text, cls='gray') {
+    return `<span class="badge badge-${cls}">${text}</span>`;
 }
 
-function updatePeriodDisplay() {
-    const ym = getSelectedYM();
-    const el = document.getElementById('periodDisplay');
-    if (!ym) { el.textContent = '—'; return; }
-    const { from, to, label } = getMonthDates(ym);
-    el.textContent = `${label}  (${from} → ${to})`;
-}
+/* ── Variance color helper ────────────────────────────────── */
+function varColor(v) { return (parseFloat(v) || 0) >= 0 ? '#059669' : '#DC2626'; }
 
-function resetForm() {
-    const sel = document.getElementById('rptMonthSelect');
-    const fb  = document.getElementById('rptMonthFallback');
-    if (sel) sel.value = '';
-    if (fb)  fb.value  = '';
-    document.getElementById('periodDisplay').textContent = '—';
-    document.getElementById('downloadBtn').disabled = true;
-    document.getElementById('a4Page').style.display         = 'none';
-    document.getElementById('previewEmpty').style.display   = 'flex';
-    document.getElementById('previewWrap').classList.remove('loaded');
-}
+/* ── PDF Export ───────────────────────────────────────────── */
+function downloadReportPDF() {
+    const branch = document.getElementById('reportBranch').value;
+    const month  = document.getElementById('reportMonth').value;
+    if (!month) { alert('Please select a reporting month first.'); return; }
+    const from    = `${month}-01`;
+    const parts   = month.split('-');
+    const lastDay = new Date(parseInt(parts[0]), parseInt(parts[1]), 0).getDate();
+    const to      = `${month}-${String(lastDay).padStart(2,'0')}`;
 
-/* ============================================================
-   LOAD AVAILABLE MONTHS — disable months without data
-============================================================ */
-async function loadAvailableMonths() {
-    const sel   = document.getElementById('rptMonthSelect');
-    const fbWrap = document.getElementById('rptMonthFallbackWrap');
-    const badge  = document.getElementById('monthCountBadge');
-    const badgeTx = document.getElementById('monthCountText');
+    const pdfBtn = document.getElementById('pdfBtn');
+    pdfBtn.disabled = true;
+    pdfBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating…';
 
-    try {
-        const res = await fetch('/api/report_months').then(r => r.json());
-        if (res.status !== 'success' || !res.months || !res.months.length) {
-            sel.innerHTML = '<option value="">— No data available —</option>';
-            fbWrap.style.display = 'block';
-            return;
-        }
-
-        const months = res.months; // sorted ASC YYYY-MM
-        sel.innerHTML = '<option value="">— Select a reporting month —</option>';
-
-        // Add options newest-first for usability
-        [...months].reverse().forEach(ym => {
-            const label = new Date(ym + '-01').toLocaleDateString('en-MY', { month:'long', year:'numeric' });
-            const opt = document.createElement('option');
-            opt.value       = ym;
-            opt.textContent = label;
-            sel.appendChild(opt);
+    fetch(`/api/export-pdf?branch=${encodeURIComponent(branch)}&date_from=${from}&date_to=${to}`)
+        .then(res => {
+            if (!res.ok) return res.json().then(e => { throw new Error(e.message || 'Export failed'); });
+            return res.blob();
+        })
+        .then(blob => {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            const slug = branch === 'all' ? 'All_Outlets' : branch.replace(/\s+/g,'_');
+            a.download = `MCS_Executive_Report_${slug}_${month}.pdf`;
+            document.body.appendChild(a); a.click();
+            document.body.removeChild(a); URL.revokeObjectURL(a.href);
+        })
+        .catch(err => alert('PDF export failed: ' + err.message))
+        .finally(() => {
+            pdfBtn.disabled = false;
+            pdfBtn.innerHTML = `<span class="pdf-icon-btn">
+                <svg width="14" height="16" viewBox="0 0 14 16" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;">
+                    <rect x="0.5" y="0.5" width="13" height="15" rx="1.5" stroke="currentColor" stroke-width="1"/>
+                    <text x="7" y="10.8" text-anchor="middle" font-size="3.2" fill="currentColor" font-weight="700" font-family="Arial">PDF</text>
+                    <path d="M4 3.5h6M4 5.5h4" stroke="currentColor" stroke-width="0.75" stroke-linecap="round" opacity="0.5"/>
+                </svg>
+                Export PDF</span>`;
         });
-
-        // Default to most recent
-        if (months.length) {
-            sel.value = months[months.length - 1];
-            updatePeriodDisplay();
-        }
-
-        // Show count badge
-        badge.style.display = 'inline-flex';
-        badgeTx.textContent = `${months.length} month${months.length !== 1 ? 's' : ''} available`;
-
-        // Hide fallback (native input)
-        fbWrap.style.display = 'none';
-
-    } catch(e) {
-        sel.innerHTML = '<option value="">— Error loading months —</option>';
-        fbWrap.style.display = 'block';
-    }
 }
 
-document.getElementById('rptMonthSelect').addEventListener('change', updatePeriodDisplay);
-document.getElementById('rptMonthFallback').addEventListener('change', updatePeriodDisplay);
+/* ── Generate Preview ─────────────────────────────────────── */
+function generateReportPreview() {
+    const branch = document.getElementById('reportBranch').value;
+    const month  = document.getElementById('reportMonth').value;
+    if (!month) { alert('Please select a reporting month first.'); return; }
+    const from    = `${month}-01`;
+    const parts   = month.split('-');
+    const lastDay = new Date(parseInt(parts[0]), parseInt(parts[1]), 0).getDate();
+    const to      = `${month}-${String(lastDay).padStart(2,'0')}`;
 
-/* ============================================================
-   GENERATE PREVIEW
-============================================================ */
-async function generatePreview() {
-    const branch = document.getElementById('rptBranch').value;
-    const ym     = getSelectedYM();
-    const btn    = document.getElementById('previewBtn');
-    const dlBtn  = document.getElementById('downloadBtn');
+    const previewBtn = document.getElementById('previewBtn');
+    const pdfBtn     = document.getElementById('pdfBtn');
+    const canvas     = document.getElementById('reportCanvas');
+    const wrap       = document.getElementById('canvasWrapper');
 
-    if (!ym) {
-        alert('Please select a reporting month first.');
-        return;
-    }
+    previewBtn.disabled = true;
+    previewBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Rendering…';
+    pdfBtn.disabled = true;
 
-    const { from, to, label } = getMonthDates(ym);
+    fetch(`/api/report_data?branch=${encodeURIComponent(branch)}&date_from=${from}&date_to=${to}`)
+        .then(r => r.json())
+        .then(data => {
+            previewBtn.disabled = false;
+            previewBtn.innerHTML = '<i class="fa-solid fa-file-invoice"></i> Generate Preview';
+            pdfBtn.disabled = false;
+            if (data.status !== 'success') { alert('Error: ' + data.message); return; }
+            currentReportData = data;
+            wrap.classList.add('loaded');
 
-    document.getElementById('previewEmpty').style.display   = 'none';
-    document.getElementById('a4Page').style.display         = 'none';
-    document.getElementById('previewLoading').style.display = 'flex';
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Compiling…';
+            const monthSel   = document.getElementById('reportMonth');
+            const monthLabel = monthSel.options[monthSel.selectedIndex].textContent;
 
-    try {
-        setStep('Fetching sales metrics…');
-        const reportUrl = `/api/report_data?branch=${encodeURIComponent(branch)}&date_from=${from}&date_to=${to}`;
-        const reportRes = await fetch(reportUrl).then(r => r.json());
+            canvas.innerHTML =
+                `<div class="a4-page">${buildPage1(data, branch, monthLabel, from, to)}</div>
+                 <div class="rpt-page-sep">— Page 2 of 5 —</div>
+                 <div class="a4-page">${buildPage2(data, branch, monthLabel, from, to)}</div>
+                 <div class="rpt-page-sep">— Page 3 of 5 —</div>
+                 <div class="a4-page">${buildPage3(data, branch, monthLabel, from, to)}</div>
+                 <div class="rpt-page-sep">— Page 4 of 5 —</div>
+                 <div class="a4-page">${buildPage4(data, branch, monthLabel, from, to)}</div>
+                 <div class="rpt-page-sep">— Page 5 of 5 —</div>
+                 <div class="a4-page">${buildPage5(data, branch, monthLabel, from, to)}</div>`;
 
-        document.getElementById('previewLoading').style.display = 'none';
-
-        if (reportRes.status !== 'success') {
-            alert('Error loading report: ' + (reportRes.message || 'Unknown error'));
-            document.getElementById('previewEmpty').style.display = 'flex';
-            return;
-        }
-
-        document.getElementById('a4Page').innerHTML = buildExecutiveReport(reportRes, branch, label, from, to);
-        document.getElementById('a4Page').style.display = 'block';
-        document.getElementById('previewWrap').classList.add('loaded');
-        dlBtn.disabled = false;
-
-    } catch(e) {
-        document.getElementById('previewLoading').style.display = 'none';
-        document.getElementById('previewEmpty').style.display   = 'flex';
-        document.getElementById('previewWrap').classList.remove('loaded');
-        alert('Error: ' + e.message);
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fa-solid fa-eye"></i> Preview Report';
-    }
+            requestAnimationFrame(scaleA4Pages);
+        })
+        .catch(err => {
+            previewBtn.disabled = false;
+            previewBtn.innerHTML = '<i class="fa-solid fa-file-invoice"></i> Generate Preview';
+            alert('Error fetching report data: ' + err.message);
+        });
 }
 
-/* ============================================================
-   BUILD EXECUTIVE REPORT HTML — matches ReportLab PDF style
-   Replace the entire buildExecutiveReport() function in report.html
-============================================================ */
-function buildExecutiveReport(report, branch, monthLabel, from, to) {
-    const branchLabel = branch === 'all' ? 'All Branches' : branch;
-    const now         = new Date().toLocaleString('en-MY');
+/* ── Shared header/footer helpers ─────────────────────────── */
+function pageHeader(branchLabel, monthLabel, from, to) {
+    const now = new Date().toLocaleString('en-MY', { dateStyle: 'long', timeStyle: 'short' });
+    return `
+    <div class="rpt-confid-strip">Confidential — Internal Use Only</div>
+    <div class="rpt-header-band">
+        <div class="rpt-header-eyebrow">☕ Mini Coffee Shop — Analytics Suite</div>
+        <div class="rpt-header-title">Executive Sales &amp; Performance Report</div>
+        <div class="rpt-header-subtitle">${monthLabel} — Management Publication</div>
+        <div class="rpt-header-meta">
+            <div>Scope: <strong>${branchLabel}</strong> &nbsp;·&nbsp; Period: <strong>${from} to ${to}</strong></div>
+            <div>Compiled: <strong>${now}</strong></div>
+        </div>
+    </div>`;
+}
+function contHeader(branchLabel, monthLabel, pageN, totalN) {
+    return `
+    <div class="rpt-confid-strip">Confidential — Internal Use Only</div>
+    <div class="rpt-cont-header">
+        <span>☕ Mini Coffee Shop · Executive Report</span>
+        <span>${monthLabel} · ${branchLabel} · Page ${pageN} of ${totalN}</span>
+    </div>`;
+}
+function pageFooter(branchLabel, monthLabel, pageN, totalN) {
+    return `
+    <div class="rpt-footer-band">
+        <strong>MCS Analytics v1.0</strong>
+        <span>Page ${pageN} of ${totalN}</span>
+        <span>${branchLabel} · ${monthLabel}</span>
+    </div>`;
+}
+function sectionHead(title, desc='') {
+    return `
+    <div class="rpt-section">
+        <div class="rpt-section-title">${title}</div>
+        ${desc ? `<div class="rpt-section-desc">${desc}</div>` : ''}
+    </div>`;
+}
 
-    // Core KPIs
-    const periodRev  = report.period_revenue || 0;
-    const periodTxns = report.period_txns    || 0;
-    const dailyAvg   = report.daily_average  || 0;
-    const aovVal     = report.aov            || 0;
-    const trend      = report.trend_label    || 'N/A';
-    const topBranch  = report.top_branch     || 'N/A';
-    const aiInsight  = report.ai_insight     || 'AI insight unavailable.';
-    const daysInP    = Math.max((report.daily || []).length, 1);
-    const avgDailyT  = (periodTxns / daysInP).toFixed(1);
+/* ══════════════════════════════════════════════════════════
+   PAGE 1 — Executive Summary + Monthly Revenue Trend
+   Mirrors PDF Sections 1 & 2
+═══════════════════════════════════════════════════════════ */
+function buildPage1(report, branch, monthLabel, from, to) {
+    const branchLabel = branch === 'all' ? 'All Operational Outlets' : branch;
+    const monthKey    = from.substring(0, 7);
 
-    // Shared styles
-    const TH = `style="background:#1E293B;color:white;padding:6px 9px;text-align:left;font-size:.72rem;font-weight:600;"`;
-    const TH_R = `style="background:#1E293B;color:white;padding:6px 9px;text-align:right;font-size:.72rem;font-weight:600;"`;
-    const TD = `style="padding:5px 9px;border-bottom:1px solid #E2E8F0;color:#334155;font-size:.76rem;"`;
-    const TD_R = `style="padding:5px 9px;border-bottom:1px solid #E2E8F0;color:#334155;font-size:.76rem;text-align:right;font-family:monospace;"`;
-    const TABLE = `style="width:100%;border-collapse:collapse;margin-bottom:6px;"`;
-    const SEC = `style="font-size:.72rem;font-weight:700;color:#1E293B;text-transform:uppercase;letter-spacing:.8px;border-left:3px solid #2563EB;padding-left:8px;margin:16px 0 8px;"`;
-    const SUBSEC = `style="font-size:.72rem;font-weight:700;color:#1E293B;margin-bottom:5px;margin-top:10px;"`;
-    const NOTE = `style="font-size:.68rem;color:#92400E;background:#FFFBEB;border:1px solid #FDE68A;border-radius:4px;padding:5px 9px;margin-top:5px;"`;
+    const kpiGrid = `
+    <div class="rpt-kpi-grid">
+        <div class="rpt-kpi-box accent">
+            <div class="rpt-kpi-label">Total Gross Revenue</div>
+            <div class="rpt-kpi-value green">RM ${fmt(report.period_revenue)}</div>
+            <div class="rpt-kpi-sub">${monthLabel}</div>
+        </div>
+        <div class="rpt-kpi-box info">
+            <div class="rpt-kpi-label">Total Transactions</div>
+            <div class="rpt-kpi-value blue">${fmtInt(report.period_txns)}</div>
+            <div class="rpt-kpi-sub">Individual orders processed</div>
+        </div>
+        <div class="rpt-kpi-box">
+            <div class="rpt-kpi-label">Daily Avg Revenue</div>
+            <div class="rpt-kpi-value">RM ${fmt(report.daily_average)}</div>
+            <div class="rpt-kpi-sub">Per operating day</div>
+        </div>
+    </div>
+    <div class="rpt-kpi-grid" style="margin-top: 8px;">
+        <div class="rpt-kpi-box">
+            <div class="rpt-kpi-label">Avg Order Value</div>
+            <div class="rpt-kpi-value">RM ${fmt(report.aov)}</div>
+            <div class="rpt-kpi-sub">Per transaction</div>
+        </div>
+        <div class="rpt-kpi-box">
+            <div class="rpt-kpi-label">Peak Operating Hour</div>
+            <div class="rpt-kpi-value" style="font-size:11pt;">${report.peak_hour || '—'}</div>
+            <div class="rpt-kpi-sub">Highest order volume</div>
+        </div>
+        <div class="rpt-kpi-box">
+            <div class="rpt-kpi-label">Busiest Day of Week</div>
+            <div class="rpt-kpi-value" style="font-size:11pt;">${report.peak_day || '—'}</div>
+            <div class="rpt-kpi-sub">Highest weekly traffic</div>
+        </div>
+    </div>`;
 
-    function bar(pct, color='#2563EB') {
-        const filled = Math.round((pct / 100) * 12);
-        const f = '█'.repeat(Math.max(0, filled));
-        const e = '░'.repeat(Math.max(0, 12 - filled));
-        return `<span style="font-family:monospace;color:${color};font-size:.7rem;">${f}${e}</span>`;
-    }
+    const diag    = report.diagnostics || {};
+    const drift   = parseFloat(diag.revenue_variance_pct || 0);
+    const topProd = (report.top_products || [])[0] || {};
+    const findingsRows = [
+        ['Period vs Prior',    report.trend_label || 'N/A'],
+        ['Top Branch',         report.top_branch  || 'N/A'],
+        ['Avg Order Value',    `RM ${fmt(report.aov)}`],
+        ['Busiest Window',     `${report.peak_hour || '—'}  ·  ${report.peak_day || '—'}`],
+        ['Best Product',       topProd.product_id ? `${skuName(topProd.product_id)} (${fmtInt(topProd.qty)} units)` : 'N/A'],
+        ['Revenue / Trend Δ',  `${drift >= 0 ? '+' : ''}${fmt(drift, 1)}% vs trailing 30 days`],
+    ].map(([k,v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('');
 
-    function stripeRow(i) {
-        return i % 2 === 1 ? 'background:#F1F5F9;' : 'background:white;';
-    }
+    const mt      = report.monthly_trend || {};
+    const labels  = mt.labels   || [];
+    const keys    = mt.keys     || [];
+    const branches= mt.branches || [];
+    const byB     = mt.by_branch|| {};
+    const sliceN  = Math.min(6, labels.length);
+    const startIdx= labels.length - sliceN;
 
-    // ── SECTION 1: KPI Summary Table ────────────────────────
-    const kpiRows = [
-        ['Total Revenue',    `RM ${fmt(periodRev)}`,      'Sales Volume',      `${fmtInt(periodTxns)} orders`],
-        ['Daily Average',    `RM ${fmt(dailyAvg)}`,       'Avg Order Value',   `RM ${fmt(aovVal)}`],
-        ['Period vs Prior',  trend,                        'Top Branch',        topBranch],
-        ['Peak Hour',        report.peak_hour||'N/A',      'Peak Day',          report.peak_day||'N/A'],
-        ['Reporting Period', `${from} to ${to}`,           'Avg Daily Orders',  avgDailyT],
-    ];
-
-    const kpiTableRows = kpiRows.map((r, i) => `
-        <tr style="${stripeRow(i)}">
-            <td style="padding:5px 9px;border-bottom:1px solid #E2E8F0;font-size:.76rem;font-weight:700;color:#1E293B;width:25%;">${r[0]}</td>
-            <td style="padding:5px 9px;border-bottom:1px solid #E2E8F0;font-size:.76rem;color:#2563EB;font-family:monospace;width:25%;">${r[1]}</td>
-            <td style="padding:5px 9px;border-bottom:1px solid #E2E8F0;font-size:.76rem;font-weight:700;color:#1E293B;width:25%;">${r[2]}</td>
-            <td style="padding:5px 9px;border-bottom:1px solid #E2E8F0;font-size:.76rem;color:#2563EB;font-family:monospace;width:25%;">${r[3]}</td>
-        </tr>`).join('');
-
-    // ── SECTION 2: Monthly Trend Table ──────────────────────
-    const mt         = report.monthly_trend || {};
-    const mtLabels   = mt.labels   || [];
-    const mtKeys     = mt.keys     || [];
-    const mtBranches = mt.branches || [];
-    const mtByB      = mt.by_branch || {};
-    const sliceN     = Math.min(6, mtLabels.length);
-    const startIdx   = mtLabels.length - sliceN;
-
+    const thCols = branches.map(b => `<th class="r">${b}</th>`).join('');
     let monthRows = '';
-    for (let i = startIdx; i < mtLabels.length; i++) {
-        const lbl    = mtLabels[i];
-        const key    = mtKeys[i];
-        const isCurr = (key === from.substring(0,7));
-        const rowStyle = isCurr
-            ? 'background:#EFF6FF;font-weight:700;'
-            : stripeRow(i - startIdx);
-        let branchCells = '';
-        let rowTotal = 0;
-        mtBranches.forEach(b => {
-            const v = (mtByB[b] || [])[i] || 0;
-            rowTotal += v;
-            branchCells += `<td style="padding:5px 9px;border-bottom:1px solid #E2E8F0;font-size:.76rem;text-align:right;font-family:monospace;">${isCurr ? '<strong>' : ''}RM ${fmt(v)}${isCurr ? '</strong>' : ''}</td>`;
-        });
-        monthRows += `
-        <tr style="${rowStyle}">
-            <td style="padding:5px 9px;border-bottom:1px solid #E2E8F0;font-size:.76rem;font-family:monospace;">${isCurr ? '► ' : ''}${lbl}</td>
-            ${branchCells}
-            <td style="padding:5px 9px;border-bottom:1px solid #E2E8F0;font-size:.76rem;text-align:right;font-family:monospace;color:#2563EB;font-weight:700;">RM ${fmt(rowTotal)}</td>
+    for (let i = startIdx; i < labels.length; i++) {
+        const isCurr = keys[i] === monthKey;
+        let total = 0;
+        const cells = branches.map(b => {
+            const v = (byB[b] || [])[i] || 0; total += v;
+            return `<td class="r" style="${isCurr ? 'color:#1E40AF;font-weight:700;' : ''}">${fmt(v)}</td>`;
+        }).join('');
+        monthRows += `<tr class="${isCurr ? 'rpt-highlight' : ''}">
+            <td>${isCurr ? '► ' : ''}${labels[i]}</td>
+            ${cells}
+            <td class="r" style="font-weight:700;">${fmt(total)}</td>
         </tr>`;
     }
-    const headerCols = mtBranches.map(b => `<th ${TH_R}>${b}</th>`).join('');
 
-    // ── SECTION 3: PvA Table ─────────────────────────────────
-    const pvaRows    = report.predicted_vs_actual || [];
-    const pvaTotalP  = report.pva_total_predicted || 0;
-    const pvaTotalA  = report.pva_total_actual    || 0;
-    const pvaMape    = report.pva_mape            || 0;
-    const pvaInRange = report.pva_within_range    || 0;
-    const pvaDays    = report.pva_days_with_data  || 0;
+    return pageHeader(branchLabel, monthLabel, from, to) + `
+    <div class="rpt-body">
+        ${sectionHead('Executive Performance Summary',
+          'Key performance indicators from certified point-of-sale records for the selected period.')}
+        ${kpiGrid}
+        <table class="rpt-finding-table" style="margin-top: 14px;">
+            <tbody>${findingsRows}</tbody>
+        </table>
+        ${sectionHead(`Revenue Trend — Last ${sliceN} Months`,
+          'Rolling six-month cross-branch revenue comparison. Highlighted row = selected reporting month.')}
+        <table class="rpt-table">
+            <thead><tr><th>Reporting Period</th>${thCols}<th class="r">Combined Net Sales</th></tr></thead>
+            <tbody>${monthRows || '<tr><td colspan="10" style="color:#94A3B8;text-align:center;">No monthly data.</td></tr>'}</tbody>
+        </table>
+        <div class="rpt-note-box">⚠ Profit &amp; COGS data not available from POS logs. Revenue figures represent gross sales only.</div>
+    </div>
+    ${pageFooter(branchLabel, monthLabel, 1, 5)}`;
+}
+
+/* ══════════════════════════════════════════════════════════
+   PAGE 2 — Predicted vs Actual
+   Mirrors PDF Section 3
+═══════════════════════════════════════════════════════════ */
+function buildPage2(report, branch, monthLabel, from, to) {
+    const branchLabel = branch === 'all' ? 'All Operational Outlets' : branch;
+
+    const pvaRows = report.predicted_vs_actual || [];
+    const pvaDays = report.pva_days_with_data || 0;
+    const pvaMape = report.pva_mape || 0;
+
+    const pvaSummary = `
+    <div class="rpt-kpi-grid-4">
+        <div class="rpt-kpi-box">
+            <div class="rpt-kpi-label">Prediction Target</div>
+            <div class="rpt-kpi-value" style="font-size:10pt;">RM ${fmt(report.pva_total_predicted)}</div>
+            <div class="rpt-kpi-sub">Total expected revenue</div>
+        </div>
+        <div class="rpt-kpi-box accent">
+            <div class="rpt-kpi-label">Actual Target</div>
+            <div class="rpt-kpi-value green" style="font-size:10pt;">RM ${fmt(report.pva_total_actual)}</div>
+            <div class="rpt-kpi-sub">Total realized revenue</div>
+        </div>
+        <div class="rpt-kpi-box info">
+            <div class="rpt-kpi-label">Forecast Precision</div>
+            <div class="rpt-kpi-value blue" style="font-size:10pt;">${report.pva_within_range} / ${pvaDays} days</div>
+            <div class="rpt-kpi-sub">Within predicted range</div>
+        </div>
+        <div class="rpt-kpi-box warn">
+            <div class="rpt-kpi-label">MAPE Error</div>
+            <div class="rpt-kpi-value" style="font-size:10pt;color:#854D0E;">${pvaMape}%</div>
+            <div class="rpt-kpi-sub">Model accuracy metric</div>
+        </div>
+    </div>`;
 
     let pvaTableRows = '';
-    pvaRows.forEach((r, i) => {
-        const hasActual = r.actual !== null && r.actual !== undefined;
-        const varVal    = r.variance;
-        const varPct    = r.variance_pct;
-        const inRange   = r.in_range;
-        const holiday   = r.is_holiday ? ' 🎉' : '';
-
-        let varColor = '#64748B', varStr = '—';
-        if (varVal !== null && varVal !== undefined) {
-            varColor = varVal >= 0 ? '#0D9488' : '#DC2626';
-            const s  = varVal >= 0 ? '+' : '';
-            const ps = varPct >= 0 ? '+' : '';
-            varStr   = `${s}RM ${fmt(Math.abs(varVal))} (${ps}${varPct}%)`;
+    pvaRows.forEach(r => {
+        const hasAct = r.actual !== null;
+        const varVal = r.variance;
+        const varPct = r.variance_pct;
+        const varCell = hasAct ? `<span style="color:${varColor(varVal)};font-weight:600;">${varVal >= 0 ? '+' : ''}${fmt(varVal)}</span>` : '—';
+        const varPCell = hasAct ? `<span style="color:${varColor(varPct)};font-weight:600;">${varPct >= 0 ? '+' : ''}${fmt(varPct, 1)}%</span>` : '—';
+        
+        let statusBadge = badge('No Data', 'gray');
+        if (hasAct) {
+            if (r.yhat_upper !== null && r.actual > r.yhat_upper) statusBadge = badge('Exceeded Target', 'gold');
+            else if (r.yhat_lower !== null && r.actual < r.yhat_lower) statusBadge = badge('Off Range', 'red');
+            else if (r.actual < r.yhat) statusBadge = badge('Safe Range', 'yellow');
+            else statusBadge = badge('On Target', 'green');
         }
 
-        const actualStr  = hasActual ? `RM ${fmt(r.actual)}` : '—';
-        let statusStr = '';
-        if (hasActual && inRange !== null) {
-            statusStr = inRange
-                ? `<span style="background:#ECFDF5;color:#065F46;border-radius:3px;font-size:.62rem;padding:1px 5px;">✓ On Target</span>`
-                : `<span style="background:#FEF2F2;color:#991B1B;border-radius:3px;font-size:.62rem;padding:1px 5px;">⚠ Off Range</span>`;
-        }
-
-        pvaTableRows += `
-        <tr style="${stripeRow(i)}">
-            <td ${TD}>${r.ds}</td>
-            <td ${TD}>${r.day_name}${holiday}</td>
-            <td ${TD_R}>${fmt(r.yhat || 0)}</td>
-            <td ${TD_R}>${actualStr}</td>
-            <td style="padding:5px 9px;border-bottom:1px solid #E2E8F0;font-size:.76rem;text-align:right;color:${varColor};">${varStr}</td>
-            <td ${TD}>${statusStr}</td>
+        pvaTableRows += `<tr>
+            <td class="mono">${r.ds}</td>
+            <td>${r.day_name}${r.is_holiday ? ' 🎉' : ''}</td>
+            <td class="r">${fmt(r.yhat)}</td>
+            <td class="r">${hasAct ? fmt(r.actual) : '—'}</td>
+            <td class="r">${varCell}</td>
+            <td class="r">${varPCell}</td>
+            <td class="c">${statusBadge}</td>
         </tr>`;
     });
 
-    const pvaSummaryRows = [
-        ['Total Predicted', `RM ${fmt(pvaTotalP)}`, 'Total Actual', `RM ${fmt(pvaTotalA)}`],
-        ['MAPE', `${pvaMape}%`, 'On Target', `${pvaInRange} / ${pvaDays} days`],
-    ].map((r, i) => `
-        <tr style="${stripeRow(i)}">
-            <td style="padding:5px 9px;border-bottom:1px solid #E2E8F0;font-size:.76rem;font-weight:700;color:#1E293B;width:25%;">${r[0]}</td>
-            <td style="padding:5px 9px;border-bottom:1px solid #E2E8F0;font-size:.76rem;font-family:monospace;color:#2563EB;width:25%;">${r[1]}</td>
-            <td style="padding:5px 9px;border-bottom:1px solid #E2E8F0;font-size:.76rem;font-weight:700;color:#1E293B;width:25%;">${r[2]}</td>
-            <td style="padding:5px 9px;border-bottom:1px solid #E2E8F0;font-size:.76rem;font-family:monospace;color:#2563EB;width:25%;">${r[3]}</td>
-        </tr>`).join('');
-
-    const pvaSection = pvaRows.length > 0 ? `
-        <table ${TABLE}><tbody>${pvaSummaryRows}</tbody></table>
-        <table ${TABLE}>
+    return contHeader(branchLabel, monthLabel, 2, 5) + `
+    <div class="rpt-body">
+        ${sectionHead(`Daily Sales — Predicted vs Actual (${monthLabel})`,
+          'Benchmarking actual revenue against AI forecast. Gold/Green = Success, Yellow = Safe Range, Red = Warning.')}
+        ${pvaSummary}
+        <table class="rpt-table-compact">
             <thead><tr>
-                <th ${TH}>Date</th><th ${TH}>Day</th>
-                <th ${TH_R}>Predicted (RM)</th><th ${TH_R}>Actual (RM)</th>
-                <th ${TH_R}>Variance</th><th ${TH}>Status</th>
+                <th>Date</th><th>Day</th>
+                <th class="r">Predicted (RM)</th><th class="r">Actual (RM)</th>
+                <th class="r">Variance</th><th class="r">Var %</th>
+                <th class="c">Status</th>
             </tr></thead>
             <tbody>${pvaTableRows}</tbody>
-        </table>` : `
-        <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:4px;padding:12px;text-align:center;color:#94A3B8;font-size:.76rem;">
-            No forecast data for this period. Run the AI Forecast engine first, then select a past month.
-        </div>`;
-
-    // ── SECTION 4: Products ──────────────────────────────────
-    const topProds = report.top_products       || [];
-    const botProds = report.bottom_products    || [];
-    const catData  = report.category_breakdown || [];
-    const payData  = report.payment_breakdown  || [];
-    const regional = report.regional_breakdown || [];
-    const brMax    = report.branch_max_rev     || 1;
-
-    const topProdRows = topProds.map((p, i) => `
-        <tr style="${stripeRow(i)}">
-            <td ${TD}>${i+1}. ${p.product_name}</td>
-            <td ${TD_R}>${fmtInt(p.qty)}</td>
-            <td ${TD_R}>RM ${fmt(p.revenue)}</td>
-            <td ${TD_R}>${p.pct}%</td>
-            <td ${TD}>${bar(parseFloat(p.pct) * 4.5, '#2563EB')}</td>
-        </tr>`).join('');
-
-    const botProdRows = botProds.map((p, i) => `
-        <tr style="${stripeRow(i)}">
-            <td style="padding:5px 9px;border-bottom:1px solid #E2E8F0;font-size:.76rem;color:#DC2626;">${p.product_name}</td>
-            <td ${TD_R}>${fmtInt(p.qty)}</td>
-            <td ${TD_R}>RM ${fmt(p.revenue)}</td>
-        </tr>`).join('');
-
-    const regionalRows = regional.map((r, i) => {
-        const pct   = ((r.rev / brMax) * 100);
-        const isTop = (r.branch_name === topBranch);
-        return `
-        <tr style="${stripeRow(i)}">
-            <td ${TD}>${isTop ? '★ ' : ''}${r.branch_name}</td>
-            <td ${TD_R}>RM ${fmt(r.rev)}</td>
-            <td ${TD_R}>${fmtInt(r.txns)}</td>
-            <td ${TD}>${bar(pct, '#2563EB')}</td>
-        </tr>`;
-    }).join('');
-
-    const catTotal = catData.reduce((s, c) => s + c.revenue, 0) || 1;
-    const catRows  = catData.map((c, i) => `
-        <tr style="${stripeRow(i)}">
-            <td ${TD}>${c.product_category}</td>
-            <td ${TD_R}>RM ${fmt(c.revenue)}</td>
-            <td ${TD_R}>${c.pct}%</td>
-            <td ${TD}>${bar((c.revenue / catTotal) * 100, '#0D9488')}</td>
-        </tr>`).join('');
-
-    const payTotal = payData.reduce((s, p) => s + p.txn_count, 0) || 1;
-    const payRows  = payData.map((p, i) => `
-        <tr style="${stripeRow(i)}">
-            <td ${TD}>${p.payment_method}</td>
-            <td ${TD_R}>${fmtInt(p.txn_count)}</td>
-            <td ${TD_R}>${p.pct}%</td>
-            <td ${TD}>${bar((p.txn_count / payTotal) * 100, '#D97706')}</td>
-        </tr>`).join('');
-
-    // ── SECTION 5: Hourly & DOW ──────────────────────────────
-    const hourlyData  = report.hourly_breakdown || [];
-    const hourlyMax   = Math.max(...hourlyData.map(h => h.txns), 1);
-    const peakHourStr = report.peak_hour || '';
-    const dowData     = report.dow_breakdown    || [];
-    const dowMax      = Math.max(...dowData.map(d => d.txns), 1);
-    const peakDayStr  = report.peak_day  || '';
-
-    const hourlyRows = hourlyData.map((h, i) => {
-        const isPeak = peakHourStr.startsWith(h.hour.substring(0,2));
-        return `
-        <tr style="${isPeak ? 'background:#EFF6FF;' : stripeRow(i)}">
-            <td ${TD}>${isPeak ? '★ ' : ''}${h.hour}</td>
-            <td ${TD_R}>${fmtInt(h.txns)}</td>
-            <td ${TD_R}>RM ${fmt(h.revenue)}</td>
-            <td ${TD}>${bar((h.txns / hourlyMax) * 100, isPeak ? '#1D4ED8' : '#2563EB')}</td>
-        </tr>`;
-    }).join('');
-
-    const dowRows = dowData.map((d, i) => {
-        const isPeak = (d.day === peakDayStr);
-        return `
-        <tr style="${isPeak ? 'background:#ECFDF5;' : stripeRow(i)}">
-            <td ${TD}>${isPeak ? '★ ' : ''}${d.day}</td>
-            <td ${TD_R}>${fmtInt(d.txns)}</td>
-            <td ${TD_R}>RM ${fmt(d.revenue)}</td>
-            <td ${TD}>${bar((d.txns / dowMax) * 100, isPeak ? '#0D9488' : '#2563EB')}</td>
-        </tr>`;
-    }).join('');
-
-    // ── SECTION 6: AI Recommendations ───────────────────────
-    const aiLines = aiInsight.replace(/\r\n/g, '\n').split('\n');
-    const aiHTML  = aiLines.map(line => {
-        line = line.trim();
-        if (!line) return '<div style="height:5px;"></div>';
-        const isNum = line.length > 2 && line[0].match(/\d/) && line[1].match(/[.):]/) ;
-        const isBul = line.startsWith('•') || line.startsWith('-');
-        if (isNum || isBul) {
-            return `<div style="font-size:.76rem;color:#334155;line-height:1.7;padding-left:12px;margin-bottom:3px;">• ${line.replace(/^[\d.):•\-\s]+/, '')}</div>`;
-        }
-        return `<div style="font-size:.76rem;color:#334155;line-height:1.7;margin-bottom:3px;">${line}</div>`;
-    }).join('');
-
-    const bestProd = topProds[0] || null;
-
-    const findingsRows = [
-        ['Revenue Trend',    trend],
-        ['Top Branch',       topBranch],
-        ['Avg Order Value',  `RM ${fmt(aovVal)}`],
-        ['Busiest Window',   `${report.peak_hour||'N/A'} · ${report.peak_day||'N/A'}`],
-        ['Best Product',     bestProd ? `${bestProd.product_name} (${fmtInt(bestProd.qty)} units)` : 'N/A'],
-        ['Period Revenue',   `RM ${fmt(periodRev)} across ${fmtInt(periodTxns)} transactions`],
-    ].map((r, i) => `
-        <tr style="${stripeRow(i)}">
-            <td style="padding:5px 9px;border-bottom:1px solid #E2E8F0;font-size:.76rem;font-weight:700;color:#1E293B;width:35%;">${r[0]}</td>
-            <td style="padding:5px 9px;border-bottom:1px solid #E2E8F0;font-size:.76rem;color:#334155;">${r[1]}</td>
-        </tr>`).join('');
-
-    // ── ASSEMBLE FULL REPORT ─────────────────────────────────
-    return `
-    <!-- HEADER -->
-    <div style="background:#1E293B;padding:24px 32px 20px;color:white;">
-        <div style="font-size:.78rem;opacity:.6;margin-bottom:6px;">☕ Mini Coffee Shop</div>
-        <div style="font-size:1.3rem;font-weight:700;margin-bottom:4px;">Executive Sales Report</div>
-        <div style="display:flex;justify-content:space-between;align-items:flex-end;">
-            <div style="font-size:.76rem;opacity:.7;">${branchLabel} · ${monthLabel} · Confidential — Internal Use Only</div>
-            <div style="font-size:.72rem;opacity:.65;text-align:right;">Generated: ${now}<br>Period: ${from} – ${to}</div>
-        </div>
-    </div>
-    <div style="height:3px;background:linear-gradient(90deg,#F59E0B,#2563EB,#0D9488);"></div>
-
-    <div style="padding:20px 32px;">
-
-        <!-- 1. Executive Summary -->
-        <div ${SEC}>1. Executive Summary</div>
-        <table ${TABLE}><tbody>${kpiTableRows}</tbody></table>
-        <div ${NOTE}>⚠ Profit &amp; COGS data not available from POS logs. Revenue figures represent gross sales only.</div>
-
-        <!-- 2. Revenue Trend -->
-        <div ${SEC}>2. Revenue Trend — Last ${sliceN} Months</div>
-        ${monthRows ? `
-        <table ${TABLE}>
-            <thead><tr><th ${TH}>Month</th>${headerCols}<th ${TH_R}>Total Revenue</th></tr></thead>
-            <tbody>${monthRows}</tbody>
         </table>
-        <div style="font-size:.62rem;color:#94A3B8;margin-top:2px;">► Highlighted = selected reporting month</div>
-        ` : '<div style="color:#94A3B8;font-size:.76rem;">No monthly data.</div>'}
-
-        <!-- 3. Daily Sales — Predicted vs Actual -->
-        <div ${SEC}>3. Daily Sales — Predicted vs Actual (${monthLabel})</div>
-        ${pvaSection}
-
     </div>
+    ${pageFooter(branchLabel, monthLabel, 2, 5)}`;
+}
 
-    <!-- PAGE SEPARATOR -->
-    <div class="rpt-page-sep">— Page 2 —</div>
+/* ══════════════════════════════════════════════════════════
+   PAGE 3 — Product Performance + Regional/Category
+   Mirrors PDF Sections 4 & 5
+═══════════════════════════════════════════════════════════ */
+function buildPage3(report, branch, monthLabel, from, to) {
+    const branchLabel = branch === 'all' ? 'All Operational Outlets' : branch;
 
-    <div style="padding:20px 32px;" class="rpt-page-break">
+    const topProds = report.top_products || [];
+    const botProds = report.bottom_products || [];
+    const topMax   = topProds.length ? parseFloat(topProds[0].pct) : 0;
 
-        <!-- 4. Product Performance -->
-        <div ${SEC}>4. Product Performance</div>
+    const topRows = topProds.map((p, i) => `
+        <tr>
+            <td class="c"><span class="rpt-rank ${i===0?'gold':''}">${i+1}</span></td>
+            <td style="font-weight:600;">${skuName(p.product_id)}</td>
+            <td class="r">${fmtInt(p.qty)}</td>
+            <td class="r" style="color:#059669;font-weight:700;">RM ${fmt(p.revenue)}</td>
+            <td class="r">${p.pct}%</td>
+            <td>${pctBar(topMax > 0 ? (parseFloat(p.pct) / topMax * 100) : 0, '#1E3A5F')}</td>
+        </tr>`).join('');
 
-        <div ${SUBSEC}>Top-Selling Products (by quantity)</div>
-        ${topProdRows ? `
-        <table ${TABLE}>
-            <thead><tr><th ${TH}>Product</th><th ${TH_R}>Units Sold</th><th ${TH_R}>Revenue (RM)</th><th ${TH_R}>Share %</th><th ${TH}>Bar</th></tr></thead>
-            <tbody>${topProdRows}</tbody>
-        </table>` : '<div style="color:#94A3B8;font-size:.76rem;">No data.</div>'}
+    const botRows = botProds.map(p => `
+        <tr>
+            <td style="color:#991B1B;font-weight:600;">${skuName(p.product_id)}</td>
+            <td class="r">${fmtInt(p.qty)}</td>
+            <td class="r">RM ${fmt(p.revenue)}</td>
+        </tr>`).join('');
 
-        <div ${SUBSEC}>Underperforming Products — Bottom 3</div>
-        ${botProdRows ? `
-        <table ${TABLE}>
-            <thead><tr><th ${TH}>Product</th><th ${TH_R}>Units Sold</th><th ${TH_R}>Revenue (RM)</th></tr></thead>
-            <tbody>${botProdRows}</tbody>
-        </table>` : '<div style="color:#94A3B8;font-size:.76rem;">No data.</div>'}
+    const regional = report.regional_breakdown || [];
+    const brMax    = report.branch_max_rev || 0;
+    const regRows  = regional.map(r => {
+        const isTop = r.branch_name === report.top_branch;
+        return `<tr>
+            <td style="font-weight:${isTop?'700':'normal'};">${isTop?'★ ':''}${r.branch_name}</td>
+            <td class="r" style="${isTop?'color:#059669;font-weight:700;':''}">RM ${fmt(r.rev)}</td>
+            <td class="r">${fmtInt(r.txns)}</td>
+            <td>${pctBar(brMax > 0 ? (r.rev / brMax * 100) : 0, '#2563EB')}</td>
+        </tr>`;
+    }).join('');
 
-        <!-- 5. Regional & Category -->
-        <div ${SEC}>5. Regional &amp; Category Breakdown</div>
+    const catData = report.category_breakdown || [];
+    const payData = report.payment_breakdown  || [];
+    const catBars = catData.map(c => `
+        <div class="rpt-dist-item">
+            <div class="rpt-dist-row"><span>${c.product_category}</span><code>RM ${fmt(c.revenue)} (${c.pct}%)</code></div>
+            <div class="rpt-bar-bg"><div class="rpt-bar-fg" style="width:${c.pct}%; background:#1E3A5F;"></div></div>
+        </div>`).join('');
+    const payBars = payData.map(p => `
+        <div class="rpt-dist-item">
+            <div class="rpt-dist-row"><span>${p.payment_method.toUpperCase()}</span><code>${fmtInt(p.txn_count)} orders (${p.pct}%)</code></div>
+            <div class="rpt-bar-bg"><div class="rpt-bar-fg" style="width:${p.pct}%; background:#D97706;"></div></div>
+        </div>`).join('');
 
-        <div ${SUBSEC}>Branch Performance</div>
-        ${regionalRows ? `
-        <table ${TABLE}>
-            <thead><tr><th ${TH}>Branch</th><th ${TH_R}>Revenue (RM)</th><th ${TH_R}>Transactions</th><th ${TH}>Bar</th></tr></thead>
-            <tbody>${regionalRows}</tbody>
-        </table>` : '<div style="color:#94A3B8;font-size:.76rem;">No data.</div>'}
-
-        <div ${SUBSEC}>Revenue by Product Category</div>
-        ${catRows ? `
-        <table ${TABLE}>
-            <thead><tr><th ${TH}>Category</th><th ${TH_R}>Revenue (RM)</th><th ${TH_R}>Share %</th><th ${TH}>Bar</th></tr></thead>
-            <tbody>${catRows}</tbody>
-        </table>` : '<div style="color:#94A3B8;font-size:.76rem;">No data.</div>'}
-
-        <div ${SUBSEC}>Payment Method Breakdown</div>
-        ${payRows ? `
-        <table ${TABLE}>
-            <thead><tr><th ${TH}>Payment Method</th><th ${TH_R}>Transactions</th><th ${TH_R}>Share %</th><th ${TH}>Bar</th></tr></thead>
-            <tbody>${payRows}</tbody>
-        </table>` : '<div style="color:#94A3B8;font-size:.76rem;">No data.</div>'}
-
-        <!-- 6. Transaction Flow -->
-        <div ${SEC}>6. Transaction Flow by Time</div>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+    return contHeader(branchLabel, monthLabel, 3, 5) + `
+    <div class="rpt-body">
+        ${sectionHead('Product Performance',
+          'Pareto analysis of menu item velocity. Top 5 by quantity and bottom 3 underperformers.')}
+        <table class="rpt-table">
+            <thead><tr>
+                <th class="c" style="width:32px;">#</th>
+                <th>Menu Item</th>
+                <th class="r">Units Sold</th>
+                <th class="r">Revenue (RM)</th>
+                <th class="r">Share %</th>
+                <th style="min-width:90px;">Activity</th>
+            </tr></thead>
+            <tbody>${topRows}</tbody>
+        </table>
+        <div style="font-size:9pt;font-weight:700;color:#0F172A;margin:12px 0 5px;">Underperforming Menu Lines — Bottom 3</div>
+        <table class="rpt-table">
+            <thead><tr><th>Menu Item</th><th class="r">Units Sold</th><th class="r">Revenue (RM)</th></tr></thead>
+            <tbody>${botRows}</tbody>
+        </table>
+        <hr class="rpt-hr">
+        ${sectionHead('Regional &amp; Category Breakdown',
+          'Branch performance, revenue by product category, and payment channel distribution.')}
+        <div style="font-size:8.5pt;font-weight:700;color:#0F172A;margin-bottom:5px;">Branch Performance</div>
+        <table class="rpt-table">
+            <thead><tr><th>Branch</th><th class="r">Revenue (RM)</th><th class="r">Transactions</th><th>Activity</th></tr></thead>
+            <tbody>${regRows}</tbody>
+        </table>
+        <div class="rpt-dist-grid" style="margin-top:12px;">
             <div>
-                <div ${SUBSEC}>Hourly Transaction Volume</div>
-                ${hourlyRows ? `
-                <table ${TABLE}>
-                    <thead><tr><th ${TH}>Hour</th><th ${TH_R}>Orders</th><th ${TH_R}>Revenue (RM)</th><th ${TH}>Activity</th></tr></thead>
-                    <tbody>${hourlyRows}</tbody>
-                </table>` : '<div style="color:#94A3B8;font-size:.76rem;">No data.</div>'}
+                <div class="rpt-dist-head">Revenue by Product Category</div>
+                ${catBars}
             </div>
             <div>
-                <div ${SUBSEC}>Day-of-Week Pattern</div>
-                ${dowRows ? `
-                <table ${TABLE}>
-                    <thead><tr><th ${TH}>Day</th><th ${TH_R}>Orders</th><th ${TH_R}>Revenue (RM)</th><th ${TH}>Activity</th></tr></thead>
-                    <tbody>${dowRows}</tbody>
-                </table>` : '<div style="color:#94A3B8;font-size:.76rem;">No data.</div>'}
+                <div class="rpt-dist-head" style="color:#D97706;">Payment Mix</div>
+                ${payBars}
             </div>
         </div>
-
     </div>
+    ${pageFooter(branchLabel, monthLabel, 3, 5)}`;
+}
 
-    <!-- PAGE SEPARATOR -->
-    <div class="rpt-page-sep">— Page 3 —</div>
+/* ══════════════════════════════════════════════════════════
+   PAGE 4 — Transaction Flow
+   Mirrors PDF Section 6
+═══════════════════════════════════════════════════════════ */
+function buildPage4(report, branch, monthLabel, from, to) {
+    const branchLabel = branch === 'all' ? 'All Operational Outlets' : branch;
 
-    <div style="padding:20px 32px;" class="rpt-page-break">
+    const hourly    = report.hourly_breakdown || [];
+    const dow       = report.dow_breakdown || [];
+    const hourlyMax = Math.max(...hourly.map(h => h.txns), 1);
+    const peakH     = report.peak_hour.substring(0, 2);
 
-        <!-- 7. AI Recommendations -->
-        <div ${SEC}>7. AI-Powered Actionable Recommendations</div>
-        <div style="font-size:.72rem;color:#64748B;margin-bottom:8px;">Branch: ${branchLabel} · Period: ${monthLabel} · Revenue: RM ${fmt(periodRev)}</div>
-        <div style="border:1px solid #E2E8F0;border-radius:4px;padding:12px 14px;background:#FAFAFA;margin-bottom:12px;">
+    const hourlyRows = hourly.map(h => {
+        const isPeak = h.hour.startsWith(peakH);
+        return `<tr class="${isPeak ? 'rpt-highlight' : ''}">
+            <td class="mono">${isPeak ? '★ ' : ''}${h.hour}</td>
+            <td class="r">${fmtInt(h.txns)}</td>
+            <td class="r">RM ${fmt(h.revenue)}</td>
+            <td>${pctBar(h.txns / hourlyMax * 100, '#2563EB')}</td>
+        </tr>`;
+    }).join('');
+
+    const dowRows = dow.map(d => {
+        const isPeak = d.day === report.peak_day;
+        return `<tr class="${isPeak ? 'rpt-highlight' : ''}">
+            <td style="font-weight:${isPeak?'700':'normal'};">${isPeak ? '★ ' : ''}${d.day}</td>
+            <td class="r">${fmtInt(d.txns)}</td>
+            <td class="r">RM ${fmt(d.revenue)}</td>
+        </tr>`;
+    }).join('');
+
+    return contHeader(branchLabel, monthLabel, 4, 5) + `
+    <div class="rpt-body">
+        ${sectionHead('Transaction Flow by Time',
+          'Hourly order volume and day-of-week revenue patterns. ★ marks the peak window.')}
+        <div class="rpt-dist-grid">
+            <div style="flex: 1.2;">
+                <div class="rpt-dist-head">Hourly Transaction Volume</div>
+                <table class="rpt-table">
+                    <thead><tr><th>Hour</th><th class="r">Orders</th><th class="r">Revenue (RM)</th><th>Activity</th></tr></thead>
+                    <tbody>${hourlyRows}</tbody>
+                </table>
+            </div>
+            <div>
+                <div class="rpt-dist-head">Day-of-Week Pattern</div>
+                <table class="rpt-table">
+                    <thead><tr><th>Day</th><th class="r">Orders</th><th class="r">Revenue (RM)</th></tr></thead>
+                    <tbody>${dowRows}</tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    ${pageFooter(branchLabel, monthLabel, 4, 5)}`;
+}
+
+/* ══════════════════════════════════════════════════════════
+   PAGE 5 — AI Advisories + Diagnostics
+   Mirrors PDF Sections 7 & 8
+═══════════════════════════════════════════════════════════ */
+function buildPage5(report, branch, monthLabel, from, to) {
+    const branchLabel = branch === 'all' ? 'All Operational Outlets' : branch;
+
+    const aiText = report.ai_insight || '';
+    const aiHTML = aiText.split('\n').map(line => {
+        const trimmed = line.trim();
+        if (!trimmed) return '<div style="height:4px;"></div>';
+        if (trimmed.startsWith('•') || trimmed.startsWith('-') || /^\d+[.)]/.test(trimmed)) {
+            const parts = trimmed.split(' ');
+            const bullet = parts.shift();
+            return `<div class="rpt-ai-bullet"><strong>${bullet}</strong> ${parts.join(' ')}</div>`;
+        }
+        return `<div class="rpt-ai-line">${trimmed}</div>`;
+    }).join('');
+
+    const diag    = report.diagnostics || {};
+    const drift   = parseFloat(diag.revenue_variance_pct || 0);
+    const topProd = (report.top_products || [])[0] || {};
+
+    return contHeader(branchLabel, monthLabel, 5, 5) + `
+    <div class="rpt-body">
+        ${sectionHead('AI-Powered Strategic Advisories',
+          'Actionable recommendations from AI-assisted analysis of current performance data. Internal use only.')}
+        <div class="rpt-insight-box">
+            <div class="rpt-insight-label">Automated Business Intelligence</div>
             ${aiHTML}
         </div>
-
-        <!-- Key Findings Table -->
-        <div ${SUBSEC}>Key Findings</div>
-        <table ${TABLE}>
-            <thead><tr><th ${TH}>Finding</th><th ${TH}>Detail</th></tr></thead>
-            <tbody>${findingsRows}</tbody>
+        ${sectionHead('Operational Velocity Diagnostics',
+          'Delta tracking benchmarking current velocity against the preceding 30-day baseline.')}
+        <table class="rpt-table">
+            <thead><tr><th>Diagnostic Parameter</th><th class="r">Computed Value</th></tr></thead>
+            <tbody>
+                <tr>
+                    <td style="font-weight:700;">Net Revenue Variance (Trailing 30 Days)</td>
+                    <td class="r" style="color:#059669;font-weight:700;">RM ${fmt(diag.revenue_variance_rm || 0)}</td>
+                </tr>
+                <tr>
+                    <td style="font-weight:700;">Percentage Growth Drift</td>
+                    <td class="r">
+                        <span class="badge badge-${drift >= 0 ? 'green' : 'red'}">${drift >= 0 ? '+' : ''}${fmt(drift, 2)}% variance</span>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="font-weight:700;">Average Order Value Shift</td>
+                    <td class="r" style="font-weight:700;">RM ${fmt(diag.aov_shift_rm || 0)}</td>
+                </tr>
+                <tr>
+                    <td style="font-weight:700;">Forecast Accuracy — MAPE</td>
+                    <td class="r">
+                        <span class="badge badge-amber">${report.pva_mape || 0}% error rate</span>
+                    </td>
+                </tr>
+            </tbody>
+            <tfoot><tr>
+                <td>All figures from certified POS records</td>
+                <td class="r">Internal Use Only</td>
+            </tr></tfoot>
         </table>
-
+        <div style="font-size:9pt;font-weight:700;color:#0F172A;margin:14px 0 5px;">Key Findings Summary</div>
+        <table class="rpt-finding-table">
+            <tbody>
+                <tr><td>Revenue Trend</td><td>${report.trend_label || 'N/A'}</td></tr>
+                <tr><td>Top Branch</td><td>${report.top_branch || 'N/A'}</td></tr>
+                <tr><td>Avg Order Value</td><td>RM ${fmt(report.aov)}</td></tr>
+                <tr><td>Busiest Window</td><td>${report.peak_hour || '—'} &nbsp;·&nbsp; ${report.peak_day || '—'}</td></tr>
+                <tr><td>Best Product</td><td>${topProd.product_id ? skuName(topProd.product_id) : 'N/A'}</td></tr>
+                <tr><td>Period Revenue</td><td>RM ${fmt(report.period_revenue)} across ${fmtInt(report.period_txns)} transactions</td></tr>
+            </tbody>
+        </table>
+        <div class="rpt-warning-box">
+            <strong>Procurement Note:</strong> Use velocity changes to align incoming stock volumes.
+            If growth drift trends negative, audit ingredient waste metrics immediately to protect operating margins.
+        </div>
     </div>
-
-    <!-- FOOTER -->
-    <div style="padding:10px 32px;background:#F8FAFC;border-top:1px solid #E2E8F0;display:flex;justify-content:space-between;font-size:.65rem;color:#94A3B8;">
-        <div>Mini Coffee Shop · MCS Analytics v1.0 · ${monthLabel}</div>
-        <div>Generated ${now} · Confidential — Internal Use Only</div>
-        <div>Page 3 of 3</div>
-    </div>
-    `;
+    ${pageFooter(branchLabel, monthLabel, 5, 5)}`;
 }
 
-/* ============================================================
-   DOWNLOAD PDF
-============================================================ */
-async function downloadPDF() {
-    const btn    = document.getElementById('downloadBtn');
-    const branch = document.getElementById('rptBranch').value;
-    const ym     = getSelectedYM();
-
-    if (!ym) { alert('Please select a reporting month first.'); return; }
-
-    const { from, to } = getMonthDates(ym);
-
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating PDF…';
-
-    try {
-        const url = `/api/export-pdf?branch=${encodeURIComponent(branch)}&date_from=${from}&date_to=${to}`;
-        const response = await fetch(url);
-
-        if (!response.ok) {
-            let errMsg = 'Server error';
-            try { const e = await response.json(); errMsg = e.message; } catch {}
-            throw new Error(errMsg);
-        }
-
-        const ct = response.headers.get('Content-Type') || '';
-        if (ct.includes('application/pdf')) {
-            const blob = await response.blob();
-            const a    = document.createElement('a');
-            a.href     = URL.createObjectURL(blob);
-            a.download = `MCS_Executive_Report_${branch.replace(' ','_')}_${ym}.pdf`;
-            a.click();
-            URL.revokeObjectURL(a.href);
-        } else {
-            // Fallback: open HTML and trigger browser print (which respects @media print)
-            const html = await response.text();
-            const win  = window.open('', '_blank');
-            win.document.write(html);
-            win.document.close();
-            setTimeout(() => { win.print(); win.focus(); }, 800);
-        }
-    } catch(e) {
-        alert('PDF generation failed: ' + e.message + '\n\nFallback: Use Ctrl+P to print the preview.');
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> Download PDF';
-    }
-}
-
-/* ── Init ─────────────────────────────────────────────────── */
-loadAvailableMonths();
+document.addEventListener('DOMContentLoaded', () => {
+    loadReportMonths();
+    scaleA4Pages();
+});
 </script>
 {% endblock %}

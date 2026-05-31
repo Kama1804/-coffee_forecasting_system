@@ -22,6 +22,7 @@
     --purple-accent:   #8B5CF6;
     --purple-light:    #F5F3FF;
     --grey-canvas:     #F1F5F9;
+    --canvas-bg:       var(--grey-canvas);
     --grey-border:     #E2E8F0;
     --grey-divider:    #CBD5E1;
     --white-card:      #FFFFFF;
@@ -62,7 +63,7 @@
 html  { font-size: 16px; scroll-behavior: smooth; }
 body  {
     font-family: var(--font-main);
-    background-color: var(--grey-canvas);
+    background: var(--canvas-bg);
     color: var(--text-main);
     line-height: 1.6;
     overflow-x: hidden;
@@ -90,7 +91,7 @@ a:hover { color: #2563EB; }
     margin-left: var(--sidebar-width);
     padding: var(--space-xl);
     min-height: 100vh;
-    background-color: var(--grey-canvas);
+    background: var(--canvas-bg);
 }
 
 /* ============================================================
