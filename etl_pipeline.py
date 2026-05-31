@@ -25,56 +25,76 @@ class ETLPipeline:
             'FT-PA1':  {'lat': 3.2353, 'lon': 101.4243}
         }
 
-        def map_weather_code(code):
-            if code in [0, 1, 2]:
-                return 'Sunny'
-            elif code in [3, 45, 48, 51, 53, 55]:
-                return 'Cloudy'
-            elif code in [61, 63, 65, 80, 81, 82, 95, 96, 99]:
-                return 'Raining'
-            else:
-                return 'Cloudy'
-
-        def fetch_weather(date_str, branch_id):
+        def fetch_weather_logic(date_str, branch_id):
             coords = BRANCH_COORDS.get(branch_id)
             if not coords:
                 return 'Cloudy'
+            
             try:
-                if datetime.strptime(date_str, '%Y-%m-%d').date() > datetime.today().date():
-                    return 'Cloudy'
-            except Exception:
-                return 'Cloudy'
-
-            try:
+                # 1. Isolate Daylight Blocks (07:00 - 19:00)
                 url = "https://archive-api.open-meteo.com/v1/archive"
                 params = {
                     "latitude":   coords['lat'],
                     "longitude":  coords['lon'],
                     "start_date": date_str,
                     "end_date":   date_str,
-                    "daily":      "weathercode",
+                    "hourly":     ["weathercode", "precipitation"],
                     "timezone":   "Asia/Kuala_Lumpur"
                 }
-                resp = requests.get(url, params=params, timeout=5)
+                resp = requests.get(url, params=params, timeout=10)
                 resp.raise_for_status()
                 res_json = resp.json()
                 
-                if "daily" in res_json and res_json["daily"]["weathercode"]:
-                    code = res_json["daily"]["weathercode"][0]
-                    return map_weather_code(code)
+                if "hourly" not in res_json:
+                    return 'Cloudy'
+
+                hourly_data = res_json["hourly"]
+                times = hourly_data["time"]
+                codes = hourly_data["weathercode"]
+                precip = hourly_data["precipitation"]
+
+                daylight_codes = []
+                daylight_precip = 0.0
+
+                for t, c, p in zip(times, codes, precip):
+                    hour = int(t.split('T')[1].split(':')[0])
+                    if 7 <= hour <= 19:
+                        daylight_codes.append(c)
+                        daylight_precip += p
+
+                # 2. Check the Volume Threshold (2.5 mm)
+                if daylight_precip < 2.5:
+                    # Apply Weighted Majority Vote for dry days
+                    # Fair / Sunny: 0, 1, 2
+                    # Cloudy: 3, 45, 48, 51, 53, 55
+                    sunny_count = sum(1 for c in daylight_codes if c in [0, 1, 2])
+                    cloudy_count = sum(1 for c in daylight_codes if c in [3, 45, 48, 51, 53, 55])
+                    
+                    if cloudy_count > sunny_count:
+                        return 'Cloudy'
+                    else:
+                        return 'Fair / Sunny'
+
+                # 3. Identify Severe Lightning (Thunderstorm)
+                if any(c in [95, 96, 99] for c in daylight_codes):
+                    return 'Thunderstorm'
+                
+                # Default if rain is >= 2.5mm but no thunderstorm
+                return 'Raining'
+
+            except Exception as e:
+                print(f"[WEATHER ERROR] {date_str} {branch_id}: {e}")
                 return 'Cloudy'
-            except Exception:
-                return 'Cloudy'  
 
         weather_cache = {}
         unique_pairs  = df[['transaction_date', 'branch_id']].drop_duplicates()
 
-        print(f"[ETL LOG] Fetching weather for {len(unique_pairs)} discrete vectors...")
+        print(f"[ETL LOG] Fetching weather for {len(unique_pairs)} discrete vectors (Daylight Aggregation)...")
 
         for _, row in unique_pairs.iterrows():
             key = (row['transaction_date'], row['branch_id'])
             if key not in weather_cache:
-                weather_cache[key] = fetch_weather(row['transaction_date'], row['branch_id'])
+                weather_cache[key] = fetch_weather_logic(row['transaction_date'], row['branch_id'])
 
         df['weather_condition'] = df.apply(
             lambda r: weather_cache.get((r['transaction_date'], r['branch_id']), 'Cloudy'), axis=1

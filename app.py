@@ -4,6 +4,8 @@ import sqlite3
 import time
 import io
 import json
+import html
+import math
 from functools import wraps
 from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
@@ -16,20 +18,41 @@ from gemini_agent import get_ai_insight, build_chat_system_context, stream_ai_in
 from forecast_engine import ForecastEngine, MY_PUBLIC_HOLIDAYS, MY_SEASONS
 from analytics import (get_dashboard_metrics, calculate_ingredient_demand, 
                        revenue_decline_and_product_mix_profiler, weather_payday_cross_tabulation, SKU_MAPPING)
-from reportlab.lib.pagesizes import A4
-from reportlab.lib import colors
-from reportlab.lib.units import mm
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
-from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-    HRFlowable, PageBreak, KeepTogether
-)
 from io import BytesIO
+import html
+
 
 load_dotenv(override=True)
 
 app = Flask(__name__)
+
+
+# ============================================================
+#    CUSTOM JSON ENCODER — fixes numpy int64/float64 serialization
+# ============================================================
+def _sanitize_for_json(obj):
+    """
+    Recursively convert numpy scalars and any non-serializable numeric
+    types to native Python ints/floats so jsonify never throws
+    'Object of type int64 is not JSON serializable'.
+    Does NOT require numpy to be imported here — uses the .item() method
+    that every numpy scalar exposes, plus a NaN/Inf guard for floats.
+    """
+    if isinstance(obj, dict):
+        return {k: _sanitize_for_json(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_sanitize_for_json(i) for i in obj]
+    elif isinstance(obj, tuple):
+        return tuple(_sanitize_for_json(i) for i in obj)
+    elif hasattr(obj, 'item'):
+        # All numpy scalar types (int64, float32, bool_, …) expose .item()
+        return obj.item()
+    elif isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    return obj
+
 
 # ============================================================
 #    CONFIGURATION
@@ -226,6 +249,12 @@ def upload_file():
 
     past_uploads = []
     if os.path.exists(app.config['UPLOAD_FOLDER']):
+        for f in os.listdir(app.config['UPLOAD_FOLDER']):
+            if not f.endswith('.csv'):
+                try:
+                    os.remove(os.path.join(app.config['UPLOAD_FOLDER'], f))
+                except Exception:
+                    pass
         for filename in os.listdir(app.config['UPLOAD_FOLDER']):
             if filename.endswith('.csv'):
                 filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
@@ -319,7 +348,8 @@ def api_kpis():
 
         try:
             prev_dt    = datetime.strptime(prev_mo + '-01', '%Y-%m-%d')
-            prev_label = prev_dt.strftime('%B %Y')
+            # Format as 'Jan 2025' for consistency with other dashboard labels
+            prev_label = prev_dt.strftime('%b %Y')
         except Exception:
             prev_label = prev_mo
 
@@ -409,7 +439,8 @@ def api_charts():
             if use_monthly and p:
                 try:
                     dt = datetime.strptime(p + '-01', '%Y-%m-%d')
-                    trend_labels.append(dt.strftime('%B %Y'))
+                    # Change to 'Jan 2025' format for better readability
+                    trend_labels.append(dt.strftime('%b %Y'))
                 except Exception:
                     trend_labels.append(p)
             else:
@@ -422,7 +453,6 @@ def api_charts():
         """, params)
         cat_rows = cursor.fetchall()
 
-        # 🟢 CHANGED: Clean SKU-to-Menu-Name resolution mapping loop to keep charts clear
         cursor.execute(f"""
             SELECT s.product_id, SUM(s.transaction_qty) as qty
             FROM sales_transaction s {where}
@@ -483,19 +513,27 @@ def api_charts():
                 all_month_labels.append(p)
 
         monthly_by_branch = {b: [0] * len(all_month_periods) for b in all_branches}
-        period_idx_map = {p: i for i, p in enumerate(all_month_periods)}
+        aov_by_branch     = {b: [0] * len(all_month_periods) for b in all_branches}
+        period_idx_map    = {p: i for i, p in enumerate(all_month_periods)}
 
         cursor.execute(f"""
             SELECT strftime('%Y-%m', s.transaction_date) as period,
                    s.store_location,
-                   SUM(s.Total_Bill_MYR) as rev
+                   SUM(s.Total_Bill_MYR) as rev,
+                   COUNT(s.transaction_id) as txns
             FROM sales_transaction s {where}
             GROUP BY period, s.store_location
             ORDER BY period ASC
         """, params)
         for r in cursor.fetchall():
-            if r['period'] in period_idx_map and r['store_location'] in monthly_by_branch:
-                monthly_by_branch[r['store_location']][period_idx_map[r['period']]] = round(r['rev'], 2)
+            p = r['period']
+            b = r['store_location']
+            if p in period_idx_map and b in monthly_by_branch:
+                idx = period_idx_map[p]
+                rev = r['rev']
+                txns = r['txns']
+                monthly_by_branch[b][idx] = round(rev, 2)
+                aov_by_branch[b][idx]     = round(rev / txns, 2) if txns > 0 else 0
 
         conn.close()
 
@@ -511,7 +549,8 @@ def api_charts():
                 "labels":    all_month_labels,
                 "raw":       all_month_periods,
                 "branches":  all_branches,
-                "by_branch": monthly_by_branch
+                "by_branch": monthly_by_branch,
+                "aov_by_branch": aov_by_branch
             },
             "category": {
                 "labels": [r['cat'] for r in cat_rows],
@@ -845,7 +884,7 @@ def api_forecast():
             result = FORECAST_CACHE[cache_key]
         else:
             engine          = ForecastEngine()
-            success, result = engine.generate_7_day_forecast(branch_id, branch_name)
+            success, result = engine.generate_5_day_forecast(branch_id, branch_name)
             if not success:
                 return jsonify({"status": "error", "message": result}), 500
             
@@ -966,7 +1005,7 @@ def _build_report_data(branch_filter, date_from, date_to):
             if prev_rev > 0:
                 pct  = ((period_revenue - prev_rev) / prev_rev) * 100
                 sign = "+" if pct >= 0 else ""
-                trend_label = f"{sign}{pct:.1f}% vs prior period"
+                trend_label = f"{sign}{pct:.1f}% vs previous {span} days"
         except Exception:
             trend_label = "Trend N/A"
 
@@ -1054,23 +1093,23 @@ def _build_report_data(branch_filter, date_from, date_to):
     branch_max_rev = max((r['rev'] for r in regional_breakdown), default=1)
 
     # ── Product performance ────────────────────────────────────
-    # 🟢 CHANGED: Rewritten to directly translate SKU IDs to menu string properties cleanly
+    # NOTE: pct is computed in Python using period_revenue (already filtered correctly).
+    # The old SQL subquery used alias s2 but the WHERE clause referenced alias s,
+    # causing s2.store_location / s2.transaction_date to be undefined — SQLite silently
+    # ignored those conditions and returned the ALL-TIME total, making every % tiny.
     cursor.execute(f"""
         SELECT s.product_id as product_id,
                SUM(s.transaction_qty) as qty,
-               ROUND(SUM(s.Total_Bill_MYR), 2) as revenue,
-               ROUND(SUM(s.Total_Bill_MYR) * 100.0 /
-                     NULLIF((SELECT SUM(s2.Total_Bill_MYR)
-                             FROM sales_transaction s2
-                             {where_clause}), 0), 1) as pct
+               ROUND(SUM(s.Total_Bill_MYR), 2) as revenue
         FROM sales_transaction s
         {where_clause}
         GROUP BY s.product_id ORDER BY qty DESC LIMIT 5
-    """, base_params() + base_params())
+    """, base_params())
     top_products_raw = [dict(r) for r in cursor.fetchall()]
-    
+
     top_products = []
     for p in top_products_raw:
+        p['pct'] = round(p['revenue'] / period_revenue * 100, 1) if period_revenue else 0.0
         p['product_id'] = REVERSE_SKU_LOOKUP.get(p['product_id'], p['product_id'])
         top_products.append(p)
 
@@ -1092,67 +1131,83 @@ def _build_report_data(branch_filter, date_from, date_to):
     # ── Category breakdown ─────────────────────────────────────
     cursor.execute(f"""
         SELECT s.product_category,
-               ROUND(SUM(s.Total_Bill_MYR), 2) as revenue,
-               ROUND(SUM(s.Total_Bill_MYR) * 100.0 /
-                     NULLIF((SELECT SUM(s2.Total_Bill_MYR)
-                             FROM sales_transaction s2
-                             {where_clause}), 0), 1) as pct
+               ROUND(SUM(s.Total_Bill_MYR), 2) as revenue
         FROM sales_transaction s
         {where_clause}
         GROUP BY s.product_category ORDER BY revenue DESC
-    """, base_params() + base_params())
-    category_breakdown = [dict(r) for r in cursor.fetchall()]
+    """, base_params())
+    category_breakdown = []
+    for r in cursor.fetchall():
+        row = dict(r)
+        row['pct'] = round(row['revenue'] / period_revenue * 100, 1) if period_revenue else 0.0
+        category_breakdown.append(row)
 
     # ── Payment method breakdown ───────────────────────────────
     cursor.execute(f"""
         SELECT s.payment_method,
-               COUNT(*) as txn_count,
-               ROUND(COUNT(*) * 100.0 /
-                     NULLIF((SELECT COUNT(*)
-                             FROM sales_transaction s2
-                             {where_clause}), 0), 1) as pct
+               COUNT(*) as txn_count
         FROM sales_transaction s
         {where_clause}
         GROUP BY s.payment_method ORDER BY txn_count DESC
-    """, base_params() + base_params())
-    payment_breakdown = [dict(r) for r in cursor.fetchall()]
+    """, base_params())
+    payment_breakdown = []
+    for r in cursor.fetchall():
+        row = dict(r)
+        row['pct'] = round(row['txn_count'] / period_txns * 100, 1) if period_txns else 0.0
+        payment_breakdown.append(row)
 
-    # ── Monthly trend — ALL months ─────────────────────────────
+    # ── Monthly trend — Consecutive 6 months ending at selected month ──
     cursor.execute("SELECT DISTINCT store_location FROM sales_transaction ORDER BY store_location")
     all_branches = [r[0] for r in cursor.fetchall() if r[0]]
 
-    cursor.execute("""
-        SELECT DISTINCT strftime('%Y-%m', transaction_date) as month
-        FROM sales_transaction ORDER BY month ASC
-    """)
-    all_month_keys = [r['month'] for r in cursor.fetchall()]
-    all_month_labels = []
-    for m in all_month_keys:
-        try:
-            all_month_labels.append(datetime.strptime(m + '-01', '%Y-%m-%d').strftime('%b %Y'))
-        except Exception:
-            all_month_labels.append(m)
+    # Generate 6 consecutive month keys ending at the selected month
+    target_month_str = date_from[:7] # e.g. "2025-08"
+    target_dt = datetime.strptime(target_month_str + "-01", "%Y-%m-%d")
+    
+    trend_keys = []
+    for i in range(5, -1, -1):
+        # Calculate year/month manually to get i months before target
+        m = target_dt.month - i
+        y = target_dt.year
+        while m <= 0:
+            m += 12
+            y -= 1
+        trend_keys.append(f"{y:04d}-{m:02d}")
 
-    by_branch_monthly = {b: [0]*len(all_month_keys) for b in all_branches}
-    cursor.execute("""
+    trend_labels = []
+    for k in trend_keys:
+        try:
+            trend_labels.append(datetime.strptime(k + '-01', '%Y-%m-%d').strftime('%b %Y'))
+        except Exception:
+            trend_labels.append(k)
+
+    by_branch_monthly = {b: [0]*6 for b in all_branches}
+    
+    # Query revenue for these specific months
+    # Note: We use the generated trend_keys as our primary axis
+    cursor.execute(f"""
         SELECT strftime('%Y-%m', transaction_date) as month, store_location,
                SUM(Total_Bill_MYR) as rev
         FROM sales_transaction
+        WHERE strftime('%Y-%m', transaction_date) IN ({",".join(["?"]*6)})
         GROUP BY month, store_location
-    """)
-    month_idx = {m: i for i, m in enumerate(all_month_keys)}
+    """, trend_keys)
+    
+    month_idx_map = {m: i for i, m in enumerate(trend_keys)}
     for r in cursor.fetchall():
-        if r['month'] in month_idx and r['store_location'] in by_branch_monthly:
-            by_branch_monthly[r['store_location']][month_idx[r['month']]] = round(r['rev'], 2)
+        m_key = r['month']
+        br_nm = r['store_location']
+        if m_key in month_idx_map and br_nm in by_branch_monthly:
+            by_branch_monthly[br_nm][month_idx_map[m_key]] = round(r['rev'], 2)
 
     monthly_trend = {
-        "labels":    all_month_labels,
-        "keys":      all_month_keys,
+        "labels":    trend_labels,
+        "keys":      trend_keys,
         "branches":  all_branches,
         "by_branch": by_branch_monthly
     }
 
-    # ── Forecast data (upcoming 7-day) ────────────────────────
+    # ── Forecast data (upcoming 5-day) ────────────────────────
     fc_conds  = ["s.store_location = ?"] if branch_filter != 'all' else []
     fc_conds.append("f.forecast_date > (SELECT COALESCE(MAX(transaction_date), '1970-01-01') FROM sales_transaction)")
     fc_where  = "WHERE " + " AND ".join(fc_conds)
@@ -1166,7 +1221,7 @@ def _build_report_data(branch_filter, date_from, date_to):
                    f.upper_bound_revenue as yhat_upper
             FROM sales_forecast f
             JOIN sales_transaction s ON f.branch_id = s.branch_id
-            {fc_where} GROUP BY f.forecast_date ORDER BY f.forecast_date ASC LIMIT 7
+            {fc_where} GROUP BY f.forecast_date ORDER BY f.forecast_date ASC LIMIT 5
         """, fc_params)
         forecast_data = [dict(r) for r in cursor.fetchall()]
     except Exception:
@@ -1261,13 +1316,34 @@ def _build_report_data(branch_filter, date_from, date_to):
     if pva_with_actual:
         mape_vals = [abs(r['variance_pct']) for r in pva_with_actual if r['variance_pct'] is not None]
         pva_mape  = round(sum(mape_vals) / len(mape_vals), 1) if mape_vals else 0.0
-    pva_within_range = sum(1 for r in pva_with_actual if r.get('in_range'))
+
+    pva_within_range = 0
+    pva_count_exceeded = 0
+    pva_count_on_target = 0
+    pva_count_safe = 0
+    pva_count_off = 0
+    for r in pva_with_actual:
+        act = r['actual']
+        y   = r['yhat']
+        lo  = r['yhat_lower']
+        up  = r['yhat_upper']
+        if act > up:
+            pva_count_exceeded += 1
+        elif act < lo:
+            pva_count_off += 1
+        elif act < y:
+            pva_count_safe += 1
+            pva_within_range += 1
+        else:
+            pva_count_on_target += 1
+            pva_within_range += 1
 
     try:
         branch_id = None
         if branch_filter == 'Putrajaya': branch_id = 'STB-PJ1'
         if branch_filter == 'Puncak Alam': branch_id = 'FT-PA1'
-        diagnostics = revenue_decline_and_product_mix_profiler(branch_id)
+        # Pass date_to as reference_date for relative diagnostics
+        diagnostics = revenue_decline_and_product_mix_profiler(branch_id, reference_date=date_to)
     except Exception:
         diagnostics = {}
 
@@ -1290,11 +1366,13 @@ def _build_report_data(branch_filter, date_from, date_to):
         f"Busiest hour: {peak_hour}. Busiest day: {peak_day}. "
         f"Top products: {top_prod_ctx}. Slow movers: {bottom_prod_ctx}. "
         f"Category revenue: {cat_ctx}. Regional performance: {regional_ctx}.\n\n"
-        f"Then give exactly 3 numbered, actionable steps the owner can take this month to improve revenue."
+        f"Then give exactly 3 numbered, actionable steps the owner can take this month to improve revenue. "
+        f"Ensure each step is a complete, finished sentence."
     )
     success_ai, insight = get_ai_insight(ai_prompt)
 
-    return {
+    # ── Build raw result dict then sanitize ALL numpy/non-serializable types ──
+    raw_result = {
         "status":               "success",
         "period":               period_str,
         "branch":               branch_filter,
@@ -1322,10 +1400,17 @@ def _build_report_data(branch_filter, date_from, date_to):
         "pva_total_actual":     pva_total_actual,
         "pva_mape":             pva_mape,
         "pva_within_range":     pva_within_range,
+        "pva_count_exceeded":   pva_count_exceeded,
+        "pva_count_on_target":  pva_count_on_target,
+        "pva_count_safe":       pva_count_safe,
+        "pva_count_off":        pva_count_off,
         "pva_days_with_data":   len(pva_with_actual),
         "diagnostics":          diagnostics,
         "ai_insight":           insight if success_ai else "AI insight temporarily unavailable."
     }
+
+    # Sanitize all values so numpy int64/float64 don't break JSON serialization
+    return _sanitize_for_json(raw_result)
 
 
 @app.route('/api/report_data')
@@ -1379,7 +1464,7 @@ def api_export_forecast_pdf():
                 result = FORECAST_CACHE[cache_key]
             else:
                 engine          = ForecastEngine()
-                success, result = engine.generate_7_day_forecast(branch_id, branch_name)
+                success, result = engine.generate_5_day_forecast(branch_id, branch_name)
                 if not success:
                     return jsonify({"status": "error", "message": result}), 500
                 FORECAST_CACHE[cache_key] = result
@@ -1390,429 +1475,30 @@ def api_export_forecast_pdf():
         now_str  = datetime.now().strftime('%d %b %Y, %I:%M %p')
         forecast = result.get('forecast', [])
         fva_all  = result.get('forecast_vs_actual', [])
-        hourly   = result.get('hourly', [])
-        wbt      = result.get('weather_by_time', [])
-        ingr     = result.get('ingredient_demand', {})
-        mape     = result.get('mape', 0)
-        rmse     = result.get('rmse', 0)
-        accuracy = result.get('accuracy', 0)
-        persona  = result.get('persona', '')
-
-        total_7day = sum(r.get('yhat', 0) for r in forecast)
-
-        # ── Helpers ─────────────────────────────────────────────────────
-        def fnum(n, d=2):
-            return f"{float(n or 0):,.{d}f}"
-
-        def row_bg(is_holiday, day_of_week):
-            if is_holiday:       return "background:#FEF2F2;"
-            if day_of_week in (5, 6): return "background:#FFFBEB;"
-            return ""
-
-        WEATHER_ICON_MAP = {'Sunny': '☀️', 'Cloudy': '⛅', 'Raining': '🌧️'}
-        DAYS_LIST        = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-
-        # ── Section 1: 7-Day forecast table ─────────────────────────────
-        forecast_rows_html = ""
-        for row in forecast:
-            dt       = datetime.strptime(row['ds'], '%Y-%m-%d')
-            day_name = DAYS_LIST[dt.weekday() + 1 if dt.weekday() < 6 else 0]
-            # use Python weekday: Mon=0…Sun=6
-            py_wd    = dt.weekday()        # 0=Mon … 6=Sun
-            js_day   = (py_wd + 1) % 7    # 0=Sun … 6=Sat
-            is_sun   = (js_day == 0)
-            is_hol   = row.get('is_holiday', False)
-            flags    = []
-            if is_hol:                flags.append("🏖️ Public Holiday")
-            if row.get('is_friday'):  flags.append("🎉 Friday Promo — 20% off Lattes")
-            if row.get('season'):     flags.append(f"🎁 {row['season']}")
-            if is_sun:                flags.append("🔒 Closed")
-            bg_style = "background:#FEF2F2;" if is_hol else ("background:#FFFBEB;" if js_day in (0,6) else "")
-            weather_cell = "—" if is_sun else f"{WEATHER_ICON_MAP.get(row.get('weather','Cloudy'),'⛅')} {row.get('weather','Cloudy')}"
-            yhat_disp  = "0.00" if is_sun else fnum(row.get('yhat', 0))
-            lower_disp = "0.00" if is_sun else fnum(row.get('yhat_lower', 0))
-            upper_disp = "0.00" if is_sun else fnum(row.get('yhat_upper', 0))
-            forecast_rows_html += f"""
-            <tr style="{bg_style}">
-                <td style="font-family:monospace;padding:5px 8px;">{row['ds']}</td>
-                <td style="padding:5px 8px;font-weight:600;">{DAYS_LIST[dt.isoweekday() % 7]}</td>
-                <td style="padding:5px 8px;">{weather_cell}</td>
-                <td style="padding:5px 8px;font-size:8px;">{" · ".join(flags) if flags else "—"}</td>
-                <td style="text-align:right;font-family:monospace;padding:5px 8px;font-weight:700;">RM {yhat_disp}</td>
-                <td style="text-align:right;font-family:monospace;padding:5px 8px;color:#64748B;">RM {lower_disp}</td>
-                <td style="text-align:right;font-family:monospace;padding:5px 8px;color:#64748B;">RM {upper_disp}</td>
-            </tr>"""
-
-        # ── Section 2: Ingredients ───────────────────────────────────────
-        ingr_html = ""
-        if ingr:
-            beans_kg  = (ingr.get('beans_g',  0) or 0) / 1000
-            milk_l    = (ingr.get('milk_ml',  0) or 0) / 1000
-            choco_kg  = (ingr.get('choco_g',  0) or 0) / 1000
-            ice_kg    = (ingr.get('ice_g',    0) or 0) / 1000
-            hot_cups  = ingr.get('cup_hot',   0) or 0
-            cold_cups = ingr.get('cup_cold',  0) or 0
-            ingr_html = f"""
-            <div class="section-title">What to Buy This Week — Ingredient Shopping Guide</div>
-            <p style="font-size:9px;color:#64748B;margin-bottom:10px;">
-                Based on your predicted sales, here is how much of each ingredient you will need over the next 7 days.
-            </p>
-            <div class="kpi-grid">
-                <div class="kpi-box"><div class="kpi-label">Coffee Beans</div><div class="kpi-value">{fnum(beans_kg)} kg</div></div>
-                <div class="kpi-box"><div class="kpi-label">Fresh Milk</div><div class="kpi-value">{fnum(milk_l, 1)} L</div></div>
-                <div class="kpi-box"><div class="kpi-label">Cocoa Powder</div><div class="kpi-value">{fnum(choco_kg)} kg</div></div>
-                <div class="kpi-box"><div class="kpi-label">Crushed Ice</div><div class="kpi-value">{fnum(ice_kg, 1)} kg</div></div>
-                <div class="kpi-box"><div class="kpi-label">Hot Paper Cups</div><div class="kpi-value">{hot_cups} pcs</div></div>
-                <div class="kpi-box"><div class="kpi-label">Cold Plastic Cups</div><div class="kpi-value">{cold_cups} pcs</div></div>
-            </div>"""
-
+        
         # ── Section 3: How accurate has the forecast been ────────────────
-        fva_section_html = ""
-        fva_rows_to_show = []
+        fva_rows = []
+        fva_title = "How Accurate Has the Forecast Been? — Recent 7 Days"
+        
         if fva_all:
             sorted_fva = sorted(fva_all, key=lambda r: r['ds'])
-            # 🟢 REQUIREMENT: Constrain accuracy check to only the most recent 7 days
-            fva_rows_to_show = sorted_fva[-7:]
+            if month_filter:
+                fva_rows = [r for r in sorted_fva if r['ds'].startswith(month_filter)]
+                try:
+                    dt_mo = datetime.strptime(month_filter, '%Y-%m')
+                    fva_title = f"How Accurate Has the Forecast Been? — {dt_mo.strftime('%B %Y')}"
+                except:
+                    fva_title = f"How Accurate Has the Forecast Been? — {month_filter}"
+            else:
+                fva_rows = sorted_fva[-7:]
 
-            if fva_rows_to_show:
-                total_p = sum(r.get('predicted', 0) for r in fva_rows_to_show)
-                total_a = sum(r.get('actual', 0)    for r in fva_rows_to_show)
-                mape_vals = []
-                fva_body = ""
-                for r in fva_rows_to_show:
-                    pred = r.get('predicted', 0) or 0
-                    act  = r.get('actual', 0) or 0
-                    var  = act - pred
-                    var_pct = (var / pred * 100) if pred > 0 else 0
-                    mape_vals.append(abs(var_pct))
-                    var_color = "#059669" if var >= 0 else "#DC2626"
-                    sign = "+" if var >= 0 else ""
-                    fva_body += f"""
-                    <tr>
-                        <td style="font-family:monospace;padding:4px 8px;">{r['ds']}</td>
-                        <td style="text-align:right;font-family:monospace;padding:4px 8px;">RM {fnum(pred)}</td>
-                        <td style="text-align:right;font-family:monospace;padding:4px 8px;">RM {fnum(act)}</td>
-                        <td style="text-align:right;font-family:monospace;padding:4px 8px;color:{var_color};">
-                            {sign}RM {fnum(abs(var))} ({sign}{fnum(var_pct, 1)}%)
-                        </td>
-                    </tr>"""
-                avg_mape    = sum(mape_vals) / len(mape_vals) if mape_vals else 0
-                avg_acc     = max(0, round(100 - avg_mape, 1))
-                
-                fva_section_html = f"""
-                <div style="page-break-before:always;"></div>
-                <div class="section-title">How Accurate Has the Forecast Been? — Recent 7 Days</div>
-                <div class="kpi-grid">
-                    <div class="kpi-box"><div class="kpi-label">Total Predicted</div><div class="kpi-value">RM {fnum(total_p)}</div></div>
-                    <div class="kpi-box"><div class="kpi-label">Total Actual Sales</div><div class="kpi-value">RM {fnum(total_a)}</div></div>
-                    <div class="kpi-box"><div class="kpi-label">Forecast Accuracy</div><div class="kpi-value">{avg_acc}%</div></div>
-                    <div class="kpi-box"><div class="kpi-label">Total Difference</div>
-                        <div class="kpi-value" style="color:{'#059669' if total_a >= total_p else '#DC2626'};">
-                            RM {fnum(abs(total_a - total_p))} {'over' if total_a >= total_p else 'under'}
-                        </div>
-                    </div>
-                </div>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th style="text-align:right;">Predicted (RM)</th>
-                            <th style="text-align:right;">Actual Sales (RM)</th>
-                            <th style="text-align:right;">Difference</th>
-                        </tr>
-                    </thead>
-                    <tbody>{fva_body}</tbody>
-                </table>"""
-
-        # ── Section 4: Busiest hours ─────────────────────────────────────
-        hourly_html = ""
-        if hourly:
-            sorted_hourly = sorted(hourly, key=lambda r: r.get('hour', 0))
-            max_rev = max((r.get('revenue', 0) for r in sorted_hourly), default=1) or 1
-            rows_h  = ""
-            for h in sorted_hourly:
-                bar_w = int(h.get('revenue', 0) / max_rev * 100)
-                rows_h += f"""
-                <tr>
-                    <td style="font-family:monospace;padding:4px 8px;">{str(h.get('hour',0)).zfill(2)}:00</td>
-                    <td style="text-align:right;padding:4px 8px;">{h.get('transactions', 0):,}</td>
-                    <td style="text-align:right;padding:4px 8px;">RM {fnum(h.get('revenue', 0))}</td>
-                    <td style="padding:4px 8px;"><div style="background:#2563EB;height:8px;border-radius:4px;width:{bar_w}%;"></div></td>
-                </tr>"""
-            hourly_html = f"""
-            <div class="section-title">Best and Slowest Hours of the Day</div>
-            <table>
-                <thead>
-                    <tr><th>Hour</th><th style="text-align:right;">Orders</th><th style="text-align:right;">Revenue (RM)</th><th>Activity Level</th></tr>
-                </thead>
-                <tbody>{rows_h}</tbody>
-            </table>"""
-
-        # ── Section 5: Weather impact by shift ──────────────────────────
-        wbt_html = ""
-        if wbt:
-            wbt_pivot = {}
-            for r in wbt:
-                shift   = r.get('shift', '—')
-                weather = r.get('weather', '—')
-                count   = r.get('count', 0)
-                if shift not in wbt_pivot:
-                    wbt_pivot[shift] = {}
-                wbt_pivot[shift][weather] = count
-            wbt_rows = ""
-            for shift, conds in wbt_pivot.items():
-                wbt_rows += f"""
-                <tr>
-                    <td style="padding:4px 8px;font-weight:600;">{shift}</td>
-                    <td style="padding:4px 8px;">{WEATHER_ICON_MAP.get('Sunny','☀️')} {conds.get('Sunny', 0)} days</td>
-                    <td style="padding:4px 8px;">{WEATHER_ICON_MAP.get('Cloudy','⛅')} {conds.get('Cloudy', 0)} days</td>
-                    <td style="padding:4px 8px;">{WEATHER_ICON_MAP.get('Raining','🌧️')} {conds.get('Raining', 0)} days</td>
-                </tr>"""
-            wbt_html = f"""
-            <div class="section-title">How Weather Affects Your Sales — by Time of Day</div>
-            <table>
-                <thead>
-                    <tr><th>Shift</th><th>Sunny Days</th><th>Cloudy Days</th><th>Rainy Days</th></tr>
-                </thead>
-                <tbody>{wbt_rows}</tbody>
-            </table>"""
-
-        # ── Section 6: What drives the forecast ─────────────────────────
-        avg_day   = total_7day / 7 if total_7day else 0
-        sunny_est = fnum(avg_day * 1.12)
-        rain_est  = fnum(avg_day * 0.88)
-        drivers_html = f"""
-        <div class="section-title">What Drives the Forecast?</div>
-        <table>
-            <thead><tr><th>Factor</th><th>Effect on Sales</th></tr></thead>
-            <tbody>
-                <tr><td style="padding:5px 8px;">☀️ Sunny or Cloudy day</td>
-                    <td style="padding:5px 8px;color:#059669;font-weight:600;">Estimated RM {sunny_est} / day</td></tr>
-                <tr><td style="padding:5px 8px;">🌧️ Rainy day</td>
-                    <td style="padding:5px 8px;color:#DC2626;font-weight:600;">Estimated RM {rain_est} / day</td></tr>
-                <tr><td style="padding:5px 8px;">🎉 Every Friday</td>
-                    <td style="padding:5px 8px;">20% off all Latte drinks — boosts orders</td></tr>
-                <tr><td style="padding:5px 8px;">🎁 School holidays &amp; festive seasons</td>
-                    <td style="padding:5px 8px;">Higher foot traffic expected</td></tr>
-                <tr><td style="padding:5px 8px;">🏢 Putrajaya — public holidays</td>
-                    <td style="padding:5px 8px;color:#DC2626;">−35% (office workers stay home)</td></tr>
-                <tr><td style="padding:5px 8px;">🎓 Puncak Alam — public holidays</td>
-                    <td style="padding:5px 8px;color:#059669;">+15% (students &amp; residents gather)</td></tr>
-            </tbody>
-        </table>"""
-
-        # ── Assemble full HTML document ──────────────────────────────────
-        html_doc = f"""<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<style>
-  @page {{ size: A4 portrait; margin: 15mm 12mm; }}
-  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-  body {{ 
-    font-family: 'Segoe UI', Arial, sans-serif; 
-    font-size: 10px; 
-    color: #1E293B; 
-    line-height: 1.5;
-    background: #FFFFFF;
-  }}
-  .report-container {{
-    max-width: 800px;
-    margin: 0 auto;
-    background: #fff;
-  }}
-  .header {{ 
-    background: linear-gradient(135deg,#1E2A3A,#2A3B52); 
-    padding: 30px; 
-    color: white; 
-    -webkit-print-color-adjust: exact;
-  }}
-  .brand {{ display:flex; align-items:center; gap:10px; margin-bottom:12px; }}
-  .accent {{ height:4px; background:linear-gradient(90deg,#F59E0B,#3B82F6,#10B981); -webkit-print-color-adjust: exact; }}
-  .body {{ padding: 25px 30px; }}
-  
-  .section-title {{ 
-    font-size: 10px; 
-    font-weight: 700; 
-    text-transform: uppercase; 
-    letter-spacing: 1px; 
-    border-left: 4px solid #3B82F6; 
-    padding-left: 10px; 
-    margin: 25px 0 12px; 
-    color: #0F172A;
-    page-break-after: avoid;
-  }}
-  
-  /* Responsive KPI Grid */
-  .kpi-grid {{ 
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    margin-bottom: 20px;
-  }}
-  .kpi-box {{ 
-    flex: 1 1 calc(25% - 12px);
-    min-width: 120px;
-    border: 1px solid #E2E8F0; 
-    border-radius: 8px; 
-    padding: 12px; 
-    background: #F8FAFC;
-    page-break-inside: avoid;
-  }}
-  .kpi-label {{ font-size: 8px; color: #64748B; text-transform: uppercase; margin-bottom: 4px; font-weight: 600; }}
-  .kpi-value {{ font-size: 15px; font-weight: 700; font-family: 'Courier New', monospace; color: #1E293B; }}
-  
-  /* Tables */
-  .table-wrapper {{ width: 100%; overflow-x: auto; }}
-  table {{ width: 100%; border-collapse: collapse; margin-top: 8px; table-layout: auto; }}
-  thead th {{ 
-    background: #1E2A3A; 
-    color: white; 
-    padding: 8px 10px; 
-    text-align: left; 
-    font-size: 9px; 
-    font-weight: 600;
-    -webkit-print-color-adjust: exact;
-  }}
-  tbody td {{ 
-    padding: 7px 10px; 
-    border-bottom: 1px solid #E2E8F0; 
-    font-size: 9px; 
-    vertical-align: middle;
-  }}
-  tr {{ page-break-inside: avoid; }}
-  
-  .persona-box {{ 
-    background: #EFF6FF; 
-    padding: 12px 15px; 
-    border-radius: 8px; 
-    margin-bottom: 20px; 
-    font-size: 10px; 
-    border-left: 4px solid #3B82F6;
-    color: #1E40AF;
-  }}
-  
-  .footer {{ 
-    padding: 15px 30px; 
-    background: #F8FAFC; 
-    border-top: 1px solid #E2E8F0; 
-    display: flex; 
-    justify-content: space-between; 
-    font-size: 8px; 
-    color: #94A3B8;
-    margin-top: 30px;
-  }}
-  
-  .note {{ 
-    font-size: 9px; 
-    color: #64748B; 
-    line-height: 1.6; 
-    margin-top: 25px; 
-    padding: 15px; 
-    background: #F1F5F9; 
-    border-radius: 8px; 
-    border: 1px dashed #CBD5E1;
-  }}
-
-  /* Printing Helpers */
-  .page-break {{ page-break-before: always; }}
-  
-  @media screen and (max-width: 600px) {{
-    .kpi-box {{ flex: 1 1 calc(50% - 12px); }}
-    .header, .body, .footer {{ padding: 15px; }}
-  }}
-</style>
-</head>
-<body>
-<div class="report-container">
-<div class="header">
-    <div class="brand">
-        <div style="background:#F59E0B;padding:6px;border-radius:6px;font-size:14px;">☕</div>
-        <strong style="font-size:12px;letter-spacing:0.5px;">Mini Coffee Shop</strong>
-    </div>
-    <div style="font-size:22px;font-weight:800;letter-spacing:-0.5px;margin-bottom:5px;">Sales Forecast Report</div>
-    <div style="font-size:10px;opacity:.85;font-weight:500;">Branch: {branch_name} &nbsp; | &nbsp; Generated: {now_str}</div>
-</div>
-<div class="accent"></div>
-<div class="body">
-
-    <!-- Model performance summary -->
-    <div class="section-title">How Reliable Is This Forecast?</div>
-    <div class="kpi-grid">
-        <div class="kpi-box">
-            <div class="kpi-label">Error Rate</div>
-            <div class="kpi-value">{mape}%</div>
-            <div style="font-size:7px;color:#94A3B8;margin-top:3px;">Lower is better</div>
-        </div>
-        <div class="kpi-box">
-            <div class="kpi-label">Typical Variation</div>
-            <div class="kpi-value">RM {fnum(rmse)}</div>
-            <div style="font-size:7px;color:#94A3B8;margin-top:3px;">Per day average</div>
-        </div>
-        <div class="kpi-box">
-            <div class="kpi-label">Forecast Accuracy</div>
-            <div class="kpi-value">{accuracy}%</div>
-            <div style="font-size:7px;color:#94A3B8;margin-top:3px;">Higher is better</div>
-        </div>
-        <div class="kpi-box">
-            <div class="kpi-label">7-Day Prediction</div>
-            <div class="kpi-value">RM {fnum(total_7day)}</div>
-            <div style="font-size:7px;color:#94A3B8;margin-top:3px;">Expected gross</div>
-        </div>
-    </div>
-
-    <div class="persona-box">
-        <strong>Branch Profile:</strong> {persona}
-    </div>
-
-    <!-- Day-by-day forecast -->
-    <div class="section-title">Day-by-Day Forecast Breakdown — Next 7 Days</div>
-    <table>
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th>Day</th>
-                <th>Weather</th>
-                <th>Notes &amp; Promotions</th>
-                <th style="text-align:right;">Predicted Sales (RM)</th>
-                <th style="text-align:right;">Low Estimate</th>
-                <th style="text-align:right;">High Estimate</th>
-            </tr>
-        </thead>
-        <tbody>{forecast_rows_html}</tbody>
-    </table>
-
-    <!-- Ingredients -->
-    {ingr_html}
-
-    <!-- Historical accuracy -->
-    {fva_section_html}
-
-    <!-- Hourly breakdown -->
-    {hourly_html}
-
-    <!-- Weather by shift -->
-    {wbt_html}
-
-    <!-- What drives the forecast -->
-    {drivers_html}
-
-    <div class="note">
-        <strong>About this forecast:</strong> Predictions are made using an AI model trained on your past sales data.
-        It accounts for Malaysian public holidays, school breaks, weekly patterns, and upcoming weather conditions.
-        The "Low Estimate" and "High Estimate" columns show the range the model is 95% confident your actual sales will fall within.
-        Actual results may vary due to unexpected events, weather changes, or promotions not yet in the system.
-    </div>
-
-</div>
-<div class="footer">
-    <div>MCS Analytics v1.0</div>
-    <div>Internal Use Only — Mini Coffee Shop</div>
-    <div>{now_str}</div>
-</div>
-</body>
-</html>"""
+        # Render the HTML using the new template
+        html_doc = render_template('forecast_pdf_export.html',
+                                   data=result,
+                                   branch_name=branch_name,
+                                   now_str=now_str,
+                                   fva_title=fva_title,
+                                   fva_rows=fva_rows)
 
         try:
             from weasyprint import HTML as WP_HTML
@@ -1822,7 +1508,8 @@ def api_export_forecast_pdf():
             fn = f"MCS_Forecast_{branch_name.replace(' ','_')}_{datetime.now().strftime('%Y%m%d')}.pdf"
             response.headers['Content-Disposition'] = f'attachment; filename="{fn}"'
             return response
-        except ImportError:
+        except Exception as e:
+            print("PDF Render Error (WeasyPrint):", e)
             response = make_response(html_doc)
             response.headers['Content-Type']        = 'text/html; charset=utf-8'
             fn = f"MCS_Forecast_{branch_name.replace(' ','_')}_{datetime.now().strftime('%Y%m%d')}.html"
@@ -1833,580 +1520,61 @@ def api_export_forecast_pdf():
         return jsonify({"status": "error", "message": f"PDF render error: {str(e)}"}), 500
 
 
-# ============================================================
-#    API — PDF EXPORT (Executive Report Only, Month-Based)
-# ============================================================
-C_DARK    = colors.HexColor('#1E293B')   
-C_MID     = colors.HexColor('#334155')   
-C_MUTED   = colors.HexColor('#64748B')   
-C_LIGHT   = colors.HexColor('#F1F5F9')   
-C_BLUE    = colors.HexColor('#2563EB')   
-C_TEAL    = colors.HexColor('#0D9488')   
-C_RED     = colors.HexColor('#DC2626')   
-C_AMBER   = colors.HexColor('#D97706')   
-C_WHITE   = colors.white
-C_BORDER  = colors.HexColor('#CBD5E1')   
-C_HDRROW  = colors.HexColor('#1E293B')   
- 
- 
-def _styles():
-    base = getSampleStyleSheet()
- 
-    def add(name, **kw):
-        if name not in base:
-            base.add(ParagraphStyle(name=name, **kw))
-        return base[name]
- 
-    add('RPT_Title',
-        fontName='Helvetica-Bold', fontSize=16,
-        textColor=C_DARK, spaceAfter=2, leading=20)
-    add('RPT_Sub',
-        fontName='Helvetica', fontSize=9,
-        textColor=C_MUTED, spaceAfter=0, leading=12)
-    add('RPT_SectionH',
-        fontName='Helvetica-Bold', fontSize=10,
-        textColor=C_DARK, spaceBefore=12, spaceAfter=4, leading=13)
-    add('RPT_Body',
-        fontName='Helvetica', fontSize=9,
-        textColor=C_MID, spaceAfter=3, leading=13)
-    add('RPT_BodySm',
-        fontName='Helvetica', fontSize=8,
-        textColor=C_MUTED, spaceAfter=2, leading=11)
-    add('RPT_Mono',
-        fontName='Courier', fontSize=8.5,
-        textColor=C_MID, spaceAfter=2, leading=12)
-    add('RPT_Bold',
-        fontName='Helvetica-Bold', fontSize=9,
-        textColor=C_DARK, spaceAfter=3, leading=13)
-    add('RPT_AI',
-        fontName='Helvetica', fontSize=9,
-        textColor=C_MID, spaceAfter=4, leading=14,
-        leftIndent=10)
-    add('RPT_Bullet',
-        fontName='Helvetica', fontSize=9,
-        textColor=C_MID, spaceAfter=3, leading=13,
-        leftIndent=16, bulletIndent=6)
-    return base
- 
- 
-def _table_style(has_header=True, stripe=True):
-    cmds = [
-        ('FONTNAME',  (0, 0), (-1, -1), 'Helvetica'),
-        ('FONTSIZE',  (0, 0), (-1, -1), 8.5),
-        ('TEXTCOLOR', (0, 0), (-1, -1), C_MID),
-        ('VALIGN',    (0, 0), (-1, -1), 'MIDDLE'),
-        ('TOPPADDING',    (0, 0), (-1, -1), 4),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-        ('LEFTPADDING',   (0, 0), (-1, -1), 6),
-        ('RIGHTPADDING',  (0, 0), (-1, -1), 6),
-        ('GRID',      (0, 0), (-1, -1), 0.4, C_BORDER),
-    ]
-    if has_header:
-        cmds += [
-            ('BACKGROUND', (0, 0), (-1, 0), C_HDRROW),
-            ('TEXTCOLOR',  (0, 0), (-1, 0), C_WHITE),
-            ('FONTNAME',   (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE',   (0, 0), (-1, 0), 8.5),
-        ]
-    if stripe:
-        cmds.append(('ROWBACKGROUNDS', (0, 1 if has_header else 0), (-1, -1),
-                     [C_WHITE, C_LIGHT]))
-    return TableStyle(cmds)
- 
- 
-def _section(title, story, styles):
-    story.append(Spacer(1, 6))
-    story.append(HRFlowable(width='100%', thickness=0.5, color=C_BORDER, spaceAfter=3))
-    story.append(Paragraph(title, styles['RPT_SectionH']))
- 
- 
-def _bar_cell(pct, bar_color=C_BLUE, width_pts=80):
-    filled = int(pct / 100 * 12)
-    bar = '█' * filled + '░' * (12 - filled)
-    return f'<font color="#{bar_color.hexval()[1:] if hasattr(bar_color,"hexval") else "2563EB"}">{bar}</font>'
- 
- 
-# ── PAGE TEMPLATE ─────────────────────────────────────────────
-def _make_on_page(branch_label, month_label, now_str):
-    def on_page(canvas, doc):
-        canvas.saveState()
-        w, h = A4
-        canvas.setFillColor(C_DARK)
-        canvas.rect(0, h - 28*mm, w, 28*mm, fill=1, stroke=0)
-        canvas.setFillColor(C_BLUE)
-        canvas.rect(0, h - 29.5*mm, w, 1.5*mm, fill=1, stroke=0)
- 
-        canvas.setFillColor(C_WHITE)
-        canvas.setFont('Helvetica-Bold', 13)
-        canvas.drawString(14*mm, h - 14*mm, '☕  Mini Coffee Shop — Executive Sales Report')
-        canvas.setFont('Helvetica', 8)
-        canvas.drawString(14*mm, h - 20*mm, f'{branch_label}  ·  {month_label}  ·  Confidential — Internal Use Only')
-        canvas.drawRightString(w - 14*mm, h - 20*mm, f'Generated: {now_str}')
- 
-        canvas.setFillColor(C_MUTED)
-        canvas.setFont('Helvetica', 7.5)
-        canvas.drawString(14*mm, 8*mm, 'MCS Analytics v1.0 — Internal Use Only')
-        canvas.drawCentredString(w / 2, 8*mm, f'Page {doc.page}')
-        canvas.drawRightString(w - 14*mm, 8*mm, f'{branch_label}  ·  {month_label}')
-        canvas.restoreState()
-    return on_page
- 
- 
 @app.route('/api/export-pdf')
 @login_required
 def api_export_pdf():
     branch_filter = request.args.get('branch',    'all')
     date_from     = request.args.get('date_from', None)
     date_to       = request.args.get('date_to',   None)
- 
+
     if not date_from or not date_to:
-        return jsonify({"status": "error", "message": "date_from and date_to are required."}), 400
- 
+        return jsonify({"status":"error", "message":"date_from and date_to are required."}), 400
+
     try:
         cache_key = f"{branch_filter}_{date_from}_{date_to}"
-        if cache_key in REPORT_CACHE:
-            report_data = REPORT_CACHE[cache_key]
-        else:
-            report_data = _build_report_data(branch_filter, date_from, date_to)
-            REPORT_CACHE[cache_key] = report_data
+        rd = REPORT_CACHE.get(cache_key) or _build_report_data(branch_filter, date_from, date_to)
+        REPORT_CACHE[cache_key] = rd
     except Exception as e:
-        return jsonify({"status": "error", "message": f"Data error: {str(e)}"}), 500
- 
-    branch_label = branch_filter if branch_filter != 'all' else 'All Branches'
-    now_str      = datetime.now().strftime('%d %b %Y, %I:%M %p')
+        return jsonify({"status":"error", "message":f"Data error: {str(e)}"}), 500
+
     try:
-        month_label = datetime.strptime(date_from, '%Y-%m-%d').strftime('%B %Y')
-        month_key   = datetime.strptime(date_from, '%Y-%m-%d').strftime('%Y-%m')
+        month_label = datetime.strptime(date_from,'%Y-%m-%d').strftime('%B %Y')
+        month_key   = datetime.strptime(date_from,'%Y-%m-%d').strftime('%Y-%m')
     except Exception:
         month_label = date_from
         month_key   = date_from[:7]
- 
-    buf    = BytesIO()
-    styles = _styles()
-    M      = 14 * mm
- 
-    doc = SimpleDocTemplate(
-        buf, pagesize=A4,
-        leftMargin=M, rightMargin=M,
-        topMargin=34*mm, bottomMargin=18*mm,
-    )
- 
-    story = []
- 
-    def P(text, style='RPT_Body'):
-        return Paragraph(text, styles[style])
- 
-    def num(n, dp=2):
-        return f'{float(n or 0):,.{dp}f}'
- 
-    def pct_bar(pct, width=60):
-        filled = max(0, min(12, int((pct or 0) / 100 * 12)))
-        return '█' * filled + '░' * (12 - filled)
- 
-    # ─────────────────────────────────────────────────────────
-    #   SECTION 1 — EXECUTIVE SUMMARY
-    # ─────────────────────────────────────────────────────────
-    _section('1.  Executive Summary', story, styles)
- 
-    rd             = report_data
-    period_rev     = rd.get('period_revenue', 0)
-    period_txns    = rd.get('period_txns', 0)
-    daily_avg      = rd.get('daily_average', 0)
-    aov            = rd.get('aov', 0)
-    trend_label    = rd.get('trend_label', 'N/A')
-    top_branch     = rd.get('top_branch', 'N/A')
-    peak_hour      = rd.get('peak_hour', 'N/A')
-    peak_day       = rd.get('peak_day', 'N/A')
-    days_in_p      = max(len(rd.get('daily', [])), 1)
-    avg_daily_t    = round(period_txns / days_in_p, 1)
- 
-    kpi_data = [
-        ['Metric', 'Value', 'Metric', 'Value'],
-        ['Total Revenue',      f'RM {num(period_rev)}',  'Sales Volume',      f'{int(period_txns):,} orders'],
-        ['Daily Average',      f'RM {num(daily_avg)}',   'Avg Order Value',   f'RM {num(aov)}'],
-        ['Period vs Prior',    trend_label,               'Top Branch',        top_branch],
-        ['Peak Hour',          peak_hour,                 'Peak Day',          peak_day],
-        ['Reporting Period',   f'{date_from} to {date_to}', 'Avg Daily Orders', str(avg_daily_t)],
-    ]
- 
-    kpi_tbl = Table(kpi_data, colWidths=[45*mm, 45*mm, 45*mm, 45*mm])
-    kpi_tbl.setStyle(TableStyle([
-        ('BACKGROUND',    (0, 0), (-1, 0), C_HDRROW),
-        ('TEXTCOLOR',     (0, 0), (-1, 0), C_WHITE),
-        ('FONTNAME',      (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTNAME',      (0, 1), (-1, -1), 'Helvetica'),
-        ('FONTNAME',      (0, 1), (0, -1), 'Helvetica-Bold'),  
-        ('FONTNAME',      (2, 1), (2, -1), 'Helvetica-Bold'),  
-        ('FONTSIZE',      (0, 0), (-1, -1), 8.5),
-        ('TEXTCOLOR',     (0, 1), (-1, -1), C_MID),
-        ('TEXTCOLOR',     (1, 1), (1, -1), C_BLUE),
-        ('TEXTCOLOR',     (3, 1), (3, -1), C_BLUE),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [C_WHITE, C_LIGHT]),
-        ('GRID',          (0, 0), (-1, -1), 0.4, C_BORDER),
-        ('TOPPADDING',    (0, 0), (-1, -1), 5),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-        ('LEFTPADDING',   (0, 0), (-1, -1), 6),
-        ('RIGHTPADDING',  (0, 0), (-1, -1), 6),
-        ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
-    ]))
-    story.append(KeepTogether([kpi_tbl]))
-    story.append(Spacer(1, 4))
-    story.append(P('⚠  Profit & COGS data not available from POS logs. Revenue figures represent gross sales only.',
-                   'RPT_BodySm'))
- 
-    # ─────────────────────────────────────────────────────────
-    #   SECTION 2 — MONTHLY REVENUE TREND
-    # ─────────────────────────────────────────────────────────
-    mt         = rd.get('monthly_trend', {})
-    mt_labels  = mt.get('labels',   [])
-    mt_keys    = mt.get('keys',     [])
-    mt_branches= mt.get('branches', [])
-    mt_by_b    = mt.get('by_branch', {})
- 
-    slice_n   = min(6, len(mt_labels))
-    start_idx = len(mt_labels) - slice_n
-    rec_labels= mt_labels[start_idx:]
-    rec_keys  = mt_keys[start_idx:]
- 
-    _section(f'2.  Revenue Trend — Last {slice_n} Months', story, styles)
- 
-    if rec_labels:
-        hdr = ['Month'] + mt_branches + ['Total']
-        rows = [hdr]
-        for i, lbl in enumerate(rec_labels):
-            ri       = start_idx + i
-            is_curr  = (rec_keys[i] == month_key)
-            total_r  = sum(mt_by_b.get(b, [0]*len(mt_labels))[ri] for b in mt_branches)
-            row      = [f'{"► " if is_curr else ""}{lbl}']
-            row     += [f'RM {num(mt_by_b.get(b,[0]*len(mt_labels))[ri])}' for b in mt_branches]
-            row     += [f'RM {num(total_r)}']
-            rows.append(row)
- 
-        n_cols   = len(hdr)
-        col_w    = [30*mm] + [None]*(n_cols-2) + [30*mm]
-        avail    = 180*mm - 30*mm - 30*mm
-        mid_w    = avail / max(n_cols - 2, 1)
-        col_w[1:-1] = [mid_w] * (n_cols - 2)
- 
-        mt_tbl = Table(rows, colWidths=col_w)
-        mt_style = _table_style()
-        for i, k in enumerate(rec_keys):
-            if k == month_key:
-                mt_style.add('BACKGROUND', (0, i+1), (-1, i+1), colors.HexColor('#EFF6FF'))
-                mt_style.add('FONTNAME',   (0, i+1), (-1, i+1), 'Helvetica-Bold')
-                mt_style.add('TEXTCOLOR',  (-1, i+1), (-1, i+1), C_BLUE)
-        for c in range(1, n_cols):
-            mt_style.add('ALIGN', (c, 0), (c, -1), 'RIGHT')
-        mt_tbl.setStyle(mt_style)
-        story.append(KeepTogether([mt_tbl]))
-        story.append(P('► Highlighted row = selected reporting month.', 'RPT_BodySm'))
- 
-    # ─────────────────────────────────────────────────────────
-    #   SECTION 3 — DAILY SALES vs PREDICTED (PvA)
-    # ─────────────────────────────────────────────────────────
-    _section(f'3.  Daily Sales — Predicted vs Actual ({month_label})', story, styles)
- 
-    pva_rows     = rd.get('predicted_vs_actual', [])
-    pva_total_p  = rd.get('pva_total_predicted', 0)
-    pva_total_a  = rd.get('pva_total_actual', 0)
-    pva_mape     = rd.get('pva_mape', 0)
-    pva_in_range = rd.get('pva_within_range', 0)
-    pva_days     = rd.get('pva_days_with_data', 0)
- 
-    pva_sum = [
-        ['Total Predicted', f'RM {num(pva_total_p)}',
-         'Total Actual', f'RM {num(pva_total_a)}',
-         'MAPE', f'{pva_mape}%',
-         'On Target', f'{pva_in_range} / {pva_days} days']
-    ]
-    pva_sum_tbl = Table(pva_sum, colWidths=[30*mm, 30*mm, 25*mm, 30*mm, 18*mm, 20*mm, 20*mm, 28*mm])
-    pva_sum_tbl.setStyle(TableStyle([
-        ('BACKGROUND',    (0, 0), (-1, -1), C_LIGHT),
-        ('FONTNAME',      (0, 0), (-1, -1), 'Helvetica-Bold'),
-        ('FONTSIZE',      (0, 0), (-1, -1), 8.5),
-        ('TEXTCOLOR',     (0, 0), (-1, -1), C_DARK),
-        ('GRID',          (0, 0), (-1, -1), 0.4, C_BORDER),
-        ('TOPPADDING',    (0, 0), (-1, -1), 4),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-        ('LEFTPADDING',   (0, 0), (-1, -1), 5),
-        ('RIGHTPADDING',  (0, 0), (-1, -1), 5),
-        ('ALIGN',         (1, 0), (1, -1), 'RIGHT'),
-        ('ALIGN',         (3, 0), (3, -1), 'RIGHT'),
-        ('ALIGN',         (5, 0), (5, -1), 'RIGHT'),
-        ('ALIGN',         (7, 0), (7, -1), 'RIGHT'),
-    ]))
-    story.append(pva_sum_tbl)
-    story.append(Spacer(1, 4))
- 
-    if pva_rows:
-        pva_hdr = ['Date', 'Day', 'Predicted (RM)', 'Actual (RM)', 'Variance', 'Var %', 'Status']
-        pva_body = [pva_hdr]
-        for r in pva_rows:
-            has_act = r['actual'] is not None
-            var     = r.get('variance')
-            var_pct = r.get('variance_pct')
-            status  = ''
-            if has_act and r.get('in_range') is not None:
-                status = 'On Target' if r['in_range'] else 'Off Range'
-            holiday_flag = ' 🎉' if r.get('is_holiday') else ''
-            pva_body.append([
-                r['ds'],
-                r['day_name'] + holiday_flag,
-                num(r.get('yhat', 0)),
-                num(r['actual']) if has_act else '—',
-                (f"+{num(var)}" if var and var >= 0 else num(var)) if var is not None else '—',
-                (f"+{var_pct}%" if var_pct and var_pct >= 0 else f"{var_pct}%") if var_pct is not None else '—',
-                status,
-            ])
- 
-        pva_tbl = Table(pva_body, colWidths=[22*mm, 16*mm, 30*mm, 28*mm, 28*mm, 18*mm, 22*mm])
-        pva_style = _table_style()
-        for i, r in enumerate(pva_rows, start=1):
-            var = r.get('variance')
-            if var is not None:
-                col = C_TEAL if var >= 0 else C_RED
-                pva_style.add('TEXTCOLOR', (4, i), (5, i), col)
-        for c in [2, 3, 4, 5]:
-            pva_style.add('ALIGN', (c, 0), (c, -1), 'RIGHT')
-        pva_tbl.setStyle(pva_style)
-        story.append(KeepTogether([pva_tbl]))
-    else:
-        story.append(P('No forecast data found for this period. Run the AI Forecast engine first.', 'RPT_BodySm'))
- 
-    # ─────────────────────────────────────────────────────────
-    #   SECTION 4 — PRODUCT PERFORMANCE
-    # ─────────────────────────────────────────────────────────
-    story.append(PageBreak())
-    _section('4.  Product Performance', story, styles)
- 
-    top_prods = rd.get('top_products', [])
-    bot_prods = rd.get('bottom_products', [])
- 
-    if top_prods:
-        story.append(P('Top-Selling Products (by quantity)', 'RPT_Bold'))
-        top_hdr = ['#', 'Product', 'Units Sold', 'Revenue (RM)', 'Share %', 'Bar']
-        top_body = [top_hdr]
-        for i, p in enumerate(top_prods, 1):
-            top_body.append([
-                str(i),
-                p['product_id'],
-                f"{int(p['qty']):,}",
-                num(p['revenue']),
-                f"{p['pct']}%",
-                pct_bar(float(p['pct'] or 0)),
-            ])
-        top_tbl = Table(top_body, colWidths=[8*mm, 55*mm, 25*mm, 32*mm, 20*mm, 42*mm])
-        ts = _table_style()
-        ts.add('ALIGN', (0, 0), (0, -1), 'CENTER')
-        for c in [2, 3, 4]:
-            ts.add('ALIGN', (c, 0), (c, -1), 'RIGHT')
-        ts.add('FONTNAME', (5, 1), (5, -1), 'Courier')
-        ts.add('FONTSIZE', (5, 1), (5, -1), 7)
-        ts.add('TEXTCOLOR', (5, 1), (5, -1), C_BLUE)
-        top_tbl.setStyle(ts)
-        story.append(KeepTogether([top_tbl]))
-        story.append(Spacer(1, 6))
- 
-    if bot_prods:
-        story.append(P('Underperforming Products — Bottom 3 (by quantity)', 'RPT_Bold'))
-        bot_hdr = ['Product', 'Units Sold', 'Revenue (RM)']
-        bot_body = [bot_hdr] + [
-            [p['product_id'], f"{int(p['qty']):,}", num(p['revenue'])]
-            for p in bot_prods
-        ]
-        bot_tbl = Table(bot_body, colWidths=[100*mm, 35*mm, 45*mm])
-        bs = _table_style()
-        bs.add('TEXTCOLOR', (0, 1), (0, -1), C_RED)
-        for c in [1, 2]:
-            bs.add('ALIGN', (c, 0), (c, -1), 'RIGHT')
-        bot_tbl.setStyle(bs)
-        story.append(KeepTogether([bot_tbl]))
- 
-    # ─────────────────────────────────────────────────────────
-    #   SECTION 5 — REGIONAL & CATEGORY BREAKDOWN
-    # ─────────────────────────────────────────────────────────
-    _section('5.  Regional & Category Breakdown', story, styles)
- 
-    reg_data = rd.get('regional_breakdown', [])
-    cat_data = rd.get('category_breakdown', [])
-    pay_data = rd.get('payment_breakdown', [])
- 
-    if reg_data:
-        story.append(P('Branch Performance', 'RPT_Bold'))
-        reg_hdr  = ['Branch', 'Revenue (RM)', 'Transactions', 'Bar']
-        reg_body = [reg_hdr]
-        br_max   = rd.get('branch_max_rev', 1) or 1
-        for r in reg_data:
-            is_top = r['branch_name'] == top_branch
-            reg_body.append([
-                ('★ ' if is_top else '') + r['branch_name'],
-                num(r['rev']),
-                f"{int(r['txns']):,}",
-                pct_bar(r['rev'] / br_max * 100),
-            ])
-        reg_tbl = Table(reg_body, colWidths=[55*mm, 40*mm, 35*mm, 52*mm])
-        rs = _table_style()
-        rs.add('ALIGN', (1, 0), (2, -1), 'RIGHT')
-        rs.add('FONTNAME', (3, 1), (3, -1), 'Courier')
-        rs.add('FONTSIZE', (3, 1), (3, -1), 7)
-        rs.add('TEXTCOLOR', (3, 1), (3, -1), C_BLUE)
-        reg_tbl.setStyle(rs)
-        story.append(KeepTogether([reg_tbl]))
-        story.append(Spacer(1, 6))
- 
-    if cat_data:
-        story.append(P('Revenue by Product Category', 'RPT_Bold'))
-        cat_hdr  = ['Category', 'Revenue (RM)', 'Share %', 'Bar']
-        cat_body = [cat_hdr] + [
-            [c['product_category'], num(c['revenue']), f"{c['pct']}%", pct_bar(float(c['pct'] or 0))]
-            for c in cat_data
-        ]
-        cat_tbl = Table(cat_body, colWidths=[60*mm, 40*mm, 22*mm, 60*mm])
-        cs = _table_style()
-        cs.add('ALIGN', (1, 0), (2, -1), 'RIGHT')
-        cs.add('FONTNAME', (3, 1), (3, -1), 'Courier')
-        cs.add('FONTSIZE', (3, 1), (3, -1), 7)
-        cs.add('TEXTCOLOR', (3, 1), (3, -1), C_TEAL)
-        cat_tbl.setStyle(cs)
-        story.append(KeepTogether([cat_tbl]))
-        story.append(Spacer(1, 6))
- 
-    if pay_data:
-        story.append(P('Payment Method Breakdown', 'RPT_Bold'))
-        pay_hdr  = ['Payment Method', 'Transactions', 'Share %', 'Bar']
-        pay_body = [pay_hdr] + [
-            [str(p['payment_method']).upper(), f"{int(p['txn_count']):,}", f"{p['pct']}%", pct_bar(float(p['pct'] or 0))]
-            for p in pay_data
-        ]
-        pay_tbl = Table(pay_body, colWidths=[60*mm, 35*mm, 22*mm, 65*mm])
-        ps = _table_style()
-        ps.add('ALIGN', (1, 0), (2, -1), 'RIGHT')
-        ps.add('FONTNAME', (3, 1), (3, -1), 'Courier')
-        ps.add('FONTSIZE', (3, 1), (3, -1), 7)
-        ps.add('TEXTCOLOR', (3, 1), (3, -1), colors.HexColor('#D97706'))
-        pay_tbl.setStyle(ps)
-        story.append(KeepTogether([pay_tbl]))
- 
-    # ─────────────────────────────────────────────────────────
-    #   SECTION 6 — TRANSACTION FLOW
-    # ─────────────────────────────────────────────────────────
-    _section('6.  Transaction Flow by Time', story, styles)
- 
-    hourly_data = rd.get('hourly_breakdown', [])
-    dow_data    = rd.get('dow_breakdown', [])
-    hourly_max  = max((h['txns'] for h in hourly_data), default=1) or 1
-    dow_max     = max((d['txns'] for d in dow_data),    default=1) or 1
- 
-    if hourly_data:
-        story.append(P('Hourly Transaction Volume', 'RPT_Bold'))
-        hr_hdr  = ['Hour', 'Transactions', 'Revenue (RM)', 'Activity']
-        hr_body = [hr_hdr]
-        for h in hourly_data:
-            is_peak = peak_hour.startswith(h['hour'][:2])
-            hr_body.append([
-                ('★ ' if is_peak else '') + h['hour'],
-                f"{h['txns']:,}",
-                num(h['revenue']),
-                pct_bar(h['txns'] / hourly_max * 100),
-            ])
-        hr_tbl = Table(hr_body, colWidths=[28*mm, 30*mm, 36*mm, 88*mm])
-        hs = _table_style()
-        hs.add('ALIGN', (1, 0), (2, -1), 'RIGHT')
-        hs.add('FONTNAME', (3, 1), (3, -1), 'Courier')
-        hs.add('FONTSIZE', (3, 1), (3, -1), 7)
-        hs.add('TEXTCOLOR', (3, 1), (3, -1), C_BLUE)
-        hr_tbl.setStyle(hs)
-        story.append(KeepTogether([hr_tbl]))
-        story.append(Spacer(1, 6))
- 
-    if dow_data:
-        story.append(P('Day-of-Week Revenue Pattern', 'RPT_Bold'))
-        dow_hdr  = ['Day', 'Transactions', 'Revenue (RM)', 'Activity']
-        dow_body = [dow_hdr]
-        for d in dow_data:
-            is_peak = (d['day'] == peak_day)
-            dow_body.append([
-                ('★ ' if is_peak else '') + d['day'],
-                f"{d['txns']:,}",
-                num(d['revenue']),
-                pct_bar(d['txns'] / dow_max * 100),
-            ])
-        dow_tbl = Table(dow_body, colWidths=[30*mm, 30*mm, 36*mm, 86*mm])
-        ds = _table_style()
-        ds.add('ALIGN', (1, 0), (2, -1), 'RIGHT')
-        ds.add('FONTNAME', (3, 1), (3, -1), 'Courier')
-        ds.add('FONTSIZE', (3, 1), (3, -1), 7)
-        ds.add('TEXTCOLOR', (3, 1), (3, -1), C_TEAL)
-        dow_tbl.setStyle(ds)
-        story.append(KeepTogether([dow_tbl]))
- 
-    # ─────────────────────────────────────────────────────────
-    #   SECTION 7 — AI RECOMMENDATIONS
-    # ─────────────────────────────────────────────────────────
-    story.append(PageBreak())
-    _section('7.  AI-Powered Actionable Recommendations', story, styles)
- 
-    ai_text = rd.get('ai_insight', 'AI insight temporarily unavailable.')
- 
-    story.append(P(f'<b>Branch:</b> {branch_label}  |  <b>Period:</b> {month_label}  |  <b>Revenue:</b> RM {num(period_rev)}', 'RPT_Body'))
-    story.append(Spacer(1, 6))
- 
-    for line in ai_text.replace('\r\n', '\n').split('\n'):
-        line = line.strip()
-        if not line:
-            story.append(Spacer(1, 3))
-            continue
-        if line and line[0].isdigit() and len(line) > 2 and line[1] in '.):':
-            story.append(Paragraph(f'• {line}', styles['RPT_Bullet']))
-        elif line.startswith('•') or line.startswith('-'):
-            story.append(Paragraph(line, styles['RPT_Bullet']))
-        else:
-            story.append(Paragraph(line, styles['RPT_AI']))
- 
-    story.append(Spacer(1, 8))
- 
-    top_prods_list = rd.get('top_products', [])
-    findings = [
-        ['Finding', 'Detail'],
-        ['Revenue Trend',      trend_label],
-        ['Top Branch',          top_branch],
-        ['Avg Order Value',    f'RM {num(aov)}'],
-        ['Busiest Window',     f'{peak_hour}  ·  {peak_day}'],
-        ['Best Product',       f"{top_prods_list[0]['product_id']} ({int(top_prods_list[0]['qty']):,} units)" if top_prods_list else 'N/A'],
-        ['Period Revenue',     f'RM {num(period_rev)} across {int(period_txns):,} transactions'],
-    ]
-    fin_tbl = Table(findings, colWidths=[55*mm, 127*mm])
-    fin_tbl.setStyle(TableStyle([
-        ('BACKGROUND',    (0, 0), (-1, 0), C_HDRROW),
-        ('TEXTCOLOR',     (0, 0), (-1, 0), C_WHITE),
-        ('FONTNAME',      (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTNAME',      (0, 1), (0, -1), 'Helvetica-Bold'),
-        ('FONTNAME',      (1, 1), (1, -1), 'Helvetica'),
-        ('FONTSIZE',      (0, 0), (-1, -1), 8.5),
-        ('TEXTCOLOR',     (0, 1), (0, -1), C_DARK),
-        ('TEXTCOLOR',     (1, 1), (1, -1), C_MID),
-        ('ROWBACKGROUNDS',(0, 1), (-1, -1), [C_WHITE, C_LIGHT]),
-        ('GRID',          (0, 0), (-1, -1), 0.4, C_BORDER),
-        ('TOPPADDING',    (0, 0), (-1, -1), 5),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-        ('LEFTPADDING',   (0, 0), (-1, -1), 6),
-        ('RIGHTPADDING',  (0, 0), (-1, -1), 6),
-        ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
-    ]))
-    story.append(KeepTogether([fin_tbl]))
- 
-    on_page = _make_on_page(branch_label, month_label, now_str)
-    doc.build(story, onFirstPage=on_page, onLaterPages=on_page)
- 
-    pdf_bytes = buf.getvalue()
-    response  = make_response(pdf_bytes)
-    response.headers['Content-Type']        = 'application/pdf'
-    filename_str = f"MCS_Executive_Report_{branch_filter.replace(' ','_')}_{month_key}.pdf"
-    filename_str = filename_str.replace(' ','_')
-    response.headers['Content-Disposition'] = f'attachment; filename="{filename_str}"'
-    return response
 
+    now_str = datetime.now().strftime('%d %b %Y, %I:%M %p')
 
+    # Render the HTML using the new template
+    html_content = render_template('report_pdf_export.html',
+                                   data=rd,
+                                   branch=branch_filter,
+                                   month_label=month_label,
+                                   date_from=date_from,
+                                   date_to=date_to,
+                                   now_str=now_str)
+
+    try:
+        from weasyprint import HTML as WP_HTML
+        pdf_bytes = WP_HTML(string=html_content).write_pdf()
+        
+        response = make_response(pdf_bytes)
+        response.headers['Content-Type'] = 'application/pdf'
+        slug = branch_filter.replace(' ','_')
+        response.headers['Content-Disposition'] = (
+            f'attachment; filename="MCS_Executive_Report_{slug}_{month_key}.pdf"')
+        return response
+    except Exception as e:
+        print("PDF Export Error (WeasyPrint):", e)
+        # Fallback to HTML if WeasyPrint fails
+        response = make_response(html_content)
+        response.headers['Content-Type'] = 'text/html; charset=utf-8'
+        slug = branch_filter.replace(' ','_')
+        response.headers['Content-Disposition'] = (
+            f'attachment; filename="MCS_Executive_Report_{slug}_{month_key}.html"')
+        return response
+    
 # ============================================================
 #    RUNTIME ENGINE EXECUTION ENTRYPOINT
 # ============================================================

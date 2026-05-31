@@ -222,21 +222,25 @@ def calculate_ingredient_demand(forecasted_sales_list):
 
     return inventory_demand
 
-def revenue_decline_and_product_mix_profiler(branch_id=None):
+def revenue_decline_and_product_mix_profiler(branch_id=None, reference_date=None):
     conn = get_db_connection()
     query = "SELECT transaction_date, product_category, product_id, transaction_qty, Total_Bill_MYR FROM sales_transaction"
     if branch_id:
         query += f" WHERE branch_id = '{branch_id.upper().strip()}'"
-        
+
     df = pd.read_sql_query(query, conn)
     conn.close()
-    
+
     if df.empty:
         return {}
-        
+
     df['transaction_date'] = pd.to_datetime(df['transaction_date'])
-    max_date = df['transaction_date'].max()
-    
+
+    if reference_date:
+        max_date = pd.to_datetime(reference_date)
+    else:
+        max_date = df['transaction_date'].max()
+
     last_30_start = max_date - timedelta(days=30)
     prev_30_start = last_30_start - timedelta(days=30)
     

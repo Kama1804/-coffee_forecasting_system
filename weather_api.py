@@ -16,18 +16,19 @@ LOCATIONS = {
 
 def map_weather_condition(owm_main):
     """
-    Maps OpenWeatherMap main conditions to Sunny / Cloudy / Raining.
-    Tuned for Malaysian tropical climate — drizzle treated as Cloudy
-    to match Open-Meteo historical mapping in etl_pipeline.py.
+    Maps OpenWeatherMap main conditions to Fair / Sunny / Cloudy / Raining / Thunderstorm.
+    Tuned for Malaysian tropical climate based on user-defined matrix.
     """
     condition = owm_main.lower()
 
     if condition == 'clear':
-        return 'Sunny'
+        return 'Fair / Sunny'
     elif condition in ['clouds', 'mist', 'haze', 'fog', 'drizzle']:
-        return 'Cloudy'
-    elif condition in ['rain', 'thunderstorm', 'squall', 'tornado']:
+        return 'Cloudy' # Drizzle is moved to Cloudy as per requirement
+    elif condition in ['rain', 'squall', 'tornado']:
         return 'Raining'
+    elif condition == 'thunderstorm':
+        return 'Thunderstorm'
     else:
         return 'Cloudy' # Default safe fallback
 

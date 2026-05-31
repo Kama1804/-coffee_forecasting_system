@@ -83,7 +83,13 @@ BRANCH_PERSONAS = {
 class ForecastEngine:
     def __init__(self):
         self.db_path = os.path.join('database', 'coffee_shop.db')
-        self.weather_weights = {'Sunny': 1, 'Cloudy': 1, 'Raining': 0}
+        self.weather_weights = {
+            'Fair / Sunny': 1.1,  # Best for coffee sales
+            'Sunny': 1.1,         # Compatibility
+            'Cloudy': 1.0,        # Baseline
+            'Raining': 0.7,       # Significant drop
+            'Thunderstorm': 0.4   # Severe drop
+        }
 
     # ----------------------------------------------------------------
     def _build_promo_and_closure_maps(self):
@@ -228,14 +234,20 @@ class ForecastEngine:
     def _get_weather_by_time(self, branch_id: str) -> list:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
+        # Normalizing 'Fair / Sunny' to 'Sunny' for consistency with dashboard charts
         cursor.execute("""
             SELECT CASE
                 WHEN CAST(Hour AS INTEGER) BETWEEN 9 AND 11 THEN 'Morning'
                 WHEN CAST(Hour AS INTEGER) BETWEEN 12 AND 16 THEN 'Afternoon'
                 ELSE 'Evening'
-            END as shift, weather_condition, COUNT(*) as cnt
+            END as shift, 
+            CASE 
+                WHEN weather_condition = 'Fair / Sunny' THEN 'Sunny'
+                ELSE weather_condition
+            END as weather, 
+            COUNT(*) as cnt
             FROM sales_transaction WHERE branch_id = ?
-            GROUP BY shift, weather_condition
+            GROUP BY shift, weather
         """, (branch_id.upper().strip(),))
         rows = cursor.fetchall()
         conn.close()
@@ -266,7 +278,7 @@ class ForecastEngine:
     # ================================================================
     #    MAIN GENERATE FORECAST
     # ================================================================
-    def generate_7_day_forecast(self, branch_id: str, branch_name: str) -> tuple:
+    def generate_5_day_forecast(self, branch_id: str, branch_name: str) -> tuple:
         branch_id = str(branch_id).upper().strip()
         persona   = BRANCH_PERSONAS.get(branch_name, BRANCH_PERSONAS["Putrajaya"])
 
@@ -297,7 +309,7 @@ class ForecastEngine:
         api_success, weather_data = fetch_future_weather()
         branch_future_weather = weather_data.get(branch_name, {}) if api_success else {}
 
-        future       = m.make_future_dataframe(periods=7)
+        future       = m.make_future_dataframe(periods=5)
         future['ds'] = pd.to_datetime(future['ds'])
 
         if 'weather_encoded' in future.columns:
@@ -309,8 +321,11 @@ class ForecastEngine:
         for idx, row in future.iterrows():
             if pd.isna(row['weather_encoded']):
                 date_str  = row['ds'].strftime('%Y-%m-%d')
-                condition = branch_future_weather.get(date_str, 'Cloudy')
-                future.at[idx, 'weather_encoded'] = self.weather_weights.get(condition, 0)
+                raw_cond  = branch_future_weather.get(date_str, 'Cloudy')
+                # Align with dashboard naming
+                condition = 'Sunny' if raw_cond == 'Fair / Sunny' else raw_cond
+                
+                future.at[idx, 'weather_encoded'] = self.weather_weights.get(raw_cond, 0)
                 future_weather_labels[date_str]   = condition
 
         future['weather_encoded'] = future['weather_encoded'].fillna(0)
@@ -341,7 +356,7 @@ class ForecastEngine:
         cursor.execute("DELETE FROM sales_forecast WHERE branch_id = ?", (branch_id,))
 
         fore_payload              = []
-        all_7_day_predicted_items = []
+        all_5_day_predicted_items = []
 
         for _, row in forecast.iterrows():
             date_str = row['ds'].strftime('%Y-%m-%d')
@@ -371,7 +386,7 @@ class ForecastEngine:
             """, (date_str, branch_id,
                   round(adj_yhat, 2), round(yhat_lower, 2), round(yhat_upper, 2)))
 
-            if is_future and len(fore_payload) < 7:
+            if is_future and len(fore_payload) < 5:
                 is_friday          = (row['ds'].dayofweek == 4)   # Python: 4=Friday
                 is_holiday_active  = date_str in holiday_date_set
 
@@ -412,7 +427,7 @@ class ForecastEngine:
                                 'quantity':       pred_qty
                             }
                             day_items.append(item)
-                            all_7_day_predicted_items.append(item)
+                            all_5_day_predicted_items.append(item)
 
                 fore_payload.append({
                     'ds':              date_str,
@@ -435,7 +450,7 @@ class ForecastEngine:
             {
                 'ds':      r['ds'].strftime('%Y-%m-%d'),
                 'y':       round(r['y'], 2),
-                'weather': r['weather_condition']
+                'weather': 'Sunny' if r['weather_condition'] == 'Fair / Sunny' else r['weather_condition']
             }
             for _, r in df.tail(90).iterrows()
         ]
@@ -444,7 +459,7 @@ class ForecastEngine:
         fva    = self._get_forecast_vs_actual(m, df, fit_cols)
 
         from analytics import calculate_ingredient_demand
-        seven_day_ingredient_demand = calculate_ingredient_demand(all_7_day_predicted_items)
+        five_day_ingredient_demand = calculate_ingredient_demand(all_5_day_predicted_items)
 
         return True, {
             'mape':             mape,
@@ -456,5 +471,5 @@ class ForecastEngine:
             'hourly':           hourly,
             'forecast_vs_actual': fva,
             'weather_by_time':  wbt,
-            'ingredient_demand': seven_day_ingredient_demand
+            'ingredient_demand': five_day_ingredient_demand
         }
