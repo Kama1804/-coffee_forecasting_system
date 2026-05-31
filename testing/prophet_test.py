@@ -34,23 +34,24 @@ def test_prophet_engine():
     m.add_regressor('weather_encoded')
     m.fit(daily_df)
 
-    # 5. Create Future Dataframe (Predicting next 7 days)
-    future = m.make_future_dataframe(periods=7)
-    
-    # Mock future weather array for the next 7 days (e.g., 3 days cloudy, 4 days rain)
-    future_weather_mock = [0, 0, 0, -1, -1, -1, -1]
-    
+    # 5. Create Future Dataframe (Predicting next 5 days)
+    future = m.make_future_dataframe(periods=5)
+
+    # Mock future weather array for the next 5 days (e.g., 3 days cloudy, 2 days rain)
+    future_weather_mock = [0, 0, 0, -1, -1]
+
     # Map historical weather to the first part of future df, and append mock future
     historical_weather = daily_df['weather_encoded'].tolist()
     future['weather_encoded'] = historical_weather + future_weather_mock
 
     # 6. Predict
-    print("Executing 7-day forecast...\n")
+    print("Executing 5-day forecast...\n")
     forecast = m.predict(future)
-    
-    print("--- FORECAST RESULTS (Next 7 Days) ---")
+
+    print("--- FORECAST RESULTS (Next 5 Days) ---")
     # 'yhat' is the predicted revenue. 'yhat_lower' and 'yhat_upper' are the confidence intervals.
-    print(forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail(7))
+    print(forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail(5))
+
     print("\nProphet Validation Successful! The model converges and processes external weather regressors perfectly.")
 
 if __name__ == "__main__":
