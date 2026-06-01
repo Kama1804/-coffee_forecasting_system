@@ -11,14 +11,14 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <!-- AOS Animations -->
     <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
-    <!-- Custom Design System -->
+    <!-- Design System -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 
     {% block styles %}{% endblock %}
 </head>
 <body>
 
-<!-- Mobile toggle -->
+<!-- ── Mobile toggle ─────────────────────────────────────── -->
 <button class="mobile-menu-toggle" id="mobileMenuToggle" aria-label="Toggle sidebar">
     <i class="fa-solid fa-bars"></i>
 </button>
@@ -26,11 +26,12 @@
 
 <div class="wrapper">
 
-    <!-- ======================================================
+    <!-- ====================================================
          SIDEBAR
-    ====================================================== -->
+    ==================================================== -->
     <nav class="sidebar" id="sidebar">
 
+        <!-- Brand -->
         <div class="sidebar-header">
             <div class="sidebar-brand">
                 <div class="sidebar-brand-icon">
@@ -43,7 +44,9 @@
             </div>
         </div>
 
+        <!-- Nav -->
         <div class="sidebar-nav">
+
             <div class="sidebar-section-label">Main Menu</div>
 
             <a href="{{ url_for('dashboard') }}"
@@ -79,7 +82,27 @@
             </a>
         </div>
 
+        <!-- System Status pill -->
+        <div class="sidebar-status">
+            <div class="status-pill">
+                <span class="status-dot"></span>
+                <span class="status-label">All systems operational</span>
+            </div>
+        </div>
+
+        <!-- Footer -->
         <div class="sidebar-footer">
+            <!-- User identity strip -->
+            <div class="sidebar-user">
+                <div class="sidebar-user-avatar">
+                    <i class="fa-solid fa-user-tie"></i>
+                </div>
+                <div class="sidebar-user-info">
+                    <span class="sidebar-user-name">Admin</span>
+                    <span class="sidebar-user-role">Store Manager</span>
+                </div>
+            </div>
+
             <a href="{{ url_for('logout') }}" class="nav-link nav-logout text-decoration-none">
                 <span class="nav-icon"><i class="fa-solid fa-right-from-bracket"></i></span>
                 <span class="nav-label">Logout</span>
@@ -87,15 +110,37 @@
         </div>
     </nav>
 
-    <!-- ======================================================
+    <!-- ====================================================
          MAIN CANVAS
-    ====================================================== -->
+    ==================================================== -->
     <main class="main-canvas">
 
-        <!-- Flash Messages -->
+        <!-- ── Topbar ──────────────────────────────────── -->
+        <header class="topbar">
+
+            <!-- Left: Page context -->
+            <div class="topbar-left">
+                <div class="topbar-greeting" id="topbarGreeting">Good morning</div>
+                <div class="topbar-date" id="topbarDate">—</div>
+            </div>
+
+            <!-- Right: Actions -->
+            <div class="topbar-right">
+
+                <!-- Live clock -->
+                <div class="topbar-clock" id="topbarClock">00:00</div>
+
+                <!-- Avatar -->
+                <div class="topbar-avatar" title="Admin">
+                    <i class="fa-solid fa-user-tie"></i>
+                </div>
+            </div>
+        </header>
+
+        <!-- ── Flash Messages ───────────────────────── -->
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-                <div class="mb-4" style="max-width:680px;">
+                <div class="flash-stack" id="flashStack" style="padding: 0 var(--space-2xl);">
                     {% for category, message in messages %}
                         <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }}
                                     alert-dismissible fade show" role="alert">
@@ -109,39 +154,77 @@
             {% endif %}
         {% endwith %}
 
-        {% block content %}{% endblock %}
-    </main>
-</div>
+        <!-- ── Page Content ─────────────────────────── -->
+        <div class="main-content-inner">
+            {% block content %}{% endblock %}
+        </div>
 
-<!-- Bootstrap JS -->
+    </main><!-- /main-canvas -->
+</div><!-- /wrapper -->
+
+<!-- ── Scripts ──────────────────────────────────────────── -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<!-- AOS -->
 <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+
 <script>
-    AOS.init({ duration: 550, easing: 'ease-out-cubic', once: true, offset: 40 });
-</script>
-<!-- Mobile sidebar toggle -->
-<script>
-    const sidebar  = document.getElementById('sidebar');
-    const overlay  = document.getElementById('sidebarOverlay');
-    const toggle   = document.getElementById('mobileMenuToggle');
-    toggle.addEventListener('click', () => {
-        const open = sidebar.classList.toggle('open');
-        overlay.classList.toggle('active', open);
-    });
-    overlay.addEventListener('click', () => {
-        sidebar.classList.remove('open');
-        overlay.classList.remove('active');
-    });
-</script>
-<!-- Auto-dismiss alerts -->
-<script>
-    document.querySelectorAll('.alert').forEach(el => {
-        setTimeout(() => {
-            const a = bootstrap.Alert.getOrCreateInstance(el);
-            if (a) a.close();
-        }, 4500);
-    });
+/* ── AOS ─────────────────────────────────────────────── */
+AOS.init({ duration: 500, easing: 'ease-out-cubic', once: true, offset: 30 });
+
+/* ── Mobile sidebar ──────────────────────────────────── */
+const sidebar = document.getElementById('sidebar');
+const overlay = document.getElementById('sidebarOverlay');
+const toggle  = document.getElementById('mobileMenuToggle');
+
+function openSidebar()  { sidebar.classList.add('open');    overlay.classList.add('active'); }
+function closeSidebar() { sidebar.classList.remove('open'); overlay.classList.remove('active'); }
+
+toggle.addEventListener('click', () =>
+    sidebar.classList.contains('open') ? closeSidebar() : openSidebar()
+);
+overlay.addEventListener('click', closeSidebar);
+
+/* ── Auto-dismiss alerts ─────────────────────────────── */
+document.querySelectorAll('.alert').forEach(el => {
+    setTimeout(() => bootstrap.Alert.getOrCreateInstance(el)?.close(), 4500);
+});
+
+/* ── Topbar: clock, date, greeting ──────────────────── */
+(function initTopbar() {
+    const clockEl    = document.getElementById('topbarClock');
+    const dateEl     = document.getElementById('topbarDate');
+    const greetEl    = document.getElementById('topbarGreeting');
+
+    const DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+    function pad(n) { return String(n).padStart(2, '0'); }
+
+    function tick() {
+        const now  = new Date();
+        const h    = now.getHours();
+        const m    = now.getMinutes();
+        const s    = now.getSeconds();
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        const h12  = h % 12 || 12;
+
+        if (clockEl) clockEl.textContent = `${pad(h12)}:${pad(m)}:${pad(s)} ${ampm}`;
+
+        if (dateEl) {
+            dateEl.textContent =
+                `${DAYS[now.getDay()]}, ${MONTHS[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
+        }
+
+        if (greetEl) {
+            let g = 'Good evening';
+            if (h < 12) g = 'Good morning';
+            else if (h < 17) g = 'Good afternoon';
+            greetEl.textContent = g + ', Admin';
+        }
+    }
+
+    tick();
+    setInterval(tick, 1000);
+})();
 </script>
 
 {% block scripts %}{% endblock %}
