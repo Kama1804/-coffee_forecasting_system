@@ -1161,14 +1161,29 @@ function renderAll(data, branchName) {
             const dayName   = DAYS[jsDay];
             const dateLabel = dt.toLocaleString('en-MY', { day:'numeric', month:'short' });
             const isClosed  = row.is_closed || row.is_festive_close || jsDay === 0;
-            const shifts    = getShiftsByDominantWeather(row.weather, isClosed);
+            const w         = row.weather || { label: 'Cloudy', temp: 28, pop: 0 };
+            const label     = typeof w === 'string' ? w : w.label;
+            const shifts    = getShiftsByDominantWeather(label, isClosed);
             const closedBg  = isClosed ? 'background:#FEF2F2;border-color:#FECACA;' : '';
+
+            let weatherStats = '';
+            if (!isClosed && typeof w === 'object') {
+                weatherStats = `
+                    <div style="display:flex;gap:10px;font-size:.65rem;color:var(--fc-muted);margin-top:4px;font-weight:600;">
+                        <span><i class="fa-solid fa-temperature-half"></i> ${w.temp}°C</span>
+                        <span><i class="fa-solid fa-droplet"></i> ${w.pop}% Rain</span>
+                    </div>
+                `;
+            }
 
             return `
             <div class="weather-day-card" style="${closedBg}">
-                <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid ${isClosed?'#FECACA':'var(--fc-border)'};padding-bottom:8px;">
-                    <span style="font-weight:700;font-size:.85rem;color:#0F172A;">${dayName}</span>
-                    <span style="font-size:.72rem;color:var(--fc-muted);font-family:var(--font-mono);">${dateLabel}</span>
+                <div style="border-bottom:1px solid ${isClosed?'#FECACA':'var(--fc-border)'};padding-bottom:8px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <span style="font-weight:700;font-size:.85rem;color:#0F172A;">${dayName}</span>
+                        <span style="font-size:.72rem;color:var(--fc-muted);font-family:var(--font-mono);">${dateLabel}</span>
+                    </div>
+                    ${weatherStats}
                 </div>
                 <div style="display:flex;flex-direction:column;gap:5px;">
                     ${shifts.map(s => `
@@ -1375,9 +1390,23 @@ function renderTable(forecast) {
         if (isFestive || jsDay === 0) rowStyle = 'background:#FFF5F5;';
         else if (isWknd)              rowStyle = 'background:#FFFBEB;';
 
-        const weatherCell = isClosed
-            ? '<span style="color:#94A3B8;font-style:italic;">—</span>'
-            : `${WEATHER_ICON[row.weather] || '⛅'} ${row.weather}`;
+        let weatherCell = '';
+        if (isClosed) {
+            weatherCell = '<span style="color:#94A3B8;font-style:italic;">—</span>';
+        } else {
+            const w = row.weather || { label: 'Cloudy', temp: 28, pop: 0, rain_level: 'Light' };
+            const label = w.label || 'Cloudy';
+            const icon  = WEATHER_ICON[label] || '⛅';
+            const level = w.rain_level || 'Light';
+            weatherCell = `
+                <div style="display:flex;flex-direction:column;gap:2px;">
+                    <div style="font-weight:600;">${icon} ${label}</div>
+                    <div style="font-size:.7rem;color:var(--fc-muted);display:flex;gap:8px;">
+                        <span><i class="fa-solid fa-temperature-half"></i> ${w.temp || 28}°C</span>
+                        <span><i class="fa-solid fa-droplet"></i> ${level} Rain (${w.pop || 0}%)</span>
+                    </div>
+                </div>`;
+        }
 
         const flags = [];
         if (isFestive) {

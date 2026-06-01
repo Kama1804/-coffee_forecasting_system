@@ -309,7 +309,34 @@ class ForecastEngine:
         api_success, weather_data = fetch_future_weather()
         branch_future_weather = weather_data.get(branch_name, {}) if api_success else {}
 
-        future       = m.make_future_dataframe(periods=5)
+        # --- LIVE TIMING FUTURE DATES LOGIC ---
+        today_date = datetime.now().date()
+        last_hist_date = df['ds'].max()
+        
+        current_date = last_hist_date + timedelta(days=1)
+        
+        # 1. Fast-forward past any closed days that are strictly in the past
+        while current_date.date() < today_date:
+            date_str = current_date.strftime('%Y-%m-%d')
+            is_sun = (current_date.dayofweek == 6)
+            is_festive = date_str in closed_set
+            if is_sun or is_festive:
+                # It's closed and in the past -> carry forward
+                current_date += timedelta(days=1)
+            else:
+                # It's an open day in the past (missing data), stop carrying forward
+                break
+
+        # 2. Now generate 5 consecutive days starting from this 'live' date
+        live_future_dates = [current_date + timedelta(days=i) for i in range(5)]
+
+        # Build future dataframe with history + 5 live dates
+        future_ds = pd.concat([
+            df[['ds']],
+            pd.DataFrame({'ds': live_future_dates})
+        ]).reset_index(drop=True)
+        
+        future = pd.DataFrame({'ds': future_ds['ds']})
         future['ds'] = pd.to_datetime(future['ds'])
 
         if 'weather_encoded' in future.columns:
@@ -321,12 +348,19 @@ class ForecastEngine:
         for idx, row in future.iterrows():
             if pd.isna(row['weather_encoded']):
                 date_str  = row['ds'].strftime('%Y-%m-%d')
-                raw_cond  = branch_future_weather.get(date_str, 'Cloudy')
+                w_info    = branch_future_weather.get(date_str, {'condition': 'Cloudy', 'temp': 28.0, 'pop': 0, 'rain_level': 'Light'})
+                
+                raw_cond  = w_info['condition']
                 # Align with dashboard naming
                 condition = 'Sunny' if raw_cond == 'Fair / Sunny' else raw_cond
                 
                 future.at[idx, 'weather_encoded'] = self.weather_weights.get(raw_cond, 0)
-                future_weather_labels[date_str]   = condition
+                future_weather_labels[date_str]   = {
+                    'label': condition,
+                    'temp': w_info['temp'],
+                    'pop': w_info['pop'],
+                    'rain_level': w_info['rain_level']
+                }
 
         future['weather_encoded'] = future['weather_encoded'].fillna(0)
         future['is_weekday']      = (future['ds'].dt.dayofweek < 5).astype(int)
@@ -413,7 +447,12 @@ class ForecastEngine:
                 if is_closed:
                     weather = None      # signals "no weather" to frontend
                 else:
-                    weather = future_weather_labels.get(date_str, 'Cloudy')
+                    w_data = future_weather_labels.get(date_str)
+                    if isinstance(w_data, dict):
+                        weather = w_data
+                    else:
+                        # Fallback for historical alignment or missing data
+                        weather = {'label': 'Cloudy', 'temp': 28.0, 'pop': 0}
 
                 # ── Ingredient items for open days only ───────────────────
                 day_items = []

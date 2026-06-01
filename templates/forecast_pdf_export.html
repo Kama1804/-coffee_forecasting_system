@@ -239,7 +239,21 @@
                     <tr>
                         <td class="text-mono">{{ row.get('ds', '—') }}</td>
                         <td><span class="badge-custom {{ 'badge-red' if row.get('is_closed') else 'badge-blue' }}">{{ row.get('day_name', '—') }}</span></td>
-                        <td>{{ '—' if row.get('is_closed') else (row.get('weather', 'Cloudy')) }}</td>
+                        <td>
+                            {% if row.get('is_closed') %}
+                                —
+                            {% else %}
+                                {% set w = row.get('weather', {}) %}
+                                {% if w is mapping %}
+                                    {{ w.get('label', 'Cloudy') }}<br>
+                                    <span style="font-size:7pt;color:var(--fc-muted);">
+                                        {{ w.get('temp', 28) }}°C / {{ w.get('rain_level', 'Light') }} Rain ({{ w.get('pop', 0) }}%)
+                                    </span>
+                                {% else %}
+                                    {{ w }}
+                                {% endif %}
+                            {% endif %}
+                        </td>
                         <td>
                             {% if row.get('is_festive_close') %}
                                 <span class="promo-badge holiday-badge">🔒 Festive Closed</span>

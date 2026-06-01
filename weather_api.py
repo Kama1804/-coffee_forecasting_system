@@ -54,20 +54,45 @@ def fetch_future_weather():
                 response.raise_for_status() 
                 
                 data = response.json()
-                daily_conditions = {}
+                daily_stats = {}
                 
                 for item in data['list']:
-                    date_str = item['dt_txt'].split(' ')[0]
+                    dt_parts = item['dt_txt'].split(' ')
+                    date_str = dt_parts[0]
+                    time_str = dt_parts[1]
+                    hour = int(time_str.split(':')[0])
+                    
+                    # --- BUSINESS HOURS FILTER (09:00 - 21:00) ---
+                    if hour < 9 or hour > 21:
+                        continue
+                        
                     owm_main = item['weather'][0]['main']
+                    temp = item['main']['temp']
+                    pop = item.get('pop', 0) * 100 # Convert to percentage
                     mapped_condition = map_weather_condition(owm_main)
                     
-                    if date_str not in daily_conditions:
-                        daily_conditions[date_str] = []
-                    daily_conditions[date_str].append(mapped_condition)
+                    if date_str not in daily_stats:
+                        daily_stats[date_str] = {'conditions': [], 'temps': [], 'pops': []}
+                    
+                    daily_stats[date_str]['conditions'].append(mapped_condition)
+                    daily_stats[date_str]['temps'].append(temp)
+                    daily_stats[date_str]['pops'].append(pop)
 
-                for date_str, conditions_list in daily_conditions.items():
-                    dominant_condition = max(set(conditions_list), key=conditions_list.count)
-                    forecast_data[branch][date_str] = dominant_condition
+                for date_str, stats in daily_stats.items():
+                    # If for some reason no data in business hours, skip
+                    if not stats['conditions']:
+                        continue
+                        
+                    dominant_condition = max(set(stats['conditions']), key=stats['conditions'].count)
+                    avg_temp = sum(stats['temps']) / len(stats['temps'])
+                    avg_pop = sum(stats['pops']) / len(stats['pops']) 
+                    
+                    forecast_data[branch][date_str] = {
+                        'condition': dominant_condition,
+                        'temp': round(avg_temp, 1),
+                        'pop': round(avg_pop, 0),
+                        'rain_level': 'Light' if avg_pop <= 30 else ('Medium' if avg_pop <= 70 else 'Heavy')
+                    }
 
                 api_success = True
                 break # Break out of the retry loop if successful
