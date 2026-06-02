@@ -6,6 +6,7 @@ import io
 import json
 import html
 import math
+import re
 from functools import wraps
 from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
@@ -14,13 +15,11 @@ from dotenv import load_dotenv
 # Core Module Dependencies
 from init_db import initialize_database
 from etl_pipeline import ETLPipeline
-from gemini_agent import get_ai_insight, build_chat_system_context, stream_ai_insight, build_slim_context, fast_kpi_bypass
+from gemini_agent import get_ai_insight, stream_ai_insight, build_slim_context, fast_kpi_bypass
 from forecast_engine import ForecastEngine, MY_PUBLIC_HOLIDAYS, MY_SEASONS
 from analytics import (get_dashboard_metrics, calculate_ingredient_demand, 
                        revenue_decline_and_product_mix_profiler, weather_payday_cross_tabulation, SKU_MAPPING)
 from io import BytesIO
-import html
-
 
 load_dotenv(override=True)
 
@@ -85,6 +84,7 @@ else:
 # Helper tool to convert database SKU codes back to friendly menu names for frontend charts
 REVERSE_SKU_LOOKUP = {v: k.title() for k, v in SKU_MAPPING.items()}
 
+
 # ============================================================
 #    HELPERS
 # ============================================================
@@ -129,6 +129,18 @@ def login_required(f):
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated_function
+
+def sanitize_history_for_llm(history_list):
+    """Strips bulky chart JSON structures from session history strings to maintain rapid generation speeds."""
+    cleaned = []
+    for turn in history_list:
+        bot_msg = turn.get('bot', '')
+        bot_msg_clean = re.sub(r'\[CHART_DATA=.*?\]', '[Visual Chart Component Sent]', bot_msg)
+        cleaned.append({
+            "user": turn.get('user', ''),
+            "bot": bot_msg_clean
+        })
+    return cleaned
 
 
 # ============================================================
@@ -348,7 +360,6 @@ def api_kpis():
 
         try:
             prev_dt    = datetime.strptime(prev_mo + '-01', '%Y-%m-%d')
-            # Format as 'Jan 2025' for consistency with other dashboard labels
             prev_label = prev_dt.strftime('%b %Y')
         except Exception:
             prev_label = prev_mo
@@ -439,7 +450,6 @@ def api_charts():
             if use_monthly and p:
                 try:
                     dt = datetime.strptime(p + '-01', '%Y-%m-%d')
-                    # Change to 'Jan 2025' format for better readability
                     trend_labels.append(dt.strftime('%b %Y'))
                 except Exception:
                     trend_labels.append(p)
@@ -623,6 +633,7 @@ FORECAST_CACHE = {}
 
 
 def _fetch_db_context() -> dict:
+    """Gathers critical operational metrics from SQLite and packages the global parameters."""
     start_all = time.time()
     current_time = time.time()
 
@@ -645,6 +656,26 @@ def _fetch_db_context() -> dict:
     cursor.execute("SELECT COUNT(DISTINCT transaction_date) FROM sales_transaction")
     days_active = cursor.fetchone()[0] or 1
     daily_avg   = total_rev / days_active
+
+    # 🟢 FIX: Correctly query for the overall top-performing branch (highest cumulative historical revenue)
+    cursor.execute("""
+        SELECT store_location, SUM(Total_Bill_MYR) as rev
+        FROM sales_transaction
+        GROUP BY store_location
+        ORDER BY rev DESC LIMIT 1
+    """)
+    tb_row = cursor.fetchone()
+    top_branch = tb_row['store_location'] if tb_row else 'N/A'
+
+    # 🟢 FIX: Correctly query for the overall peak transaction hour slot
+    cursor.execute("""
+        SELECT Hour, COUNT(*) as cnt
+        FROM sales_transaction
+        GROUP BY Hour
+        ORDER BY cnt DESC LIMIT 1
+    """)
+    ph_row = cursor.fetchone()
+    peak_hour = f"{int(ph_row['Hour'] or 0):02d}:00" if ph_row else 'N/A'
 
     cursor.execute("""
         SELECT store_location, CAST(Hour AS INTEGER) as hr, COUNT(*) as cnt
@@ -681,6 +712,8 @@ def _fetch_db_context() -> dict:
         'branch_peaks': branch_peaks,
         'trend_rows': [dict(r) for r in trend_rows],
         'categories': cat_summary,
+        'top_branch': top_branch,
+        'peak_hour': peak_hour
     }
     
     compiled_payload['monthly_trend_summary'] = "\n".join([f"{r['store_location']} {r['month']}: RM {r['rev']:,.2f}" for r in compiled_payload['trend_rows']])
@@ -721,8 +754,10 @@ def api_chat():
         print(f"[CHAT ERROR] Database context failure: {e}")
         system_context = "You are the AI Business Advisor for 'Mini Coffee Shop'. Database connection is temporarily unavailable."
 
+    # PURIFICATION STEP: Scrub bulky chart layouts from memory window before calling Gemini
+    purified_history = sanitize_history_for_llm(session['chat_history'][-3:])
     history_blocks = []
-    for turn in session['chat_history'][-3:]:
+    for turn in purified_history:
         history_blocks.append(f"User: {turn['user']}\nAI: {turn['bot']}")
 
     history_text = "\n\n".join(history_blocks)
@@ -789,8 +824,10 @@ def api_chat_stream():
     except Exception:
         system_context = "You are the AI Business Advisor for 'Mini Coffee Shop'. Database temporarily unavailable."
 
+    # PURIFICATION STEP: Scrub chart layouts going into real-time SSE stream engine
+    purified_history = sanitize_history_for_llm(session['chat_history'][-3:])
     history_blocks = []
-    for turn in session['chat_history'][-3:]:
+    for turn in purified_history:
         history_blocks.append(f"User: {turn['user']}\nAI: {turn['bot']}")
 
     final_prompt = f"""{system_context}
@@ -1093,10 +1130,6 @@ def _build_report_data(branch_filter, date_from, date_to):
     branch_max_rev = max((r['rev'] for r in regional_breakdown), default=1)
 
     # ── Product performance ────────────────────────────────────
-    # NOTE: pct is computed in Python using period_revenue (already filtered correctly).
-    # The old SQL subquery used alias s2 but the WHERE clause referenced alias s,
-    # causing s2.store_location / s2.transaction_date to be undefined — SQLite silently
-    # ignored those conditions and returned the ALL-TIME total, making every % tiny.
     cursor.execute(f"""
         SELECT s.product_id as product_id,
                SUM(s.transaction_qty) as qty,
@@ -1160,13 +1193,12 @@ def _build_report_data(branch_filter, date_from, date_to):
     cursor.execute("SELECT DISTINCT store_location FROM sales_transaction ORDER BY store_location")
     all_branches = [r[0] for r in cursor.fetchall() if r[0]]
 
-    # Generate 6 consecutive month keys ending at the selected month
-    target_month_str = date_from[:7] # e.g. "2025-08"
+    # Generate 6 consecutive month keys ending at selected month
+    target_month_str = date_from[:7]
     target_dt = datetime.strptime(target_month_str + "-01", "%Y-%m-%d")
     
     trend_keys = []
     for i in range(5, -1, -1):
-        # Calculate year/month manually to get i months before target
         m = target_dt.month - i
         y = target_dt.year
         while m <= 0:
@@ -1183,8 +1215,6 @@ def _build_report_data(branch_filter, date_from, date_to):
 
     by_branch_monthly = {b: [0]*6 for b in all_branches}
     
-    # Query revenue for these specific months
-    # Note: We use the generated trend_keys as our primary axis
     cursor.execute(f"""
         SELECT strftime('%Y-%m', transaction_date) as month, store_location,
                SUM(Total_Bill_MYR) as rev
@@ -1342,14 +1372,12 @@ def _build_report_data(branch_filter, date_from, date_to):
         branch_id = None
         if branch_filter == 'Putrajaya': branch_id = 'STB-PJ1'
         if branch_filter == 'Puncak Alam': branch_id = 'FT-PA1'
-        # Pass date_to as reference_date for relative diagnostics
         diagnostics = revenue_decline_and_product_mix_profiler(branch_id, reference_date=date_to)
     except Exception:
         diagnostics = {}
 
     conn.close()
 
-    # AI Prompt Formatting Context
     top_prod_ctx    = ", ".join([f"{p['product_id']} ({p['qty']} units)" for p in top_products]) or "N/A"
     bottom_prod_ctx = ", ".join([p['product_id'] for p in bottom_products]) or "N/A"
     cat_ctx         = ", ".join([f"{c['product_category']}: RM {c['revenue']:,.2f}" for c in category_breakdown]) or "N/A"
@@ -1371,7 +1399,6 @@ def _build_report_data(branch_filter, date_from, date_to):
     )
     success_ai, insight = get_ai_insight(ai_prompt)
 
-    # ── Build raw result dict then sanitize ALL numpy/non-serializable types ──
     raw_result = {
         "status":               "success",
         "period":               period_str,
@@ -1409,7 +1436,6 @@ def _build_report_data(branch_filter, date_from, date_to):
         "ai_insight":           insight if success_ai else "AI insight temporarily unavailable."
     }
 
-    # Sanitize all values so numpy int64/float64 don't break JSON serialization
     return _sanitize_for_json(raw_result)
 
 
@@ -1443,20 +1469,18 @@ def api_report_data():
 @app.route('/api/export-forecast-pdf', methods=['GET', 'POST'])
 @login_required
 def api_export_forecast_pdf():
-    # ── Accept both GET (legacy) and POST (new full-data path) ──────────
     if request.method == 'POST':
         body        = request.get_json() or {}
         branch_id   = body.get('branch_id',   'STB-PJ1')
         branch_name = body.get('branch_name', 'Putrajaya')
         month_filter = body.get('month_filter', None)
-        result      = body.get('forecast_data', None)    # full frontend payload
+        result      = body.get('forecast_data', None)
     else:
         branch_id    = request.args.get('branch_id',   'STB-PJ1', type=str)
         branch_name  = request.args.get('branch_name', 'Putrajaya', type=str)
         month_filter = request.args.get('month', None,  type=str)
         result       = None
 
-    # ── If no data was posted, regenerate from the engine ───────────────
     if result is None:
         try:
             cache_key = f"{branch_id}_{branch_name}"
@@ -1476,7 +1500,6 @@ def api_export_forecast_pdf():
         forecast = result.get('forecast', [])
         fva_all  = result.get('forecast_vs_actual', [])
         
-        # ── Section 3: How accurate has the forecast been ────────────────
         fva_rows = []
         fva_title = "How Accurate Has the Forecast Been? — Recent 7 Days"
         
@@ -1492,7 +1515,6 @@ def api_export_forecast_pdf():
             else:
                 fva_rows = sorted_fva[-7:]
 
-        # Render the HTML using the new template
         html_doc = render_template('forecast_pdf_export.html',
                                    data=result,
                                    branch_name=branch_name,
@@ -1546,7 +1568,6 @@ def api_export_pdf():
 
     now_str = datetime.now().strftime('%d %b %Y, %I:%M %p')
 
-    # Render the HTML using the new template
     html_content = render_template('report_pdf_export.html',
                                    data=rd,
                                    branch=branch_filter,
@@ -1567,7 +1588,6 @@ def api_export_pdf():
         return response
     except Exception as e:
         print("PDF Export Error (WeasyPrint):", e)
-        # Fallback to HTML if WeasyPrint fails
         response = make_response(html_content)
         response.headers['Content-Type'] = 'text/html; charset=utf-8'
         slug = branch_filter.replace(' ','_')
@@ -1575,6 +1595,7 @@ def api_export_pdf():
             f'attachment; filename="MCS_Executive_Report_{slug}_{month_key}.html"')
         return response
     
+
 # ============================================================
 #    RUNTIME ENGINE EXECUTION ENTRYPOINT
 # ============================================================

@@ -3,10 +3,12 @@ from google.genai import errors, types
 import os
 import time
 import json
+import re
 from dotenv import load_dotenv
 from pathlib import Path
 import sqlite3
 import pandas as pd
+from datetime import datetime, timedelta
 from analytics import get_dashboard_metrics, SKU_MAPPING
 
 load_dotenv(dotenv_path=Path(__file__).parent / '.env', override=True)
@@ -57,24 +59,50 @@ Never explain the JSON. Never place extra text after CHART_DATA.
 _CHART_KEYWORDS = {"chart", "graph", "plot", "visual", "visualize", "draw"}
 
 
+# ============================================================
+#    IN-MEMORY CACHING SNAPSHOT
+# ============================================================
+GLOBAL_CHAT_CACHE = {
+    "payload_dict": None,
+    "expiry_timestamp": 0
+}
+CACHE_TTL_SECONDS = 300
+
+
+def get_db_connection():
+    db_path = os.path.join('database', 'coffee_shop.db')
+    return sqlite3.connect(db_path)
+
+
 def fast_kpi_bypass(user_message: str, db_data: dict):
-    """Bypass Gemini for simple KPI questions to achieve < 1s response."""
+    """Robust regex-based bypass parser for sub-second metrics loops."""
     msg = user_message.lower().strip()
     
-    if msg in ["total revenue", "what is the total revenue?", "what is the total revenue", "revenue"]:
-        return f"The all-time total revenue is RM {db_data.get('total_rev', 0):,.2f}."
-    if msg in ["total transactions", "what are the total transactions?", "transactions"]:
-        return f"There have been {db_data.get('total_txns', 0):,} total transactions all-time."
-    if "daily average" in msg or msg == "average daily revenue":
-        return f"The overall daily average revenue is RM {db_data.get('daily_avg', 0):,.2f}."
-    if msg in ["top branch", "what is the top branch?", "best branch"]:
-        return f"The top branch all-time is {db_data.get('top_branch', 'N/A')}."
-    if "peak hour" in msg or msg == "busiest hour":
-        return f"The overall peak transaction hour is {db_data.get('peak_hour', 'N/A')}."
-    if "payday" in msg and "status" in msg:
-        return f"Payday Cycle Status: {db_data.get('payday_context', 'Standard operating period')}."
+    # Exclude bypass when specific relative temporal or comparative queries are made
+    has_temporal_modifiers = any(k in msg for k in ['last', 'this', 'month', 'compare', 'trend', '202'])
     
+    # 1. Total Revenue Matches
+    if re.search(r'\b(total revenue|how much did we make|all time revenue|revenue)\b', msg) and not has_temporal_modifiers:
+        return f"The all-time total revenue across all operating channels stands at RM {db_data.get('total_rev', 0):,.2f}."
+        
+    # 2. Volume and Transaction Matches
+    if re.search(r'\b(total transactions|how many tickets|transaction count|receipts)\b', msg) and not has_temporal_modifiers:
+        return f"The network has finalized {db_data.get('total_txns', 0):,} total transactions all-time."
+        
+    # 3. Daily Averages
+    if re.search(r'\b(daily average|average daily revenue|average revenue per day)\b', msg):
+        return f"The historical net baseline average revenue is RM {db_data.get('daily_avg', 0):,.2f} per day."
+        
+    # 4. Top Performing Operations
+    if re.search(r'\b(top branch|best branch|highest revenue branch|busiest location)\b', msg):
+        return f"The top performing channel by aggregate historical revenue volume is {db_data.get('top_branch', 'N/A')}."
+        
+    # 5. Peak Hours
+    if re.search(r'\b(peak hour|busiest hour|rush hour|busiest time)\b', msg):
+        return f"The transactional core peak operating timeline occurs at hour slot {db_data.get('peak_hour', 'N/A')}."
+        
     return None
+
 
 def _resolve_token_budget(prompt: str, override: int | None) -> int:
     if override is not None:
@@ -238,71 +266,10 @@ Do NOT write any introduction or conclusion. Start immediately with **Staffing:*
     return get_ai_insight(system_prompt)
 
 
-def build_chat_system_context(db_data: dict) -> str:
-    """Builds the comprehensive system context block prepended to chat instances."""
-    return f"""You are the AI Business Advisor for 'Mini Coffee Shop' — a Malaysian mobile coffee network operating Putrajaya and Puncak Alam branches.
-You have REAL-TIME access to the full sales database below. All numbers are live and accurate.
-NEVER say "I don't have access to that data" — the data IS in this prompt. USE IT.
-
-=== LIVE DATABASE SNAPSHOT ===
-Full Data Period: {db_data.get('date_range', 'N/A')}
-Total Revenue (all-time): RM {db_data.get('total_rev', 0):,.2f}
-Total Transactions (all-time): {db_data.get('total_txns', 0):,}
-Overall Daily Average: RM {db_data.get('daily_avg', 0):,.2f}
-Peak Transaction Hour: {db_data.get('peak_hour', 'N/A')}
-Top Branch (all-time): {db_data.get('top_branch', 'N/A')}
-Payday Cycle Status: {db_data.get('payday_context', 'Standard operating period')}
-
-=== ALL-TIME BRANCH COMPARISON ===
-{db_data.get('branch_summary', 'No data')}
-
-=== LAST MONTH BRANCH COMPARISON ({db_data.get('last_mo_label', 'Last Month')}) ===
-{db_data.get('last_mo_branch_summary', 'No data for last month.')}
-
-=== CURRENT MONTH SO FAR ({db_data.get('curr_mo_label', 'This Month')}) ===
-{db_data.get('curr_mo_branch_summary', 'No data yet this month.')}
-
-=== MONTHLY REVENUE TREND — LAST 6 MONTHS (per branch) ===
-{db_data.get('monthly_trend_summary', 'No trend data.')}
-
-=== TOP 3 PRODUCTS (by volume, all-time) ===
-{db_data.get('top_products', 'No data')}
-
-=== CATEGORY REVENUE (all-time) ===
-{db_data.get('categories', 'No data')}
-
-=== WEATHER IMPACT (avg daily revenue by condition) ===
-{db_data.get('weather_summary', 'No data')}
-
-=== 5-DAY PROPHET FORECAST ===
-{db_data.get('forecast_summary', 'No forecast generated yet.')}
-
-=== CHART DATA ARRAYS ===
-Branch names: {json.dumps(db_data.get('arr_branches', []))}
-Branch all-time revenues: {json.dumps(db_data.get('arr_branch_revs', []))}
-Top product names: {json.dumps(db_data.get('arr_products', []))}
-Top product revenues: {json.dumps(db_data.get('arr_product_revs', []))}
-
-=== BEHAVIOUR RULES ===
-1. Malaysian context only — use "RM" not "$". Reference festive operations (CNY, Raya) where relevant.
-2. Reply in the SAME language as the user (English, Bahasa Melayu, or Rojak/Manglish mixtures).
-3. Time period mapping:
-   - "last month" → use LAST MONTH BRANCH COMPARISON section
-   - "this month" → use CURRENT MONTH SO FAR section
-   - "compare branches" → use LAST MONTH first, note all-time gap
-4. Classify intent before answering:
-   - LOOKUP: 1–3 sentences with exact RM figures.
-   - COMPARISON: side-by-side with % difference profiles.
-   - ANALYSIS: 3–5 insight bullets with database evidence.
-   - RECOMMENDATION: 1 clear operational action, then data reason.
-   - MONTHLY BREAKDOWN: markdown table displaying branch | revenue | transactions | daily avg.
-5. Every business claim needs a supporting number from the metrics data snapshot above.
-"""
-
-
 def build_slim_context(db_data: dict, user_message: str) -> str:
-    """Analytical Router: Inject pre-calculated metrics eliminating redundant DB connections."""
+    """Analytical Router: Context generator incorporating forecasting and precise targeted monthly filters."""
     from analytics import multi_month_chart_pre_packager
+    from forecast_engine import ForecastEngine
     msg = user_message.lower()
 
     base = f"""You are the AI Business Advisor for 'Mini Coffee Shop' (Malaysia). 
@@ -311,22 +278,182 @@ Data period: {db_data.get('date_range', 'N/A')} | All-time revenue: RM {db_data.
 
     sections = [base]
 
+    # TARGETED MONTHLY RESOLVER (Matches e.g. "2026-05" or "2026-04" patterns)
+    month_match = re.search(r'\b(20\d{2}-\d{2})\b', user_message)
+    if month_match:
+        target_month = month_match.group(1)
+        try:
+            db_path = os.path.join('database', 'coffee_shop.db')
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            
+            # 1. Total monthly aggregates
+            cursor.execute("""
+                SELECT COALESCE(SUM(Total_Bill_MYR), 0), COUNT(DISTINCT transaction_id), COUNT(DISTINCT transaction_date)
+                FROM sales_transaction
+                WHERE strftime('%Y-%m', transaction_date) = ?
+            """, (target_month,))
+            m_rev, m_txns, m_days = cursor.fetchone()
+            m_days = m_days or 1
+            m_daily_avg = m_rev / m_days
+            
+            # 2. Revenue and transactions by branch
+            cursor.execute("""
+                SELECT store_location, COALESCE(SUM(Total_Bill_MYR), 0), COUNT(transaction_id)
+                FROM sales_transaction
+                WHERE strftime('%Y-%m', transaction_date) = ?
+                GROUP BY store_location
+            """, (target_month,))
+            br_rows = cursor.fetchall()
+            br_ctx = "\n".join([f"  - {r[0]}: RM {r[1]:,.2f} ({r[2]:,} transactions)" for r in br_rows]) or "  - No branch logs found."
+
+            # 3. Top 3 products sold during that month
+            cursor.execute("""
+                SELECT product_id, SUM(transaction_qty) as total_qty
+                FROM sales_transaction
+                WHERE strftime('%Y-%m', transaction_date) = ?
+                GROUP BY product_id
+                ORDER BY total_qty DESC LIMIT 3
+            """, (target_month,))
+            prod_rows = cursor.fetchall()
+            prod_ctx = "\n".join([f"  - {REVERSE_SKU_LOOKUP.get(r[0], r[0])}: {r[1]:,} units" for r in prod_rows]) or "  - No product logs found."
+
+            # 4. Busiest hour and busiest day of week during that month
+            cursor.execute("""
+                SELECT Hour, COUNT(*) as c
+                FROM sales_transaction
+                WHERE strftime('%Y-%m', transaction_date) = ?
+                GROUP BY Hour ORDER BY c DESC LIMIT 1
+            """, (target_month,))
+            hour_row = cursor.fetchone()
+            busy_hour = f"{hour_row[0]}:00" if hour_row else "N/A"
+
+            cursor.execute("""
+                SELECT "Day Name", COUNT(*) as c
+                FROM sales_transaction
+                WHERE strftime('%Y-%m', transaction_date) = ?
+                GROUP BY "Day Name" ORDER BY c DESC LIMIT 1
+            """, (target_month,))
+            day_row = cursor.fetchone()
+            busy_day = day_row[0] if day_row else "N/A"
+
+            sections.append(f"""=== TARGETED PERFORMANCE BREAKDOWN FOR {target_month} ===
+* Total Monthly Revenue: RM {m_rev:,.2f}
+* Total Monthly Transactions: {m_txns:,}
+* Daily Average Sales: RM {m_daily_avg:,.2f}
+* Busiest Day: {busy_day}
+* Peak Hour: {busy_hour}
+* Branch Sales Performance Summary:
+{br_ctx}
+* Top 3 Best Selling Products:
+{prod_ctx}""")
+            conn.close()
+        except Exception as e:
+            sections.append(f"=== TARGETED PERFORMANCE BREAKDOWN FOR {target_month} ===\nError reading month snapshot metrics: {str(e)}")
+
+    # 🟢 FORECAST & LIVE WEATHER HIGH-ACCURACY RESOLVER
+    # Intercepts: forecast, predict, ramalan, cuaca, temp, week, minggu, etc.
+    if any(k in msg for k in ['forecast', 'predict', 'ramalan', 'cuaca', 'temp', 'degree', 'celsius', 'week', 'minggu', 'unju']):
+        try:
+            engine = ForecastEngine()
+            success_pj, pj_fc = engine.generate_5_day_forecast("STB-PJ1", "Putrajaya")
+            success_pa, pa_fc = engine.generate_5_day_forecast("FT-PA1", "Puncak Alam")
+            
+            if success_pj and success_pa:
+                pj_list = pj_fc.get('forecast', [])
+                pa_list = pa_fc.get('forecast', [])
+                
+                start_date = pj_list[0]['ds'] if pj_list else 'N/A'
+                end_date = pj_list[-1]['ds'] if pj_list else 'N/A'
+                
+                total_days = len(pj_list)
+                closed_days = sum(1 for d in pj_list if d.get('is_closed', False))
+                open_days = total_days - closed_days
+                
+                pj_lines = []
+                for d in pj_list:
+                    ds = d['ds']
+                    dt_obj = datetime.strptime(ds, '%Y-%m-%d')
+                    day_name = dt_obj.strftime('%A')
+                    if d.get('is_closed', False):
+                        pj_lines.append(f"  - {ds} ({day_name}): SHOP CLOSED (RM 0.00) — No forecast needed.")
+                    else:
+                        w = d.get('weather') or {}
+                        w_text = f"{w.get('temp', 28.0)}°C ({w.get('label', 'Cloudy')})"
+                        promos = ", ".join(d.get('promotions', [])) or "None"
+                        pj_lines.append(f"  - {ds} ({day_name}): RM {d['yhat']:,.2f} | Weather: {w_text} | Promotions: {promos}")
+                        
+                pa_lines = []
+                for d in pa_list:
+                    ds = d['ds']
+                    dt_obj = datetime.strptime(ds, '%Y-%m-%d')
+                    day_name = dt_obj.strftime('%A')
+                    if d.get('is_closed', False):
+                        pa_lines.append(f"  - {ds} ({day_name}): SHOP CLOSED (RM 0.00) — No forecast needed.")
+                    else:
+                        w = d.get('weather') or {}
+                        w_text = f"{w.get('temp', 28.0)}°C ({w.get('label', 'Cloudy')})"
+                        promos = ", ".join(d.get('promotions', [])) or "None"
+                        pa_lines.append(f"  - {ds} ({day_name}): RM {d['yhat']:,.2f} | Weather: {w_text} | Promotions: {promos}")
+                
+                sections.append(f"""=== LIVE ACCURATE PROPHET FORECAST ({start_date} to {end_date}) ===
+* Sunday Closed Rule: Sunday is a scheduled rest day. The shop is closed, revenue is RM 0.00, and no forecast/weather is calculated.
+* Active Operating Days: {open_days} operating day(s) with predictions (since {closed_days} of the 5 days is/are closed).
+* Combined 5-day Ingredient Depletion: {json.dumps(pj_fc.get('ingredient_demand', {}), indent=1)}
+
+* Putrajaya (STB-PJ1) Daily Projections:
+{chr(10).join(pj_lines)}
+
+* Puncak Alam (FT-PA1) Daily Projections:
+{chr(10).join(pa_lines)}""")
+        except Exception as e:
+            sections.append(f"=== LIVE PROPHET FORECAST ===\nError calculating live forecasts on-the-fly: {str(e)}")
+
+    # Staffing Vector Injection
     if any(k in msg for k in ['staff', 'people', 'worker', 'shift', 'peak', 'busy', 'hour', 'time']):
         peaks = db_data.get('branch_peaks', {})
         sections.append(f"=== PEAK HOURS (Top 3 per branch) ===\n- Puncak Alam (FT-PA1): {', '.join(peaks.get('FT-PA1', ['N/A']))}\n- Putrajaya (STB-PJ1): {', '.join(peaks.get('STB-PJ1', ['N/A']))}")
 
+    # Inventory Matrix + Dynamic Demand Calculations Injection
     if any(k in msg for k in ['ingredient', 'inventory', 'stock', 'beans', 'milk', 'ice', 'cup', 'demand', 'order']):
         sections.append(f"=== RECENT PRODUCT CATEGORY PERFORMANCE ===\n{db_data.get('categories', 'No data')}")
+        
+        try:
+            engine = ForecastEngine()
+            _, pj_fc = engine.generate_5_day_forecast("STB-PJ1", "Putrajaya")
+            _, pa_fc = engine.generate_5_day_forecast("FT-PA1", "Puncak Alam")
+            
+            pj_demand = pj_fc.get('ingredient_demand', {})
+            pa_demand = pa_fc.get('ingredient_demand', {})
+            
+            combined_demand = {k: round(pj_demand.get(k, 0) + pa_demand.get(k, 0), 2) for k in pj_demand.keys()}
+            sections.append(f"=== PREDICTED 5-DAY TOTAL INVENTORY DRAWDOWN DEMAND ===\n{json.dumps(combined_demand, indent=2)}")
+        except Exception as e:
+            sections.append(f"=== PREDICTED INVENTORY DRAWDOWN DEMAND ===\nForecast sub-calculations busy: {str(e)}")
 
-    if any(k in msg for k in ['trend', 'month', 'growth', 'decline', 'revenue', 'year', 'last', 'compare', 'vs']):
+    # Trend Analytics Injection (Only append if we didn't perform a targeted month lookup)
+    if not month_match and any(k in msg for k in ['trend', 'month', 'growth', 'decline', 'revenue', 'year', 'last', 'compare', 'vs']):
         sections.append(f"=== MONTHLY TREND (Last 6 Months) ===\n{db_data.get('monthly_trend_summary', 'No trend data')}")
 
+    # Visual Presentation Matrix Injection
     if any(k in msg for k in ['chart', 'graph', 'visual', 'plot', 'draw', 'show chart']):
         m_count = 3 
-        import re
         m_match = re.search(r'last (\d+) month', msg)
         if m_match: m_count = int(m_match.group(1))
         chart_data = multi_month_chart_pre_packager(months=m_count)
         sections.append(f"=== CHART DATA (READY-TO-USE) ===\n[CHART_DATA={chart_data}]")
 
     return "\n\n".join(sections)
+
+
+def build_chat_system_context(db_data: dict) -> str:
+    """Backward compatibility fallback stub for historical app.py import chains."""
+    return f"""You are the AI Business Advisor for 'Mini Coffee Shop' — Putrajaya and Puncak Alam.
+=== LIVE DATABASE SNAPSHOT ===
+Full Data Period: {db_data.get('date_range', 'N/A')}
+Total Revenue (all-time): RM {db_data.get('total_rev', 0):,.2f}
+Total Transactions (all-time): {db_data.get('total_txns', 0):,}
+Overall Daily Average: RM {db_data.get('daily_avg', 0):,.2f}
+Peak Transaction Hour: {db_data.get('peak_hour', 'N/A')}
+Top Branch (all-time): {db_data.get('top_branch', 'N/A')}
+"""
