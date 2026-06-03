@@ -584,6 +584,26 @@
     </div>
 </div>
 
+<!-- ── REQUIREMENT 1: Missing Recipe Alert Banner ── -->
+<div id="recipeAlertBanner" style="display:none;" class="mb-4" data-aos="fade-down">
+    <div class="dashboard-card" style="border-left: 4px solid var(--red); background: #FFF5F5;">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+            <div class="d-flex align-items-center gap-3">
+                <div style="font-size:1.5rem;">⚠️</div>
+                <div>
+                    <div class="fw-700" style="color:#991B1B; font-size:.95rem;">Missing Recipes Detected</div>
+                    <div class="text-muted-sm" style="color:#B91C1C; font-size:.85rem;">
+                        Your recent upload contains new items. Define their ingredients to keep the Shopping Guide accurate.
+                    </div>
+                </div>
+            </div>
+            <button class="btn-primary-custom" style="background:var(--red); box-shadow:0 2px 8px rgba(220,38,36,.3);" onclick="openRecipeModal()">
+                <i class="fa-solid fa-list-check"></i> Define Recipes Now
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- ── Status banner ── -->
 <div id="statusBanner" style="display:none;" class="mb-4">
     <div class="dashboard-card">
@@ -711,25 +731,8 @@
                     <i class="fa-solid fa-boxes-stacked me-1" style="color:var(--amber);"></i>
                     Based on your expected sales, here is how much of each ingredient you will need for the next 5 days.
                 </p>
-                <div class="row g-2">
-                    <div class="col-6 col-md-4 col-lg-2">
-                        <div class="ing-cell"><div class="ing-label">Coffee Beans</div><div class="ing-val" id="ingBeans">0.0 kg</div></div>
-                    </div>
-                    <div class="col-6 col-md-4 col-lg-2">
-                        <div class="ing-cell"><div class="ing-label">Fresh Milk</div><div class="ing-val" id="ingMilk">0.0 L</div></div>
-                    </div>
-                    <div class="col-6 col-md-4 col-lg-2">
-                        <div class="ing-cell"><div class="ing-label">Cocoa Powder</div><div class="ing-val" id="ingChoco">0.0 kg</div></div>
-                    </div>
-                    <div class="col-6 col-md-4 col-lg-2">
-                        <div class="ing-cell"><div class="ing-label">Crushed Ice</div><div class="ing-val" id="ingIce">0.0 kg</div></div>
-                    </div>
-                    <div class="col-6 col-md-4 col-lg-2">
-                        <div class="ing-cell"><div class="ing-label">Hot Paper Cups</div><div class="ing-val" id="ingHotCups">0 pcs</div></div>
-                    </div>
-                    <div class="col-6 col-md-4 col-lg-2">
-                        <div class="ing-cell"><div class="ing-label">Cold Plastic Cups</div><div class="ing-val" id="ingColdCups">0 pcs</div></div>
-                    </div>
+                <div class="row g-2" id="ingredientGridContainer">
+                    <!-- Standard and Custom ingredients will be injected here dynamically -->
                 </div>
             </div>
         </div>
@@ -907,6 +910,82 @@
     </div>
 
 </div>
+
+<!-- ── REQUIREMENT 1: Recipe Modal ── -->
+<div class="modal fade" id="recipeModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content" style="border-radius: var(--r-xl); border: none; box-shadow: var(--shadow-lg);">
+            <div class="modal-header" style="border-bottom: 1px solid var(--fc-border); padding: 1.5rem 2rem;">
+                <div>
+                    <h5 class="modal-title fw-700" style="color: var(--fc-text);">Define Product Recipe</h5>
+                    <p class="text-muted-sm mb-0" id="recipeModalSubtitle">Configure ingredients for your new menu item</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="padding: 2rem;">
+                <form id="recipeForm">
+                    <div class="mb-4">
+                        <label class="form-label fw-600 text-muted-sm">Product Name</label>
+                        <input type="text" id="recipeItemName" class="form-control-custom w-100" readonly style="background: #F8FAFC; cursor: default;">
+                    </div>
+                    
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label fw-600 text-muted-sm">Coffee Beans (g)</label>
+                            <input type="number" id="recipeBeans" class="form-control-custom w-100" value="0" step="0.1">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-600 text-muted-sm">Milk (ml)</label>
+                            <input type="number" id="recipeMilk" class="form-control-custom w-100" value="0" step="1">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-600 text-muted-sm">Choco/Cocoa (g)</label>
+                            <input type="number" id="recipeChoco" class="form-control-custom w-100" value="0" step="0.1">
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label fw-600 text-muted-sm">Crushed Ice (g)</label>
+                            <input type="number" id="recipeIce" class="form-control-custom w-100" value="0" step="1">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-600 text-muted-sm">Whip Cream (g)</label>
+                            <input type="number" id="recipeWhip" class="form-control-custom w-100" value="0" step="0.1">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-600 text-muted-sm">Packaging Type</label>
+                            <select id="recipeCupType" class="form-control-custom w-100">
+                                <option value="Hot">☕ Hot Paper Cup</option>
+                                <option value="Cold">🥤 Cold Plastic Cup</option>
+                                <option value="None">📦 No Packaging</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <div class="mb-3 d-flex justify-content-between align-items-center">
+                        <label class="form-label fw-700 text-muted-sm mb-0">Custom Ingredients (Matcha, Syrup, etc.)</label>
+                        <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" onclick="addCustomIngredientRow()">
+                            <i class="fa-solid fa-plus me-1"></i> Add Ingredient
+                        </button>
+                    </div>
+                    
+                    <div id="customIngredientsList" class="d-flex flex-column gap-2">
+                        <!-- Custom rows injected here -->
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer" style="border-top: 1px solid var(--fc-border); padding: 1.25rem 2rem;">
+                <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Skip for Now</button>
+                <button type="button" class="btn-primary-custom px-5" id="saveRecipeBtn" onclick="saveRecipe()">
+                    Save & Next <i class="fa-solid fa-arrow-right ms-2"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -939,6 +1018,131 @@ const CONFIG = { responsive:true, displayModeBar:false };
 let globalFVA        = [];
 let fvaPeriodMode    = 'week';
 let lastForecastData = null;
+let missingRecipesQueue = [];
+
+/* ============================================================
+   REQUIREMENT 1: RECIPE REGISTRY LOGIC
+   ============================================================ */
+async function checkMissingRecipes() {
+    try {
+        const r = await fetch('/api/get-missing-recipes');
+        const d = await r.json();
+        if (d.status === 'success' && d.missing && d.missing.length > 0) {
+            missingRecipesQueue = d.missing;
+            document.getElementById('recipeAlertBanner').style.display = 'block';
+        } else {
+            document.getElementById('recipeAlertBanner').style.display = 'none';
+        }
+    } catch (e) {
+        console.error("Failed to check missing recipes", e);
+    }
+}
+
+function openRecipeModal() {
+    if (missingRecipesQueue.length === 0) return;
+    
+    const itemName = missingRecipesQueue[0];
+    document.getElementById('recipeItemName').value = itemName;
+    document.getElementById('recipeModalSubtitle').textContent = `Queue: ${missingRecipesQueue.length} item(s) remaining`;
+    
+    // Reset form
+    document.getElementById('recipeBeans').value = 0;
+    document.getElementById('recipeMilk').value = 0;
+    document.getElementById('recipeChoco').value = 0;
+    document.getElementById('recipeIce').value = 0;
+    document.getElementById('recipeWhip').value = 0;
+    document.getElementById('recipeCupType').value = "Hot";
+    document.getElementById('customIngredientsList').innerHTML = "";
+    
+    const modal = new bootstrap.Modal(document.getElementById('recipeModal'));
+    modal.show();
+}
+
+function addCustomIngredientRow(name = "", val = 0, unit = "g") {
+    const container = document.getElementById('customIngredientsList');
+    const div = document.createElement('div');
+    div.className = "d-flex gap-2 align-items-center mb-2";
+    div.innerHTML = `
+        <input type="text" placeholder="Ingredient (e.g. Matcha)" class="form-control-custom flex-grow-1 custom-ing-name" value="${name}">
+        <input type="number" placeholder="Amt" class="form-control-custom custom-ing-val" style="width: 80px;" value="${val}">
+        <select class="form-control-custom custom-ing-unit" style="width: 70px;">
+            <option value="g" ${unit === 'g' ? 'selected' : ''}>g</option>
+            <option value="ml" ${unit === 'ml' ? 'selected' : ''}>ml</option>
+            <option value="pcs" ${unit === 'pcs' ? 'selected' : ''}>pcs</option>
+        </select>
+        <button type="button" class="btn btn-link text-danger p-0" onclick="this.parentElement.remove()"><i class="fa-solid fa-trash"></i></button>
+    `;
+    container.appendChild(div);
+}
+
+async function saveRecipe() {
+    const itemName = document.getElementById('recipeItemName').value;
+    const btn = document.getElementById('saveRecipeBtn');
+    
+    const customIngs = {};
+    document.querySelectorAll('#customIngredientsList .d-flex').forEach(row => {
+        const name = row.querySelector('.custom-ing-name').value.trim();
+        const val = parseFloat(row.querySelector('.custom-ing-val').value) || 0;
+        const unit = row.querySelector('.custom-ing-unit').value;
+        
+        if (name) {
+            // Combine name and unit for clear aggregation (e.g., "Matcha (g)")
+            const key = `${name} (${unit})`;
+            customIngs[key] = val;
+        }
+    });
+
+    const payload = {
+        item_name: itemName,
+        beans_g: document.getElementById('recipeBeans').value,
+        milk_ml: document.getElementById('recipeMilk').value,
+        choco_g: document.getElementById('recipeChoco').value,
+        ice_g:   document.getElementById('recipeIce').value,
+        whip_g:  document.getElementById('recipeWhip').value,
+        cup_type: document.getElementById('recipeCupType').value,
+        custom_ingredients: customIngs
+    };
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+
+    try {
+        const r = await fetch('/api/save-recipe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const d = await r.json();
+        
+        if (d.status === 'success') {
+            missingRecipesQueue.shift(); // Remove handled item
+            if (missingRecipesQueue.length > 0) {
+                // Load next item without closing modal
+                const nextItem = missingRecipesQueue[0];
+                document.getElementById('recipeItemName').value = nextItem;
+                document.getElementById('recipeModalSubtitle').textContent = `Queue: ${missingRecipesQueue.length} item(s) remaining`;
+                // Clear inputs for next
+                document.getElementById('recipeBeans').value = 0;
+                document.getElementById('recipeMilk').value = 0;
+                document.getElementById('recipeChoco').value = 0;
+                document.getElementById('recipeIce').value = 0;
+                document.getElementById('recipeWhip').value = 0;
+                document.getElementById('customIngredientsList').innerHTML = "";
+            } else {
+                bootstrap.Modal.getInstance(document.getElementById('recipeModal')).hide();
+                document.getElementById('recipeAlertBanner').style.display = 'none';
+                alert("All recipes saved! You can now generate a fresh forecast.");
+            }
+        } else {
+            alert("Error: " + d.message);
+        }
+    } catch (e) {
+        alert("Connection error while saving recipe.");
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = missingRecipesQueue.length > 0 ? 'Save & Next <i class="fa-solid fa-arrow-right ms-2"></i>' : 'Save Recipe';
+    }
+}
 
 /* ============================================================
    HELPERS
@@ -1078,16 +1282,62 @@ function renderAll(data, branchName) {
     document.getElementById('metricRmse').textContent     = fmt(data.rmse);
     document.getElementById('metricAccuracy').textContent = data.accuracy;
 
-    // Ingredients
-    if (data.ingredient_demand) {
+    // --- REQUIREMENT 1: Dynamic Ingredient Shopping Guide ---
+    const grid = document.getElementById('ingredientGridContainer');
+    if (data.ingredient_demand && grid) {
         document.getElementById('ingredientPlannerRow').style.display = 'flex';
         const idm = data.ingredient_demand;
-        document.getElementById('ingBeans').textContent    = (idm.beans_g / 1000).toFixed(2) + ' kg';
-        document.getElementById('ingMilk').textContent     = (idm.milk_ml / 1000).toFixed(1) + ' L';
-        document.getElementById('ingChoco').textContent    = (idm.choco_g / 1000).toFixed(2) + ' kg';
-        document.getElementById('ingIce').textContent      = (idm.ice_g / 1000).toFixed(1) + ' kg';
-        document.getElementById('ingHotCups').textContent  = idm.cup_hot + ' pcs';
-        document.getElementById('ingColdCups').textContent = idm.cup_cold + ' pcs';
+        
+        // Build list of display items
+        const displayItems = [
+            { label: 'Coffee Beans', val: (idm.beans_g / 1000).toFixed(2), unit: 'kg' },
+            { label: 'Fresh Milk',  val: (idm.milk_ml / 1000).toFixed(1), unit: 'L' },
+            { label: 'Cocoa Powder', val: (idm.choco_g / 1000).toFixed(2), unit: 'kg' },
+            { label: 'Crushed Ice',  val: (idm.ice_g / 1000).toFixed(1), unit: 'kg' },
+            { label: 'Whip Cream',   val: (idm.whip_g / 1000).toFixed(2), unit: 'kg' },
+            { label: 'Hot Paper Cups', val: Math.ceil(idm.cup_hot || 0), unit: 'pcs' },
+            { label: 'Cold Plastic Cups', val: Math.ceil(idm.cup_cold || 0), unit: 'pcs' }
+        ];
+
+        // Add custom ingredients from the dynamic registry
+        if (idm.custom) {
+            for (const [name, val] of Object.entries(idm.custom)) {
+                if (val <= 0) continue; // Skip zero-demand items
+                
+                // If name already contains unit in brackets, e.g. "Matcha (g)"
+                const hasUnit = name.includes('(');
+                const unit = hasUnit ? name.split('(')[1].replace(')','') : 'g';
+                const label = hasUnit ? name.split(' (')[0] : name;
+                
+                // Smart rounding: use 2 decimal places for small amounts (like kg), 0 for pcs
+                let finalVal = val;
+                let finalUnit = unit;
+                
+                if (unit === 'g' && val >= 1000) {
+                    finalVal = (val / 1000).toFixed(2);
+                    finalUnit = 'kg';
+                } else if (unit === 'ml' && val >= 1000) {
+                    finalVal = (val / 1000).toFixed(1);
+                    finalUnit = 'L';
+                } else {
+                    finalVal = val % 1 === 0 ? val : val.toFixed(2);
+                }
+
+                displayItems.push({ label, val: finalVal, unit: finalUnit });
+            }
+        }
+
+        // Filter out zero-demand items to keep the dashboard clean
+        const activeItems = displayItems.filter(item => parseFloat(item.val) > 0);
+
+        grid.innerHTML = activeItems.map(item => `
+            <div class="col-6 col-md-4 col-lg-2">
+                <div class="ing-cell">
+                    <div class="ing-label">${item.label}</div>
+                    <div class="ing-val">${item.val} ${item.unit}</div>
+                </div>
+            </div>
+        `).join('');
 
         const warningBox = document.getElementById('stockWarningRow');
         if (idm.beans_g > 5000 || idm.milk_ml > 30000 || idm.ice_g > 40000) {
@@ -1480,5 +1730,10 @@ function downloadForecastPDF() {
         btn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> Download PDF';
     });
 }
+
+// Initial check on load
+document.addEventListener('DOMContentLoaded', () => {
+    checkMissingRecipes();
+});
 </script>
 {% endblock %}

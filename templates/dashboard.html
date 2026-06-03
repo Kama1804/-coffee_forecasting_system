@@ -418,14 +418,19 @@
     </div>
   </div>
   <div class="dashboard-card">
-    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
       <div>
         <p class="card-title">Busiest Hours of the Day</p>
-        <p class="card-subtitle">Darker = more orders at that time</p>
+        <p class="card-subtitle" id="peakSubtitle">Darker = more orders at that time</p>
       </div>
-      <span class="badge-custom badge-amber"><i class="fa-solid fa-fire me-1"></i>Peak Hours</span>
+      <div class="btn-group" role="group" id="peakToggleGroup" style="display: none;">
+        <input type="radio" class="btn-check" name="peakMode" id="peakRegular" checked onchange="togglePeakView()">
+        <label class="btn btn-outline-primary btn-sm" for="peakRegular">Regular</label>
+        <input type="radio" class="btn-check" name="peakMode" id="peakRamadhan" onchange="togglePeakView()">
+        <label class="btn btn-outline-danger btn-sm" for="peakRamadhan">🌙 Ramadhan</label>
+      </div>
     </div>
-    <div class="chart-wrap" style="min-height:200px;margin-top:.85rem;">
+    <div class="chart-wrap" style="min-height:200px;">
       <div class="chart-loading" id="loadingHeatmap"><div class="spinner"></div></div>
       <div id="heatmapChart" class="ch-heat" style="width:100%;height:200px;"></div>
     </div>
@@ -433,7 +438,33 @@
 </div>
 
 <!-- ══════════════════════════════════════════════════════════
-     ROW 4 — OUTLET COMPARISON
+     ROW 4 — DISCOUNT IMPACT
+══════════════════════════════════════════════════════════ -->
+<div id="discountAnalysisSection">
+  <div class="section-label" data-aos="fade-up">Revenue Retention Analysis</div>
+  <div class="mb-3" data-aos="fade-up" data-aos-delay="60">
+    <div class="dashboard-card section-card-accent-blue">
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+        <div>
+          <p class="card-title">Sales vs Discounts Given</p>
+          <p class="card-subtitle">Tracking how much revenue is retained after discounts</p>
+        </div>
+        <span class="badge-custom badge-green"><i class="fa-solid fa-percent me-1"></i>Revenue Retention</span>
+      </div>
+      <div class="chart-wrap" style="min-height:260px;margin-top:.85rem;">
+        <div class="chart-loading" id="loadingDiscount"><div class="spinner"></div></div>
+        <div id="discountChart" class="ch-disc" style="width:100%;height:260px;"></div>
+      </div>
+      <p class="text-muted-sm mt-2 mb-0" style="font-size:.67rem;">
+        <i class="fa-solid fa-circle-info me-1"></i>
+        <b>Gross Sales</b> represents full menu price. <b>Net Sales</b> is the actual cash collected after discounts.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     ROW 5 — OUTLET COMPARISON
 ══════════════════════════════════════════════════════════ -->
 <div id="outletQualitySection">
   <div class="section-label" data-aos="fade-up">Outlet Quality Analysis</div>
@@ -455,26 +486,41 @@
 </div>
 
 <!-- ══════════════════════════════════════════════════════════
-     ROW 5 — DISCOUNT IMPACT
+     ROW 5 — PROMOTION INTELLIGENCE (Requirement 2)
 ══════════════════════════════════════════════════════════ -->
-<div id="discountAnalysisSection">
-  <div class="section-label" data-aos="fade-up">Discount Analysis</div>
+<div id="promoIntelligenceSection">
+  <div class="section-label" data-aos="fade-up">Promotion Intelligence</div>
   <div class="mb-3" data-aos="fade-up" data-aos-delay="60">
-    <div class="dashboard-card section-card-accent-blue">
-      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+    <div class="dashboard-card" style="border-left: 4px solid var(--purple);">
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
         <div>
-          <p class="card-title">Sales vs Discounts Given</p>
-          <p class="card-subtitle">How much revenue is retained after discounts & tax</p>
+          <p class="card-title">Promotion Efficiency & ROI</p>
+          <p class="card-subtitle">Analyzing which campaigns drive volume vs value</p>
         </div>
-        <span class="badge-custom badge-green"><i class="fa-solid fa-percent me-1"></i>Discount Impact</span>
+        <span class="badge-custom badge-purple"><i class="fa-solid fa-chart-line me-1"></i>Promo ROI</span>
       </div>
-      <div class="chart-wrap" style="min-height:260px;margin-top:.85rem;">
-        <div class="chart-loading" id="loadingDiscount"><div class="spinner"></div></div>
-        <div id="discountChart" class="ch-disc" style="width:100%;height:260px;"></div>
+      
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" style="font-size: .85rem;">
+          <thead class="table-light">
+            <tr>
+              <th>Promo Code</th>
+              <th>Type</th>
+              <th class="text-end">Qty Sold</th>
+              <th class="text-end">Total Gross</th>
+              <th class="text-end">Total Discount</th>
+              <th class="text-center">Discount Ratio</th>
+              <th>Inventory Risk</th>
+            </tr>
+          </thead>
+          <tbody id="promoEfficiencyTable">
+            <tr><td colspan="7" class="text-center py-4 text-muted">Loading promotion data...</td></tr>
+          </tbody>
+        </table>
       </div>
-      <p class="text-muted-sm mt-2 mb-0" style="font-size:.67rem;">
+      <p class="text-muted-sm mt-3 mb-0" style="font-size:.7rem;">
         <i class="fa-solid fa-circle-info me-1"></i>
-        Gross Sales = full price before discounts &amp; tax. Net Sales = what you actually collect.
+        <b>Volume (B1F1)</b> promos require 2x more stock (cups/milk) per Ringgit earned.
       </p>
     </div>
   </div>
@@ -496,6 +542,86 @@ const COLORS = {
   slate:  ['#2563EB','#0D9488','#D97706','#7C3AED','#DC2626',
            '#06B6D4','#F97316','#84CC16','#EC4899','#6366F1']
 };
+
+let globalPeakData = null;
+
+function togglePeakView() {
+    if (!globalPeakData) return;
+    const mode = document.querySelector('input[name="peakMode"]:checked').id;
+    const data = mode === 'peakRamadhan' ? globalPeakData.ramadhan : globalPeakData.regular;
+    const subtitle = document.getElementById('peakSubtitle');
+    
+    if (mode === 'peakRamadhan') {
+        subtitle.innerHTML = '<span class="text-danger fw-700">🌙 Ramadhan Night Shift (4:30 PM - 12:00 AM)</span>';
+    } else {
+        subtitle.textContent = 'Darker = more orders at that time';
+    }
+    
+    renderPeakChart(data);
+}
+
+function renderPeakChart(peakData) {
+    if (!peakData || peakData.length === 0) {
+        document.getElementById('heatmapChart').innerHTML = '<div class="text-muted-sm text-center py-5">No peak hour data available.</div>';
+        return;
+    }
+    
+    const maxQty = Math.max(...peakData.map(p => p.quantity_sold));
+    
+    Plotly.newPlot('heatmapChart', [{
+        x: peakData.map(p => `${String(p.Hour).padStart(2,'0')}:00`),
+        y: peakData.map(p => p.quantity_sold),
+        type: 'bar',
+        marker: {
+            color: peakData.map(p => p.quantity_sold === maxQty ? COLORS.red : COLORS.blue),
+            opacity: 0.8
+        },
+        hovertemplate: '<b>%{x}</b><br>Qty Sold: %{y}<extra></extra>'
+    }], {
+        ...LAYOUT_BASE,
+        margin: { t:10, r:20, b:40, l:60 },
+        xaxis: { type: 'category', gridcolor: 'transparent' },
+        yaxis: { gridcolor: '#F1F5F9', title: { text: 'Units Sold', font: { size: 10 } } }
+    }, CONFIG);
+}
+
+/* ── REQUIREMENT 2: PROMO EFFICIENCY ── */
+async function loadPromoEfficiency(branch = 'all', time = 'all') {
+    try {
+        const r = await fetch(`/api/promo-efficiency?branch=${encodeURIComponent(branch)}&time=${encodeURIComponent(time)}`);
+        const d = await r.json();
+        const tbody = document.getElementById('promoEfficiencyTable');
+        
+        if (d.status === 'success' && d.data.length > 0) {
+            tbody.innerHTML = d.data.map(p => {
+                const isVolume = p.promo_type === 'Volume (B1F1)';
+                const riskBadge = isVolume 
+                    ? '<span class="badge bg-danger-subtle text-danger"><i class="fa-solid fa-triangle-exclamation"></i> HIGH RISK</span>'
+                    : '<span class="badge bg-success-subtle text-success">LOW RISK</span>';
+                
+                return `
+                <tr>
+                    <td class="fw-700 text-primary">${p.promo_code}</td>
+                    <td><span class="badge ${isVolume ? 'bg-purple' : 'bg-info'} text-white">${p.promo_type}</span></td>
+                    <td class="text-end">${p.total_qty}</td>
+                    <td class="text-end">RM ${p.total_gross.toLocaleString()}</td>
+                    <td class="text-end">RM ${p.total_discount.toLocaleString()}</td>
+                    <td class="text-center">
+                        <div class="progress" style="height: 6px; width: 100px; margin: 0 auto;">
+                            <div class="progress-bar ${isVolume ? 'bg-danger' : 'bg-success'}" style="width: ${p.discount_ratio * 100}%"></div>
+                        </div>
+                        <small class="d-block mt-1">${(p.discount_ratio * 100).toFixed(1)}%</small>
+                    </td>
+                    <td>${riskBadge}</td>
+                </tr>`;
+            }).join('');
+        } else {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">No active promotions found for this period.</td></tr>';
+        }
+    } catch (e) {
+        console.error("Failed to load promos", e);
+    }
+}
 
 const LAYOUT_BASE = {
   paper_bgcolor: 'rgba(0,0,0,0)',
@@ -554,21 +680,26 @@ function applyFilters() {
   const branch = document.getElementById('branchFilter').value;
   const time   = document.getElementById('timeFilter').value;
 
-  // Hide specific sections if "Last 7 Days" is selected
+  // UI Visibility Logic
   const outletSection = document.getElementById('outletQualitySection');
-  const discountSection = document.getElementById('discountAnalysisSection');
-  if (time === 'current_week') {
-    if (outletSection) outletSection.style.display = 'none';
-    if (discountSection) discountSection.style.display = 'none';
-  } else {
-    if (outletSection) outletSection.style.display = 'block';
-    if (discountSection) discountSection.style.display = 'block';
-  }
+  const promoSection = document.getElementById('promoIntelligenceSection');
+
+  // Promotion Efficiency Requirement: Only display for All Outlets AND (All Time OR By Year)
+  const isPromoEligible = (branch === 'all') && (time === 'all' || time.startsWith('year_'));
+  if (promoSection) promoSection.style.display = isPromoEligible ? 'block' : 'none';
+
+  // Outlet Comparison Requirement: Only display for All Outlets AND NOT Last 7 Days
+  const isOutletEligible = (branch === 'all') && (time !== 'current_week');
+  if (outletSection) outletSection.style.display = isOutletEligible ? 'block' : 'none';
 
   const qp     = `branch=${encodeURIComponent(branch)}&time=${encodeURIComponent(time)}&temp=all`;
 
   ['loadingTrend','loadingCategory','loadingTop','loadingWeak',
-   'loadingPayment','loadingHeatmap','loadingBranch','loadingDiscount'].forEach(showLoader);
+   'loadingPayment','loadingHeatmap','loadingBranch', 'loadingDiscount'].forEach(showLoader);
+  
+  if (isPromoEligible) {
+    loadPromoEfficiency(branch);
+  }
 
   /* ── KPIs ── */
   fetch(`/api/kpis?${qp}`)
@@ -620,160 +751,212 @@ function applyFilters() {
   fetch(`/api/charts?${qp}`)
     .then(r=>r.json())
     .then(d=>{
-      if(d.status!=='success') return;
+      if(d.status!=='success') {
+          console.error("Charts API returned error:", d.message);
+          ['loadingTrend','loadingCategory','loadingTop','loadingWeak',
+           'loadingPayment','loadingHeatmap','loadingBranch'].forEach(hideLoader);
+          return;
+      }
 
       /* Trend badge */
-      const badge = document.getElementById('trendAxisBadge');
-      if(badge) badge.textContent = d.trend.is_monthly ? 'Monthly View' : 'Daily View';
+      try {
+          const badge = document.getElementById('trendAxisBadge');
+          if(badge) badge.textContent = d.trend.is_monthly ? 'Monthly View' : 'Daily View';
 
-      /* Sales trend line with optimizations and Empty State Handling */
-      const trendChartEl = document.getElementById('trendChart');
-      const trendData = d.trend.data || [];
-      
-      if (!d.trend.labels || d.trend.labels.length === 0) {
-        trendChartEl.innerHTML = '<div class="text-muted-sm text-center py-5"><i class="fa-solid fa-magnifying-glass me-2"></i>No sales data found for this selection.</div>';
-      } else {
-        const avgSales = trendData.length ? (trendData.reduce((a,b)=>a+b,0)/trendData.length) : 0;
-        
-        const traces = [
-          {
-            x: d.trend.labels, 
-            y: trendData,
-            name: 'Revenue',
-            type: 'scatter', 
-            mode: 'lines+markers',
-            line: { color: COLORS.blue, width: 3, shape: 'spline' },
-            marker: { size: 6, color: COLORS.blue, opacity: 0.8 },
-            fill: 'tozeroy', 
-            fillcolor: 'rgba(37,99,235,0.08)',
-            hovertemplate: '<b>%{x}</b><br>Sales: RM %{y:,.2f}<extra></extra>'
+          /* Sales trend line */
+          const trendChartEl = document.getElementById('trendChart');
+          const trendData = d.trend.data || [];
+          
+          if (!d.trend.labels || d.trend.labels.length === 0) {
+            trendChartEl.innerHTML = '<div class="text-muted-sm text-center py-5">No sales data found.</div>';
+          } else {
+            const avgSales = trendData.length ? (trendData.reduce((a,b)=>a+b,0)/trendData.length) : 0;
+            Plotly.newPlot('trendChart', [
+              {
+                x: d.trend.labels, y: trendData, name: 'Revenue',
+                type: 'scatter', mode: 'lines+markers',
+                line: { color: COLORS.blue, width: 3, shape: 'spline' },
+                marker: { size: 6, color: COLORS.blue },
+                fill: 'tozeroy', fillcolor: 'rgba(37,99,235,0.08)',
+                hovertemplate: 'RM %{y:,.2f}<extra></extra>'
+              },
+              {
+                x: d.trend.labels, y: d.trend.labels.map(() => avgSales),
+                name: 'Average', type: 'scatter', mode: 'lines',
+                line: { color: COLORS.amber, width: 2, dash: 'dash' },
+                hovertemplate: 'Avg: RM %{y:,.2f}<extra></extra>'
+              }
+            ], {
+              ...LAYOUT_BASE, hovermode: 'x unified',
+              xaxis: { showgrid: false, automargin: true, tickfont: { size: 10 } },
+              yaxis: { tickprefix: 'RM ', gridcolor: '#F1F5F9' },
+              margin: { t: 20, r: 20, b: 40, l: 60 }
+            }, CONFIG);
           }
-        ];
-
-        // Add average line as a separate benchmark trace for unified hover
-        if (trendData.length > 2) {
-          traces.push({
-            x: d.trend.labels,
-            y: d.trend.labels.map(() => avgSales),
-            name: 'Average',
-            type: 'scatter',
-            mode: 'lines',
-            line: { color: COLORS.amber, width: 2, dash: 'dash' },
-            hovertemplate: 'Avg: RM %{y:,.2f}<extra></extra>'
-          });
-        }
-
-        Plotly.newPlot('trendChart', traces, {
-          ...LAYOUT_BASE, 
-          hovermode: 'x unified',
-          showlegend: true,
-          legend: { orientation: 'h', y: -0.3, font: { size: 10 } },
-          xaxis: {
-            gridcolor: '#F1F5F9', 
-            showgrid: false,
-            tickmode: 'auto',
-            nticks: 12,
-            automargin: true,
-            tickfont: { size: 10 }
-          },
-          yaxis: {
-            tickprefix: 'RM ', 
-            gridcolor: '#F1F5F9', 
-            gridwidth: 1,
-            zeroline: false
-          },
-          margin: { t: 20, r: 20, b: 60, l: 60 }
-        }, CONFIG);
-      }
+      } catch(e) { console.error("Trend chart error", e); }
       hideLoader('loadingTrend');
 
       /* Product type donut */
-      Plotly.newPlot('categoryChart',[{
-        labels:d.category.labels, values:d.category.data,
-        type:'pie', hole:.5,
-        marker:{colors:COLORS.slate},
-        textinfo:'percent',
-        hovertemplate:'<b>%{label}</b><br>RM %{value:,.2f}<br>%{percent}<extra></extra>',
-        textfont:{size:11}
-      }],{
-        ...LAYOUT_BASE, showlegend:true,
-        legend:{orientation:'h', y:-0.15, font:{size:10}},
-        margin:{t:10,r:10,b:30,l:10}
-      }, CONFIG);
+      try {
+          Plotly.newPlot('categoryChart',[{
+            labels:d.category.labels, values:d.category.data,
+            type:'pie', hole:.5, marker:{colors:COLORS.slate},
+            textinfo:'percent', hovertemplate:'<b>%{label}</b><br>RM %{value:,.2f}<extra></extra>'
+          }],{
+            ...LAYOUT_BASE, showlegend:true, legend:{orientation:'h', y:-0.15},
+            margin:{t:10,r:10,b:30,l:10}
+          }, CONFIG);
+      } catch(e) { console.error("Category chart error", e); }
       hideLoader('loadingCategory');
 
       /* Best drinks */
-      Plotly.newPlot('topChart',[{
-        x:d.products.data, y:d.products.labels,
-        type:'bar', orientation:'h',
-        marker:{color:COLORS.teal, opacity:.9},
-        hovertemplate:'<b>%{y}</b><br>Orders: %{x:,}<extra></extra>',
-        text:d.products.data.map(v=>v.toLocaleString('en-MY')),
-        textposition:'outside', textfont:{size:10}
-      }],{
-        ...LAYOUT_BASE, margin:{t:10,r:45,b:40,l:140},
-        xaxis:{showgrid:false, title:{text:'Number of Orders', font:{size:10}}},
-        yaxis:{automargin:true, autorange:'reversed'}
-      }, CONFIG);
+      try {
+          Plotly.newPlot('topChart',[{
+            x:d.products.data, y:d.products.labels,
+            type:'bar', orientation:'h', marker:{color:COLORS.teal},
+            hovertemplate:'%{x} orders<extra></extra>'
+          }],{
+            ...LAYOUT_BASE, margin:{t:10,r:45,b:40,l:140},
+            xaxis:{showgrid:false}, yaxis:{autorange:'reversed'}
+          }, CONFIG);
+      } catch(e) { console.error("Top drinks chart error", e); }
       hideLoader('loadingTop');
 
       /* Slow drinks */
-      Plotly.newPlot('weakChart',[{
-        x:d.weak_products.data, y:d.weak_products.labels,
-        type:'bar', orientation:'h',
-        marker:{color:COLORS.red, opacity:.8},
-        hovertemplate:'<b>%{y}</b><br>Orders: %{x:,}<extra></extra>',
-        text:d.weak_products.data.map(v=>v.toLocaleString('en-MY')),
-        textposition:'outside', textfont:{size:10}
-      }],{
-        ...LAYOUT_BASE, margin:{t:10,r:45,b:40,l:140},
-        xaxis:{showgrid:false, title:{text:'Number of Orders', font:{size:10}}},
-        yaxis:{automargin:true, autorange:'reversed'}
-      }, CONFIG);
+      try {
+          Plotly.newPlot('weakChart',[{
+            x:d.weak_products.data, y:d.weak_products.labels,
+            type:'bar', orientation:'h', marker:{color:COLORS.red},
+            hovertemplate:'%{x} orders<extra></extra>'
+          }],{
+            ...LAYOUT_BASE, margin:{t:10,r:45,b:40,l:140},
+            xaxis:{showgrid:false}, yaxis:{autorange:'reversed'}
+          }, CONFIG);
+      } catch(e) { console.error("Weak drinks chart error", e); }
       hideLoader('loadingWeak');
 
       /* Payment methods */
-      Plotly.newPlot('paymentChart',[{
-        x:d.payment.labels, y:d.payment.data,
-        type:'bar', marker:{color:COLORS.slate, opacity:.9},
-        hovertemplate:'<b>%{x}</b><br>%{y:,} transactions<extra></extra>',
-        text:d.payment.data.map(v=>v.toLocaleString('en-MY')),
-        textposition:'outside', textfont:{size:10}
-      }],{
-        ...LAYOUT_BASE,
-        xaxis:{showgrid:false},
-        yaxis:{gridcolor:'#E2E8F0', gridwidth:1, title:{text:'Transactions', font:{size:10}}}
-      }, CONFIG);
+      try {
+          Plotly.newPlot('paymentChart',[{
+            x:d.payment.labels, y:d.payment.data,
+            type:'bar', marker:{color:COLORS.slate},
+            hovertemplate:'%{y} txns<extra></extra>'
+          }],{
+            ...LAYOUT_BASE, xaxis:{showgrid:false}, yaxis:{gridcolor:'#E2E8F0'}
+          }, CONFIG);
+      } catch(e) { console.error("Payment chart error", e); }
       hideLoader('loadingPayment');
 
-      /* Heatmap */
-      const days  = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-      const hours = Array.from({length:14},(_,i)=>`${String(i+8).padStart(2,'0')}:00`);
-      const z = days.map(day =>
-        hours.map((_,h)=>{
-          const match=d.heatmap.find(r=>r.day===day&&r.hour===h+8);
-          return match?match.value:0;
-        })
-      );
-      Plotly.newPlot('heatmapChart',[{
-        z, x:hours, y:days, type:'heatmap',
-        colorscale:[[0,'#F8FAFC'],[.2,'#93C5FD'],[.6,'#2563EB'],[1,'#1E3A8A']],
-        hovertemplate:'<b>%{y} %{x}</b><br>Orders: %{z}<extra></extra>',
-        showscale:true,
-        colorbar:{thickness:8, len:.85, title:{text:'Orders', font:{size:10}}}
-      }],{
-        ...LAYOUT_BASE, margin:{t:10,r:60,b:50,l:55},
-        xaxis:{tickangle:-45, tickfont:{size:9}},
-        yaxis:{automargin:true}
-      }, CONFIG);
+      /* Heatmap / Peak Hours */
+      try {
+          globalPeakData = d.peak_data;
+          if (globalPeakData && (globalPeakData.regular.length > 0 || globalPeakData.ramadhan.length > 0)) {
+              document.getElementById('peakToggleGroup').style.display = 'flex';
+              togglePeakView();
+          } else {
+              document.getElementById('peakToggleGroup').style.display = 'none';
+              const days  = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+              const hours = Array.from({length:14},(_,i)=>`${String(i+8).padStart(2,'0')}:00`);
+              const z = days.map(day =>
+                hours.map((_,h)=>{
+                  const match=d.heatmap.find(r=>r.day===day && r.hour===h+8);
+                  return match ? match.value : 0;
+                })
+              );
+              Plotly.newPlot('heatmapChart',[{
+                z, x:hours, y:days, type:'heatmap',
+                colorscale:[[0,'#F8FAFC'],[1,'#1E3A8A']],
+                showscale:true
+              }],{
+                ...LAYOUT_BASE, margin:{t:10,r:60,b:50,l:55},
+                xaxis:{tickangle:-45}, yaxis:{automargin:true}
+              }, CONFIG);
+          }
+      } catch(e) { console.error("Peak/Heatmap chart error", e); }
       hideLoader('loadingHeatmap');
 
       /* Monthly outlet comparison bar chart */
-      renderBranchChart(d);
+      try {
+          renderBranchChart(d);
+      } catch(e) { console.error("Branch chart error", e); }
+      hideLoader('loadingBranch');
 
-      /* Discount impact — derive from monthly data */
-      renderDiscountChart(d);
+      /* Sales vs Discount Given Chart */
+      try {
+          renderDiscountChart(d);
+      } catch(e) { console.error("Discount chart error", e); }
+      hideLoader('loadingDiscount');
+      })
+    .catch(err => {
+      console.error('Charts API error:', err);
+      ['loadingTrend','loadingCategory','loadingTop','loadingWeak',
+       'loadingPayment','loadingHeatmap','loadingBranch'].forEach(hideLoader);
     });
+}
+
+/* ── REQUIREMENT 2: DISCOUNT IMPACT CHART ──────────────── */
+function renderDiscountChart(d) {
+  const trend = d.trend;
+  if(!trend || !trend.labels || trend.labels.length === 0){
+    hideLoader('loadingDiscount');
+    return;
+  }
+
+  const retentionRate = trend.labels.map((_, i) => {
+    const gross = trend.gross[i] || 0;
+    const net = trend.data[i] || 0;
+    return gross > 0 ? (net / gross * 100) : 100;
+  });
+
+  Plotly.newPlot('discountChart',[
+    {
+      x: trend.labels,
+      y: trend.data, // Net Sales
+      name: 'Net Sales (Retained)',
+      type: 'bar',
+      marker: { color: COLORS.teal, opacity: 0.9 },
+      hovertemplate: 'Net Sales: RM %{y:,.2f}<extra></extra>',
+    },
+    {
+      x: trend.labels,
+      y: trend.discount, // Discount
+      name: 'Discounts (Lost)',
+      type: 'bar',
+      marker: { color: '#FDA4AF', opacity: 0.7 }, // Light red
+      hovertemplate: 'Discount: RM %{y:,.2f}<extra></extra>',
+    },
+    {
+      x: trend.labels,
+      y: retentionRate,
+      name: 'Retention %',
+      type: 'scatter',
+      mode: 'lines+markers',
+      line: { color: COLORS.blue, width: 2 },
+      marker: { size: 6, color: COLORS.blue },
+      yaxis: 'y2',
+      hovertemplate: 'Retained: %{y:.1f}%<extra></extra>',
+    }
+  ],{
+    ...LAYOUT_BASE,
+    barmode: 'stack',
+    margin: { t:30, r:60, b:60, l:70 },
+    legend: { orientation:'h', y:-0.3, font:{size:10} },
+    xaxis: { tickangle:-30, showgrid:false, tickfont:{size:9} },
+    yaxis: { 
+      tickprefix:'RM ', 
+      gridcolor:'#F1F5F9',
+      title: { text: 'Total Revenue (Gross)', font: { size: 10 } }
+    },
+    yaxis2: {
+      overlaying:'y', side:'right',
+      range: [0, 110],
+      ticksuffix: '%',
+      showgrid: false,
+      tickfont: { size: 9, color: COLORS.blue },
+      title: { text: 'Retention Rate', font: { size: 10, color: COLORS.blue } }
+    }
+  }, CONFIG);
+  hideLoader('loadingDiscount');
 }
 
 /* ── BRANCH COMPARISON CHART (AOV Focus) ──────────────── */
@@ -814,75 +997,6 @@ function renderBranchChart(d) {
     }
   }, CONFIG);
   hideLoader('loadingBranch');
-}
-
-/* ── DISCOUNT IMPACT CHART ─────────────────────────────── */
-function renderDiscountChart(d) {
-  // We use the trend data (Net Sales) and attempt to compute gross from all_month data
-  // Since the DB stores unit_price_MYR * qty = gross, net = Total_Bill_MYR,
-  // we show Net Revenue per month as what the owner keeps, clearly labelled.
-  // If monthly branch data is available, sum all branches per month.
-  const monthly = d.monthly;
-  if(!monthly || !monthly.labels || monthly.labels.length===0){
-    hideLoader('loadingDiscount');
-    return;
-  }
-
-  // Sum all branches per month to get total net revenue per month
-  const netByMonth = monthly.labels.map((_,i)=>{
-    return monthly.branches.reduce((sum, b)=>{
-      return sum + ((monthly.by_branch[b]||[])[i]||0);
-    }, 0);
-  });
-
-  // Use trend data for a gross proxy if available, otherwise just show net
-  // We show the monthly net as a grouped bar with a "simulated" gross line
-  // (gross ≈ net / 0.94 assuming ~6% average SST+discount, labelled clearly)
-  const grossEst = netByMonth.map(v=>parseFloat((v/0.94).toFixed(2)));
-  const discountEst = netByMonth.map((v,i)=>parseFloat((grossEst[i]-v).toFixed(2)));
-
-  Plotly.newPlot('discountChart',[
-    {
-      x: monthly.labels,
-      y: grossEst,
-      name: 'Gross Sales',
-      type: 'bar',
-      marker: { color: '#BFDBFE', line:{color: COLORS.blue, width:1.5} },
-      hovertemplate: '<b>Gross Sales</b><br>%{x}<br>RM %{y:,.2f}<extra></extra>',
-    },
-    {
-      x: monthly.labels,
-      y: netByMonth,
-      name: 'Net Sales (Collected)',
-      type: 'bar',
-      marker: { color: COLORS.teal, opacity:.85 },
-      hovertemplate: '<b>Net Sales</b><br>%{x}<br>RM %{y:,.2f}<extra></extra>',
-    },
-    {
-      x: monthly.labels,
-      y: discountEst,
-      name: 'Discount + Tax',
-      type: 'scatter',
-      mode: 'lines+markers',
-      line: { color: COLORS.amber, width: 2, dash:'dot' },
-      marker: { size:5, color: COLORS.amber },
-      yaxis: 'y2',
-      hovertemplate: '<b>Discount + Tax</b><br>%{x}<br>RM %{y:,.2f}<extra></extra>',
-    }
-  ],{
-    ...LAYOUT_BASE,
-    barmode: 'overlay',
-    margin: { t:10, r:55, b:55, l:60 },
-    legend: { orientation:'h', y:-0.28, font:{size:10} },
-    xaxis: { tickangle:-30, showgrid:false, tickfont:{size:9} },
-    yaxis: { tickprefix:'RM ', gridcolor:'#E2E8F0', gridwidth:1 },
-    yaxis2: {
-      overlaying:'y', side:'right',
-      tickprefix:'RM ', showgrid:false,
-      tickfont:{size:9}, title:{text:'Discounts + Tax', font:{size:9}}
-    }
-  }, CONFIG);
-  hideLoader('loadingDiscount');
 }
 
 /* ── RESPONSIVE RESIZE ─────────────────────────────────── */

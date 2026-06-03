@@ -2,318 +2,535 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Sales Forecast Report</title>
+    <title>Sales Forecast Report Export</title>
     <style>
         @page {
-            size: A4 portrait;
+            size: A4;
             margin: 0;
         }
-        :root {
-            --fc-bg:           #F6F8FA;
-            --fc-card:         #FFFFFF;
-            --fc-border:       rgba(0,0,0,.07);
-            --fc-border-med:   rgba(0,0,0,.12);
-            --fc-text:         #0F172A;
-            --fc-muted:        #64748B;
-            --fc-faint:        #94A3B8;
-
-            --blue:   #2563EB;
-            --blue-lt:#EFF6FF;
-            --teal:   #0D9488;
-            --teal-lt:#F0FDFA;
-            --amber:  #D97706;
-            --amber-lt:#FFFBEB;
-            --purple: #7C3AED;
-            --purple-lt:#F5F3FF;
-            --red:    #DC2626;
-            --red-lt: #FEF2F2;
-            --green:  #16A34A;
-
-            --r-sm:  6px;
-            --r-md:  10px;
-            --r-lg:  16px;
-            --r-xl:  22px;
-            --r-full:999px;
-
-            --font-body: 'Segoe UI', Arial, sans-serif;
-            --font-mono: 'Courier New', monospace;
-        }
-
         body {
-            font-family: var(--font-body);
-            font-size: 10pt;
-            color: var(--fc-text);
             margin: 0;
             padding: 0;
-            background: white;
+            background: #FFFFFF;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            font-size: 11pt;
+            line-height: 1.55;
+            color: #1E293B;
         }
         * { box-sizing: border-box; }
 
-        /* Page Layout */
         .a4-page {
             width: 210mm;
             height: 297mm;
-            padding: 15mm;
+            padding: 0;
             position: relative;
             overflow: hidden;
             page-break-after: always;
             background: white;
         }
-        .a4-page:last-child { page-break-after: auto; }
-
-        .report-header {
-            background: linear-gradient(135deg, #1E2A3A, #2A3B52);
-            padding: 20px 25px;
-            color: white;
-            border-bottom: 4px solid var(--amber);
-            margin: -15mm -15mm 20px -15mm;
-            -webkit-print-color-adjust: exact;
+        .a4-page:last-child {
+            page-break-after: auto;
         }
-        .header-title { font-size: 18pt; font-weight: 800; margin-bottom: 4px; }
-        .header-meta { font-size: 9pt; opacity: 0.85; }
 
-        .dashboard-card {
-            background: var(--fc-card);
-            border: 1px solid var(--fc-border-med);
-            border-radius: var(--r-md);
-            padding: 15px;
-            margin-bottom: 12px;
-            page-break-inside: avoid;
+        /* ── Page inner body padding ───────────────────────────── */
+        .rpt-body {
+            padding: 18px 36px 36px 36px;
         }
-        .card-title {
-            font-size: 10pt;
+
+        /* ── Confidentiality strip ─────────────────────────────── */
+        .rpt-confid-strip {
+            background: #B45309;
+            color: #FEF3C7;
+            text-align: center;
+            font-size: 7.5pt;
             font-weight: 700;
-            color: var(--fc-text);
-            margin-bottom: 8px;
-            border-bottom: 1px solid var(--fc-border);
-            padding-bottom: 4px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            padding: 4px 0;
         }
 
-        .persona-card {
-            background: linear-gradient(135deg, #EFF6FF, #F0FDFA);
-            border: 1px solid rgba(37,99,235,0.15);
-            border-radius: var(--r-md);
-            padding: 10px 15px;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            margin-bottom: 12px;
-            -webkit-print-color-adjust: exact;
+        /* ── Main header band ──────────────────────────────────── */
+        .rpt-header-band {
+            background: #0F172A;
+            background: linear-gradient(135deg, #0F172A 0%, #1E3A5F 100%);
+            padding: 18px 36px 14px 36px;
+            color: #FFFFFF;
+            border-bottom: 3px solid #F59E0B;
         }
-        .persona-icon { font-size: 18pt; }
-        .persona-name { font-weight: 800; font-size: 10pt; }
-        .persona-desc { font-size: 8.5pt; color: #475569; }
-
-        /* KPI cards */
-        .kpi-row {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 12px;
+        .rpt-header-eyebrow {
+            font-size: 7.5pt;
+            color: #93C5FD;
+            text-transform: uppercase;
+            letter-spacing: 2.5px;
+            margin-bottom: 5px;
+            font-weight: 600;
         }
-        .kpi-card {
-            flex: 1;
-            padding: 10px;
-            border-radius: var(--r-md);
-            border: 1px solid var(--fc-border-med);
-            background: #F8FAFC;
-            -webkit-print-color-adjust: exact;
+        .rpt-header-title {
+            font-size: 20pt;
+            font-weight: 800;
+            color: #FFFFFF;
+            margin-bottom: 3px;
+            line-height: 1.15;
+            letter-spacing: -0.5px;
         }
-        .kpi-label { font-size: 6.5pt; font-weight: 800; color: var(--fc-muted); text-transform: uppercase; margin-bottom: 4px; }
-        .kpi-value { font-size: 12pt; font-weight: 800; font-family: var(--font-mono); }
-        .kpi-blue { border-left: 4px solid var(--blue); }
-        .kpi-amber { border-left: 4px solid var(--amber); }
-        .kpi-teal { border-left: 4px solid var(--teal); }
-        .kpi-purple { border-left: 4px solid var(--purple); }
-
-        /* Tables */
-        table { width: 100%; border-collapse: collapse; margin-top: 5px; font-size: 8.5pt; }
-        th { background: #F1F5F9; color: var(--fc-muted); text-transform: uppercase; font-size: 6.5pt; padding: 7px; text-align: left; border-bottom: 1px solid var(--fc-border-med); }
-        td { padding: 7px; border-bottom: 1px solid var(--fc-border); vertical-align: middle; }
-        .text-mono { font-family: var(--font-mono); font-size: 8pt; }
-        .text-right { text-align: right; }
-
-        /* Badges */
-        .badge-custom {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: var(--r-full);
-            font-size: 6.5pt;
-            font-weight: 700;
-            -webkit-print-color-adjust: exact;
+        .rpt-header-subtitle {
+            font-size: 10.5pt;
+            color: #F59E0B;
+            margin-bottom: 10px;
+            font-weight: 600;
         }
-        .badge-blue { background: var(--blue-lt); color: var(--blue); }
-        .badge-teal { background: var(--teal-lt); color: var(--teal); }
-        .badge-red { background: var(--red-lt); color: var(--red); }
-        
-        .promo-badge {
-            display: inline-block;
-            padding: 1px 6px;
-            border-radius: 4px;
-            font-size: 6.5pt;
-            background: var(--amber-lt);
-            color: #92400E;
-            border: 1px solid rgba(217,119,6,0.2);
-            margin-right: 3px;
-            -webkit-print-color-adjust: exact;
-        }
-        .holiday-badge { background: var(--red-lt); color: #991B1B; border-color: rgba(220,38,38,0.2); }
-
-        /* Ingredient Planner */
-        .ing-grid { display: flex; flex-wrap: wrap; gap: 8px; }
-        .ing-cell { flex: 1; min-width: 80px; background: #F8FAFC; border: 1px solid var(--fc-border); border-radius: 8px; padding: 10px; text-align: center; }
-        .ing-label { font-size: 6pt; font-weight: 700; color: var(--fc-muted); text-transform: uppercase; }
-        .ing-val { font-size: 9pt; font-weight: 700; font-family: var(--font-mono); }
-
-        /* Progress Bar (Drivers) */
-        .driver-row { display: flex; justify-content: space-between; align-items: center; font-size: 8pt; margin-bottom: 3px; }
-        .progress-wrap { height: 6px; background: #E2E8F0; border-radius: 99px; margin-bottom: 10px; -webkit-print-color-adjust: exact; }
-        .progress-bar { height: 100%; border-radius: 99px; -webkit-print-color-adjust: exact; }
-
-        .footer {
-            position: absolute;
-            bottom: 10mm;
-            left: 15mm;
-            right: 15mm;
-            padding-top: 10px;
-            border-top: 1px solid var(--fc-border);
+        .rpt-header-meta {
             display: flex;
             justify-content: space-between;
             font-size: 8pt;
-            color: var(--fc-muted);
+            color: #94A3B8;
+            border-top: 1px solid #1E40AF;
+            padding-top: 8px;
+            margin-top: 6px;
         }
+        .rpt-header-meta strong { color: #E2E8F0; }
+
+        /* ── Continuation header (pages 2+) ───────────────────── */
+        .rpt-cont-header {
+            background: #0F172A;
+            background: linear-gradient(135deg, #0F172A 0%, #1E3A5F 100%);
+            padding: 9px 36px;
+            border-bottom: 3px solid #F59E0B;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .rpt-cont-header span {
+            font-size: 8pt;
+            color: #93C5FD;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }
+
+        /* ── Section headings ──────────────────────────────────── */
+        .rpt-section {
+            margin-top: 14px;
+            margin-bottom: 10px;
+        }
+        .rpt-section-eyebrow {
+            font-size: 7pt;
+            font-weight: 700;
+            color: #F59E0B;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 2px;
+        }
+        .rpt-section-title {
+            font-size: 12pt;
+            font-weight: 700;
+            color: #0F172A;
+            border-bottom: 2px solid #0F172A;
+            padding-bottom: 5px;
+            margin-bottom: 4px;
+        }
+        .rpt-section-desc {
+            font-size: 8.5pt;
+            color: #64748B;
+            margin-bottom: 10px;
+            line-height: 1.4;
+        }
+
+        /* ── KPI grid ──────────────────────────────────────────── */
+        .rpt-kpi-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+        .rpt-kpi-grid > div {
+            flex: 1;
+            min-width: 23%;
+        }
+        .rpt-kpi-box {
+            border: 1px solid #E2E8F0;
+            border-top: 3px solid #1E3A5F;
+            padding: 9px 11px;
+            background: #F8FAFC;
+        }
+        .rpt-kpi-box.accent { border-top-color: #059669; }
+        .rpt-kpi-box.warn   { border-top-color: #D97706; }
+        .rpt-kpi-box.info   { border-top-color: #2563EB; }
+        .rpt-kpi-box.purple { border-top-color: #7C3AED; }
+
+        .rpt-kpi-label {
+            font-size: 7.5pt;
+            color: #64748B;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+            font-weight: 700;
+        }
+        .rpt-kpi-value {
+            font-size: 12pt;
+            font-weight: 800;
+            color: #0F172A;
+            line-height: 1.1;
+        }
+        .rpt-kpi-value.green { color: #059669; }
+        .rpt-kpi-value.blue  { color: #2563EB; }
+        .rpt-kpi-sub {
+            font-size: 7.5pt;
+            color: #94A3B8;
+            margin-top: 3px;
+        }
+
+        /* ── Ingredient grid ──────────────────────────────────── */
+        .rpt-ing-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 14px;
+        }
+        .rpt-ing-cell {
+            flex: 1;
+            min-width: 15%;
+            background: #F8FAFC;
+            border: 1px solid #E2E8F0;
+            padding: 8px;
+            text-align: center;
+        }
+        .rpt-ing-label {
+            font-size: 6.5pt;
+            font-weight: 700;
+            color: #64748B;
+            text-transform: uppercase;
+            margin-bottom: 2px;
+        }
+        .rpt-ing-val {
+            font-size: 10pt;
+            font-weight: 800;
+            color: #1E293B;
+        }
+
+        /* ── Tables ────────────────────────────────────────────── */
+        .rpt-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 6px;
+            margin-bottom: 14px;
+            font-size: 9pt;
+        }
+        .rpt-table thead tr th {
+            background: #0F172A;
+            color: #FFFFFF;
+            padding: 7px 9px;
+            font-size: 8pt;
+            font-weight: 700;
+            text-align: left;
+        }
+        .rpt-table thead tr th.r { text-align: right; }
+        .rpt-table tbody tr td {
+            padding: 6px 8px;
+            border-bottom: 1px solid #E2E8F0;
+            color: #334155;
+            font-size: 9pt;
+            vertical-align: middle;
+        }
+        .rpt-table tbody tr td.r { text-align: right; font-family: 'Courier New', monospace; font-size: 8.5pt; }
+        .rpt-table tbody tr td.mono { font-family: 'Courier New', monospace; font-size: 8.5pt; }
+        .rpt-table tbody tr:nth-child(even) td { background: #F8FAFC; }
+
+        /* ── Badges ───────────────────────────────────────────── */
+        .badge {
+            display: inline-block; padding: 1px 6px; border-radius: 3px;
+            font-size: 7.5pt; font-weight: 700;
+        }
+        .badge-blue { background: #DBEAFE; color: #1E40AF; }
+        .badge-red  { background: #FEE2E2; color: #991B1B; }
+        
+        .promo-badge {
+            display: inline-block;
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-size: 7pt;
+            background: #FEF3C7;
+            color: #92400E;
+            border: 1px solid rgba(217,119,6,0.2);
+            margin-right: 3px;
+        }
+        .holiday-badge { background: #FEE2E2; color: #991B1B; border-color: rgba(220,38,38,0.2); }
+
+        /* ── Drivers ───────────────────────────────────────────── */
+        .rpt-driver-box {
+            padding: 12px;
+            border: 1px dashed #CBD5E1;
+            background: #F8FAFC;
+        }
+        .rpt-driver-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 9pt;
+            margin-bottom: 4px;
+        }
+        .rpt-bar-bg {
+            width: 100%; height: 6px; background: #E2E8F0;
+            border-radius: 3px; overflow: hidden; margin-bottom: 10px;
+        }
+        .rpt-bar-fg { height: 100%; border-radius: 3px; }
+
+        /* ── Footer band ───────────────────────────────────────── */
+        .rpt-footer-band {
+            background: #0F172A;
+            color: #64748B;
+            padding: 8px 36px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 8pt;
+            position: absolute; bottom: 0; left: 0; right: 0;
+        }
+        .rpt-footer-band strong { color: #CBD5E1; }
+
+        .rpt-hr { border: none; border-top: 1px solid #E2E8F0; margin: 14px 0; }
+        .persona-card {
+            background: #F0F9FF;
+            border: 1px solid #BAE6FD;
+            padding: 12px 18px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 18px;
+            border-radius: 4px;
+        }
+        .persona-icon { font-size: 20pt; }
+        .persona-name { font-weight: 800; font-size: 11pt; color: #0C4A6E; }
+        .persona-desc { font-size: 9pt; color: #0369A1; line-height: 1.4; }
     </style>
 </head>
 <body>
 
-    <!-- PAGE 1: FORECAST & INGREDIENTS -->
-    <div class="a4-page">
-        <div class="report-header">
-            <div class="header-title">Sales Forecast Report</div>
-            <div class="header-meta">Branch: <strong>{{ branch_name }}</strong> &nbsp; | &nbsp; Generated: {{ now_str }}</div>
-        </div>
+{% set branch_label = branch_name %}
 
-        <div class="persona-card">
-            <div class="persona-icon">{{ '🏢' if branch_name == 'Putrajaya' else '🎓' }}</div>
-            <div>
-                <div class="persona-name">{{ branch_name }}</div>
-                <div class="persona-desc">{{ data.get('persona', '—') }}</div>
-            </div>
-        </div>
-
-        <div class="kpi-row">
-            <div class="kpi-card kpi-blue">
-                <div class="kpi-label">Forecast Error Rate</div>
-                <div class="kpi-value">{{ data.get('mape', 0) }}%</div>
-            </div>
-            <div class="kpi-card kpi-amber">
-                <div class="kpi-label">Average Daily Error</div>
-                <div class="kpi-value">RM {{ "{:,.2f}".format(data.get('rmse', 0)) }}</div>
-            </div>
-            <div class="kpi-card kpi-teal">
-                <div class="kpi-label">Forecast Accuracy</div>
-                <div class="kpi-value">{{ data.get('accuracy', 0) }}%</div>
-            </div>
-            <div class="kpi-card kpi-purple">
-                <div class="kpi-label">Expected 5-Day Revenue</div>
-                {% set ns_exp = namespace(total5=0) %}
-                {% for r in data.get('forecast', []) %}{% set ns_exp.total5 = ns_exp.total5 + r.get('yhat', 0) %}{% endfor %}
-                <div class="kpi-value">RM {{ "{:,.2f}".format(ns_exp.total5) }}</div>
-            </div>
-        </div>
-
-        <div class="dashboard-card">
-            <div class="card-title">Forecast For Next 5 Days</div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Day</th>
-                        <th>Weather</th>
-                        <th>Notes & Promotions</th>
-                        <th class="text-right">Predicted (RM)</th>
-                        <th class="text-right">Expected Range</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in data.get('forecast', []) %}
-                    <tr>
-                        <td class="text-mono">{{ row.get('ds', '—') }}</td>
-                        <td><span class="badge-custom {{ 'badge-red' if row.get('is_closed') else 'badge-blue' }}">{{ row.get('day_name', '—') }}</span></td>
-                        <td>
-                            {% if row.get('is_closed') %}
-                                —
-                            {% else %}
-                                {% set w = row.get('weather', {}) %}
-                                {% if w is mapping %}
-                                    {{ w.get('label', 'Cloudy') }}<br>
-                                    <span style="font-size:7pt;color:var(--fc-muted);">
-                                        {{ w.get('temp', 28) }}°C / {{ w.get('rain_level', 'Light') }} Rain ({{ w.get('pop', 0) }}%)
-                                    </span>
-                                {% else %}
-                                    {{ w }}
-                                {% endif %}
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if row.get('is_festive_close') %}
-                                <span class="promo-badge holiday-badge">🔒 Festive Closed</span>
-                            {% elif row.get('is_closed') %}
-                                <span class="promo-badge">🔒 Closed</span>
-                            {% endif %}
-                            {% for p in row.get('promotions', []) %}
-                                <span class="promo-badge {{ 'holiday-badge' if 'Holiday' in p else '' }}">{{ p }}</span>
-                            {% endfor %}
-                        </td>
-                        <td class="text-right" style="font-weight:700; color:var(--blue);">RM {{ "{:,.2f}".format(row.get('yhat', 0)) }}</td>
-                        <td class="text-mono text-right" style="font-size:7.5pt; color:#000000; font-weight:700;">RM {{ "{:,.0f}".format(row.get('yhat_lower', 0)) }} - {{ "{:,.0f}".format(row.get('yhat_upper', 0)) }}</td>
-                        </tr>
-                        {% endfor %}
-                </tbody>
-            </table>
-        </div>
-
-        <div class="dashboard-card">
-            <div class="card-title">What to Buy This Week — Ingredient Shopping Guide</div>
-            {% set ingr = data.get('ingredient_demand', {}) %}
-            <div class="ing-grid">
-                <div class="ing-cell"><div class="ing-label">Coffee Beans</div><div class="ing-val">{{ "{:,.2f}".format((ingr.get('beans_g', 0) or 0) / 1000) }} kg</div></div>
-                <div class="ing-cell"><div class="ing-label">Fresh Milk</div><div class="ing-val">{{ "{:,.1f}".format((ingr.get('milk_ml', 0) or 0) / 1000) }} L</div></div>
-                <div class="ing-cell"><div class="ing-label">Cocoa Powder</div><div class="ing-val">{{ "{:,.2f}".format((ingr.get('choco_g', 0) or 0) / 1000) }} kg</div></div>
-                <div class="ing-cell"><div class="ing-label">Crushed Ice</div><div class="ing-val">{{ "{:,.1f}".format((ingr.get('ice_g', 0) or 0) / 1000) }} kg</div></div>
-                <div class="ing-cell"><div class="ing-label">Hot Cups</div><div class="ing-val">{{ ingr.get('cup_hot', 0) or 0 }} pcs</div></div>
-                <div class="ing-cell"><div class="ing-label">Cold Cups</div><div class="ing-val">{{ ingr.get('cup_cold', 0) or 0 }} pcs</div></div>
-            </div>
-        </div>
-
-        <div class="footer">
-            <div>MCS Forecast System</div>
-            <div>Page 1 of 2</div>
-            <div>Confidential Business Data</div>
+<!-- PAGE 1: Core Forecast -->
+<div class="a4-page">
+    <div class="rpt-confid-strip">Confidential — Internal Use Only</div>
+    <div class="rpt-header-band">
+        <div class="rpt-header-eyebrow">☕ Mini Coffee Shop — Analytics Suite</div>
+        <div class="rpt-header-title">Sales Forecast Report</div>
+        <div class="rpt-header-subtitle">Predictive Intelligence Outlook</div>
+        <div class="rpt-header-meta">
+            <div>Scope: <strong>{{ branch_label }}</strong> &nbsp;·&nbsp; Generated: <strong>{{ now_str }}</strong></div>
+            <div>Model: <strong>Prophet Adaptive V2</strong></div>
         </div>
     </div>
 
-    <!-- PAGE 2: PERFORMANCE & OPERATIONAL DATA -->
-    <div class="a4-page">
-        <div class="dashboard-card" style="margin-top: 10px;">
-            <div class="card-title">{{ fva_title }}</div>
-            {% if fva_rows %}
+    <div class="rpt-body">
+        <div class="persona-card">
+            <div class="persona-icon">{{ '🏢' if branch_label == 'Putrajaya' else '🎓' }}</div>
+            <div>
+                <div class="persona-name">{{ branch_label }} Profile</div>
+                <div class="persona-desc">{{ data.get('persona', 'Standard operational profile.') }}</div>
+            </div>
+        </div>
+
+        <div class="rpt-section">
+            <div class="rpt-section-title">AI Forecast Performance Metrics</div>
+            <div class="rpt-section-desc">Confidence scores and error margins based on trailing 30-day cross-validation.</div>
+        </div>
+
+        <div class="rpt-kpi-grid">
+            <div class="rpt-kpi-box info">
+                <div class="rpt-kpi-label">Forecast Error (MAPE)</div>
+                <div class="rpt-kpi-value blue">{{ data.get('mape', 0) }}%</div>
+                <div class="rpt-kpi-sub">Lower is better</div>
+            </div>
+            <div class="rpt-kpi-box warn">
+                <div class="rpt-kpi-label">Avg Daily Error</div>
+                <div class="rpt-kpi-value">RM {{ "{:,.2f}".format(data.get('rmse', 0)) }}</div>
+                <div class="rpt-kpi-sub">Typical daily variance</div>
+            </div>
+            <div class="rpt-kpi-box accent">
+                <div class="rpt-kpi-label">Model Accuracy</div>
+                <div class="rpt-kpi-value green">{{ data.get('accuracy', 0) }}%</div>
+                <div class="rpt-kpi-sub">Overall reliability</div>
+            </div>
+            <div class="rpt-kpi-box purple">
+                <div class="rpt-kpi-label">Expected 5-Day Revenue</div>
+                {% set ns_exp = namespace(total5=0) %}
+                {% for r in data.get('forecast', []) %}{% set ns_exp.total5 = ns_exp.total5 + r.get('yhat', 0) %}{% endfor %}
+                <div class="rpt-kpi-value" style="color:#7C3AED;">RM {{ "{:,.2f}".format(ns_exp.total5) }}</div>
+                <div class="rpt-kpi-sub">Predicted 5-day total</div>
+            </div>
+        </div>
+
+        <div class="rpt-section">
+            <div class="rpt-section-title">Forecast For Next 5 Days</div>
+            <div class="rpt-section-desc">Daily revenue predictions with 80% confidence interval ranges and expected local conditions.</div>
+        </div>
+
+        <table class="rpt-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Day</th>
+                    <th>Conditions</th>
+                    <th>Notes & Promotions</th>
+                    <th class="r">Predicted (RM)</th>
+                    <th class="r">Range (RM)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in data.get('forecast', []) %}
+                <tr>
+                    <td class="mono">{{ row.get('ds', '—') }}</td>
+                    <td><span class="badge {{ 'badge-red' if row.get('is_closed') else 'badge-blue' }}">{{ row.get('day_name', '—') }}</span></td>
+                    <td>
+                        {% if row.get('is_closed') %}
+                            Closed
+                        {% else %}
+                            {% set w = row.get('weather', {}) %}
+                            {% if w is mapping %}
+                                {{ w.get('label', 'Cloudy') }} ({{ w.get('temp', 28) }}°C)
+                            {% else %}
+                                {{ w }}
+                            {% endif %}
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if row.get('is_festive_close') %}
+                            <span class="promo-badge holiday-badge">Festive Closed</span>
+                        {% elif row.get('is_closed') %}
+                            <span class="promo-badge">Closed</span>
+                        {% endif %}
+                        {% for p in row.get('promotions', []) %}
+                            <span class="promo-badge {{ 'holiday-badge' if 'Holiday' in p else '' }}">{{ p }}</span>
+                        {% endfor %}
+                    </td>
+                    <td class="r" style="font-weight:700; color:#2563EB;">RM {{ "{:,.2f}".format(row.get('yhat', 0)) }}</td>
+                    <td class="r mono" style="font-size:7.5pt; color:#64748B;">{{ "{:,.0f}".format(row.get('yhat_lower', 0)) }}-{{ "{:,.0f}".format(row.get('yhat_upper', 0)) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="rpt-section">
+            <div class="rpt-section-title">Ingredient Procurement Guide</div>
+            <div class="rpt-section-desc">Theoretical demand based on predicted sales mix. Recommended safety stock not included.</div>
+        </div>
+
+        {% set ingr = data.get('ingredient_demand', {}) %}
+        <div class="rpt-ing-grid">
+            <div class="rpt-ing-cell">
+                <div class="rpt-ing-label">Coffee Beans</div>
+                <div class="rpt-ing-val">
+                    {% set val = ingr.get('beans_g', 0) or 0 %}
+                    {% if val < 1000 and val > 0 %}{{ "{:,.1f}".format(val) }} g{% else %}{{ "{:,.2f}".format(val / 1000) }} kg{% endif %}
+                </div>
+            </div>
+            <div class="rpt-ing-cell">
+                <div class="rpt-ing-label">Fresh Milk</div>
+                <div class="rpt-ing-val">
+                    {% set val = ingr.get('milk_ml', 0) or 0 %}
+                    {% if val < 1000 and val > 0 %}{{ "{:,.0f}".format(val) }} ml{% else %}{{ "{:,.1f}".format(val / 1000) }} L{% endif %}
+                </div>
+            </div>
+            <div class="rpt-ing-cell">
+                <div class="rpt-ing-label">Cocoa Powder</div>
+                <div class="rpt-ing-val">
+                    {% set val = ingr.get('choco_g', 0) or 0 %}
+                    {% if val < 1000 and val > 0 %}{{ "{:,.1f}".format(val) }} g{% else %}{{ "{:,.2f}".format(val / 1000) }} kg{% endif %}
+                </div>
+            </div>
+            <div class="rpt-ing-cell">
+                <div class="rpt-ing-label">Crushed Ice</div>
+                <div class="rpt-ing-val">
+                    {% set val = ingr.get('ice_g', 0) or 0 %}
+                    {% if val < 1000 and val > 0 %}{{ "{:,.1f}".format(val) }} g{% else %}{{ "{:,.1f}".format(val / 1000) }} kg{% endif %}
+                </div>
+            </div>
+            <div class="rpt-ing-cell">
+                <div class="rpt-ing-label">Whip Cream</div>
+                <div class="rpt-ing-val">
+                    {% set val = ingr.get('whip_g', 0) or 0 %}
+                    {% if val < 1000 and val > 0 %}{{ "{:,.1f}".format(val) }} g{% else %}{{ "{:,.2f}".format(val / 1000) }} kg{% endif %}
+                </div>
+            </div>
+            <div class="rpt-ing-cell"><div class="rpt-ing-label">Hot Cups</div><div class="rpt-ing-val">{{ ingr.get('cup_hot', 0)|int }} pcs</div></div>
+            <div class="rpt-ing-cell"><div class="rpt-ing-label">Cold Cups</div><div class="rpt-ing-val">{{ ingr.get('cup_cold', 0)|int }} pcs</div></div>
+        </div>
+
+        {% if ingr.get('custom') %}
+        <div style="font-size:8.5pt; font-weight:700; color:#0F172A; margin:8px 0 4px;">Custom / Specialty Ingredients</div>
+        <div class="rpt-ing-grid">
+            {% for name, val in ingr.get('custom').items() %}
+                {% if val > 0 %}
+                    <div class="rpt-ing-cell">
+                        <div class="rpt-ing-label">{{ name }}</div>
+                        <div class="rpt-ing-val">
+                            {# Smart formatting for custom items #}
+                            {% set has_unit = '(' in name %}
+                            {% set unit = name.split('(')[1].replace(')','') if has_unit else 'g' %}
+                            
+                            {% if unit == 'g' and val >= 1000 %}
+                                {{ "{:,.2f}".format(val / 1000) }} kg
+                            {% elif unit == 'ml' and val >= 1000 %}
+                                {{ "{:,.1f}".format(val / 1000) }} L
+                            {% else %}
+                                {{ "{:,.1f}".format(val) if val % 1 != 0 else val|int }} {{ unit if not has_unit else '' }}
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="rpt-footer-band">
+        <strong>MCS Analytics v1.0</strong>
+        <span>Page 1 of 2</span>
+        <span>{{ branch_label }} · {{ now_str }}</span>
+    </div>
+</div>
+
+<!-- PAGE 2: Performance & Drivers -->
+<div class="a4-page">
+    <div class="rpt-confid-strip">Confidential — Internal Use Only</div>
+    <div class="rpt-cont-header">
+        <span>☕ Mini Coffee Shop · Forecast Report</span>
+        <span>Page 2 of 2</span>
+    </div>
+
+    <div class="rpt-body">
+        <div class="rpt-section">
+            <div class="rpt-section-title">Historical Accuracy — Predicted vs Actual</div>
+            <div class="rpt-section-desc">Audit of past model performance. Comparison of predicted revenue vs realized sales.</div>
+        </div>
+
+        {% if fva_rows %}
             {% set ns_fva = namespace(total_p=0, total_a=0) %}
             {% for r in fva_rows %}
                 {% set ns_fva.total_p = ns_fva.total_p + r.get('predicted', 0) %}
                 {% set ns_fva.total_a = ns_fva.total_a + r.get('actual', 0) %}
             {% endfor %}
-            <div class="kpi-row">
-                <div class="kpi-card" style="background:#F1F5F9;"><div class="kpi-label">Total Predicted</div><div class="kpi-value" style="font-size:11pt;">RM {{ "{:,.2f}".format(ns_fva.total_p) }}</div></div>
-                <div class="kpi-card" style="background:#F1F5F9;"><div class="kpi-label">Total Actual</div><div class="kpi-value" style="font-size:11pt;">RM {{ "{:,.2f}".format(ns_fva.total_a) }}</div></div>
-                <div class="kpi-card" style="background:#F1F5F9;"><div class="kpi-label">Difference</div><div class="kpi-value" style="font-size:11pt;color:{{ '#059669' if ns_fva.total_a >= ns_fva.total_p else '#DC2626' }};">RM {{ "{:,.2f}".format((ns_fva.total_a - ns_fva.total_p)|abs) }}</div></div>
+            <div class="rpt-kpi-grid">
+                <div class="rpt-kpi-box">
+                    <div class="rpt-kpi-label">Cumulative Predicted</div>
+                    <div class="rpt-kpi-value">RM {{ "{:,.2f}".format(ns_fva.total_p) }}</div>
+                </div>
+                <div class="rpt-kpi-box accent">
+                    <div class="rpt-kpi-label">Cumulative Actual</div>
+                    <div class="rpt-kpi-value green">RM {{ "{:,.2f}".format(ns_fva.total_a) }}</div>
+                </div>
+                <div class="rpt-kpi-box info">
+                    <div class="rpt-kpi-label">Net Variance</div>
+                    <div class="rpt-kpi-value blue">RM {{ "{:,.2f}".format((ns_fva.total_a - ns_fva.total_p)|abs) }}</div>
+                </div>
             </div>
-            <table>
+
+            <table class="rpt-table">
                 <thead>
                     <tr>
                         <th>Date</th>
-                        <th class="text-right">Predicted (RM)</th>
-                        <th class="text-right">Actual (RM)</th>
-                        <th class="text-right">Difference</th>
+                        <th class="r">Predicted (RM)</th>
+                        <th class="r">Actual (RM)</th>
+                        <th class="r">Variance</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -321,56 +538,65 @@
                     {% set pred = r.get('predicted', 0) %}
                     {% set act  = r.get('actual', 0) %}
                     {% set var  = act - pred %}
-                    {% set var_pct = (var / pred * 100) if pred > 0 else 0 %}
                     <tr>
-                        <td class="text-mono">{{ r.get('ds', '—') }}</td>
-                        <td class="text-right">RM {{ "{:,.2f}".format(pred) }}</td>
-                        <td class="text-right">RM {{ "{:,.2f}".format(act) }}</td>
-                        <td class="text-right" style="color:{{ '#059669' if var >= 0 else '#DC2626' }};">
-                            {{ '+' if var >= 0 else '' }}RM {{ "{:,.2f}".format(var|abs) }} ({{ '{:+.1f}'.format(var_pct) }}%)
+                        <td class="mono">{{ r.get('ds', '—') }}</td>
+                        <td class="r">RM {{ "{:,.2f}".format(pred) }}</td>
+                        <td class="r">RM {{ "{:,.2f}".format(act) }}</td>
+                        <td class="r" style="color:{{ '#059669' if var >= 0 else '#DC2626' }}; font-weight:700;">
+                            {{ '+' if var >= 0 else '' }}{{ "{:,.2f}".format(var) }}
                         </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
-            {% else %}
-            <p style="color:var(--fc-muted);text-align:center;padding:20px;">No historical performance data available for this selection.</p>
-            {% endif %}
+        {% else %}
+            <div style="padding:20px; text-align:center; color:#64748B; border:1px dashed #E2E8F0; margin-bottom:14px;">No historical validation data available for this selection.</div>
+        {% endif %}
+
+        <div class="rpt-section">
+            <div class="rpt-section-title">Forecast Drivers & Impact Factors</div>
+            <div class="rpt-section-desc">Key operational variables influencing the upcoming revenue cycle.</div>
         </div>
 
-        <div style="display:flex; gap:15px;">
-            <div class="dashboard-card" style="flex:1;">
-                <div class="card-title">Best and Slowest Hours</div>
-                <table>
-                    <thead><tr><th>Hour</th><th class="text-right">Volume</th><th class="text-right">Rev (RM)</th></tr></thead>
-                    <tbody>
-                        {% for h in data.get('hourly', [])[:8] %}
-                        <tr><td class="text-mono">{{ h.get('hour', '—') }}</td><td class="text-right">{{ h.get('transactions', 0) }}</td><td class="text-right">RM {{ "{:,.0f}".format(h.get('revenue', 0)) }}</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+        <div class="rpt-driver-box">
+            <div class="rpt-section-eyebrow">Atmospheric Factors</div>
+            <div class="rpt-driver-row">
+                <span>☀️ Sunny / ⛅ Cloudy days</span>
+                <span style="color:#059669; font-weight:700;">Positive Velocity (+10%)</span>
             </div>
-            <div class="dashboard-card" style="flex:1;">
-                <div class="card-title">What Drives the Forecast?</div>
-                <div class="driver-row"><span>Sunny / Cloudy</span><span style="color:var(--green);font-weight:700;">+10% Sales</span></div>
-                <div class="progress-wrap"><div class="progress-bar" style="width:100%;background:var(--green);"></div></div>
-                
-                <div class="driver-row"><span>Rainy days</span><span style="color:var(--red);font-weight:700;">-30% Sales</span></div>
-                <div class="progress-wrap"><div class="progress-bar" style="width:63%;background:var(--red);"></div></div>
-
-                <div style="font-size:8pt;line-height:1.4;margin-top:10px;">
-                    <strong>Promotions:</strong> 20% off Lattes every Friday.<br>
-                    <strong>Holidays:</strong> {{ '-35% in Putrajaya' if branch_name == 'Putrajaya' else '+15% in Puncak Alam' }} during public holidays.
-                </div>
+            <div class="rpt-bar-bg"><div class="rpt-bar-fg" style="width:85%; background:#059669;"></div></div>
+            
+            <div class="rpt-driver-row">
+                <span>🌧️ Rainy days</span>
+                <span style="color:#DC2626; font-weight:700;">Negative Velocity (-30%)</span>
             </div>
-        </div>
+            <div class="rpt-bar-bg"><div class="rpt-bar-fg" style="width:35%; background:#DC2626;"></div></div>
 
-        <div class="footer">
-            <div>MCS Forecast System</div>
-            <div>Page 2 of 2</div>
-            <div>Confidential Business Data</div>
+            <hr class="rpt-hr" style="margin: 8px 0 12px 0;">
+
+            <div class="rpt-section-eyebrow">Strategic Factors</div>
+            <div style="font-size:9pt; line-height:1.7;">
+                <strong>Local Demand Profile:</strong> {{ data.get('persona', 'Standard operational profile.') }}<br>
+                <strong>Revenue Velocity:</strong> 
+                {% if branch_label == 'Putrajaya' %}
+                    Expected <span style="color:#DC2626; font-weight:700;">Office migration risk</span> during public holidays.
+                {% elif branch_label == 'Puncak Alam' %}
+                    Expected <span style="color:#059669; font-weight:700;">Residential lift</span> during festive periods.
+                {% else %}
+                    Mixed demand drivers based on local events.
+                {% endif %}
+                <br>
+                <strong>Procurement Alert:</strong> Predicted ingredient demand reflects theoretical usage. Adjust for safety stock based on actual delivery lead times.
+            </div>
         </div>
     </div>
+
+    <div class="rpt-footer-band">
+        <strong>MCS Analytics v1.0</strong>
+        <span>Page 2 of 2</span>
+        <span>{{ branch_label }} · Confidential</span>
+    </div>
+</div>
 
 </body>
 </html>

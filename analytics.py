@@ -5,21 +5,9 @@ import json
 from datetime import datetime, timedelta
 
 # ============================================================
-#    EXACT CLIENT SKU MAPPING & PRODUCT DICTIONARY (11 ITEMS)
+#    DYNAMIC PRODUCT DICTIONARY (Requirement 1)
 # ============================================================
-SKU_MAPPING = {
-    "HOT ESPRESSO": "SKU-1001",
-    "HOT AMERICANO": "SKU-1002",
-    "ICED AMERICANO": "SKU-1003",
-    "HOT LATTE": "SKU-1004",
-    "ICE LATTE": "SKU-1005",
-    "HOT CAPPUCCINO": "SKU-1006",
-    "ICE CAPPUCCINO": "SKU-1007",
-    "HOT MOCHA": "SKU-1008",
-    "ICE MOCHA": "SKU-1009",
-    "ICE BLENDED MOCHA": "SKU-1010",
-    "ICE BLENDED CHOCOLATE CHIP": "SKU-1011"
-}
+# SKU_MAPPING removed in favor of Database Recipe Registry
 
 def get_db_connection():
     db_path = os.path.join('database', 'coffee_shop.db')
@@ -48,11 +36,11 @@ def process_sales_dataframe(df):
     processed_df['Month'] = dt_series.dt.strftime('%m')
 
     # Layer 3: Product and Order Details
-    def assign_sku(item_name):
-        name_upper = str(item_name).upper().strip()
-        return SKU_MAPPING.get(name_upper, "SKU-9999")
-
-    processed_df['product_id'] = df['Item_Name'].apply(assign_sku)
+    processed_df['item_name'] = df['Item_Name'].str.upper().str.strip()
+    
+    # Generate a temporary product_id if not present or mapping is dynamic
+    processed_df['product_id'] = processed_df['item_name'].apply(lambda x: f"SKU-{hash(x) % 10000:04}")
+    
     processed_df['product_category'] = df['Item_Category']
     
     def format_modifiers(mod_json):
@@ -70,6 +58,9 @@ def process_sales_dataframe(df):
 
     # Layer 4: Financial and Payment Data
     processed_df['unit_price_MYR'] = df['Gross_Sales'] / df['Quantity_Sold']
+    processed_df['gross_sales_MYR'] = df['Gross_Sales']
+    processed_df['discount_amount_MYR'] = df['Discount_Amount']
+    processed_df['promo_code'] = df['Promo_Code'].fillna('NONE').str.upper().str.strip()
     processed_df['sst_amount_MYR'] = df['Tax_Amount']
     processed_df['Total_Bill_MYR'] = df['Net_Sales']
     processed_df['payment_method'] = df['Payment_Type']
@@ -106,12 +97,169 @@ def process_sales_dataframe(df):
 
     return processed_df
 
+def shorten_promo_code(code):
+    """
+    Requirement 2: Smart Alias Engine
+    Compresses long promo codes into clean, professional labels using the 'First & Last' rule.
+    """
+    if not code or code == 'NONE':
+        return 'None'
+    
+    # 1. Shrink keywords
+    replacements = {
+        'PROMOTION': 'Prm',
+        'PROMO': 'Prm',
+        'DISCOUNT': 'Disc',
+        'CAMPAIGN': 'Cmp',
+        'BOGOF': 'B1F1',
+        'BUY1FREE1': 'B1F1',
+        'BUY-1-FREE-1': 'B1F1'
+    }
+    
+    temp_code = code.upper().replace('_', ' ').replace('-', ' ')
+    for long, short in replacements.items():
+        temp_code = temp_code.replace(long, short)
+    
+    words = temp_code.split()
+    
+    # 2. First & Last Rule
+    if len(words) > 2:
+        shortened = f"{words[0]} {words[-1]}"
+    else:
+        shortened = " ".join(words)
+        
+    # 3. Final Beauty Wash
+    return shortened.title().replace('B1F1', 'B1F1').replace('Prm', 'Prm')
+
+def promo_efficiency_analyzer(where_clause="", params=None):
+    """
+    Requirement 2: Promotion Intelligence
+    Analyzes historical promo codes to identify high-volume vs high-value campaigns.
+    """
+    if params is None:
+        params = []
+        
+    conn = get_db_connection()
+    query = f"""
+        SELECT promo_code, 
+               SUM(transaction_qty) as total_qty,
+               SUM(gross_sales_MYR) as total_gross,
+               SUM(discount_amount_MYR) as total_discount,
+               SUM(Total_Bill_MYR) as total_net
+        FROM sales_transaction s
+        {where_clause} {"AND" if where_clause else "WHERE"} promo_code != 'NONE'
+        GROUP BY promo_code
+    """
+    
+    df = pd.read_sql_query(query, conn, params=params)
+    conn.close()
+    
+    if df.empty:
+        return []
+        
+    df['discount_ratio'] = (df['total_discount'] / df['total_gross']).round(4)
+    # Apply shortening to the display version
+    df['promo_display'] = df['promo_code'].apply(shorten_promo_code)
+    
+    def categorize_promo(row):
+        # Logic: If Quantity is high relative to Net sales (Gross is roughly double Net), it's likely B1F1
+        # Also check if discount ratio is near 0.5 for B1F1
+        if row['discount_ratio'] >= 0.45:
+            return "Volume (B1F1)"
+        elif row['discount_ratio'] > 0:
+            return "Percentage"
+        return "Fixed"
+        
+    df['promo_type'] = df.apply(categorize_promo, axis=1)
+    return df.to_dict('records')
+
+# ============================================================
+#    REQUIREMENT 3: RAMADHAN MODE FILTERS
+# ============================================================
+def get_ramadhan_peak_hours(branch_id=None):
+    """
+    Requirement 3: Analyzes peak hours strictly during the fasting month.
+    Focuses on the 4:30 PM - 12:00 AM night shift.
+    """
+    ramadhan_windows = [
+        ('2024-03-12', '2024-04-09'),
+        ('2025-03-02', '2025-03-30'),
+        ('2026-02-19', '2026-03-20'),
+        ('2027-02-08', '2027-03-09')
+    ]
+    
+    date_conds = " OR ".join([f"transaction_date BETWEEN '{s}' AND '{e}'" for s, e in ramadhan_windows])
+    
+    conn = get_db_connection()
+    query = f"""
+        SELECT Hour, SUM(transaction_qty) as quantity_sold, SUM(Total_Bill_MYR) as revenue
+        FROM sales_transaction
+        WHERE ({date_conds})
+    """
+    if branch_id:
+        query += f" AND branch_id = '{branch_id.upper().strip()}'"
+    query += " GROUP BY Hour ORDER BY quantity_sold DESC"
+    
+    df = pd.read_sql_query(query, conn)
+    conn.close()
+    return df.to_dict('records')
+
+def get_regular_peak_hours(branch_id=None):
+    """
+    Requirement 3: Analyzes peak hours excluding the fasting month.
+    Preserves the morning/afternoon operational baseline.
+    """
+    ramadhan_windows = [
+        ('2024-03-12', '2024-04-09'),
+        ('2025-03-02', '2025-03-30'),
+        ('2026-02-19', '2026-03-20'),
+        ('2027-02-08', '2027-03-09')
+    ]
+    
+    date_conds = " AND ".join([f"transaction_date NOT BETWEEN '{s}' AND '{e}'" for s, e in ramadhan_windows])
+    
+    conn = get_db_connection()
+    query = f"""
+        SELECT Hour, SUM(transaction_qty) as quantity_sold, SUM(Total_Bill_MYR) as revenue
+        FROM sales_transaction
+        WHERE ({date_conds})
+    """
+    if branch_id:
+        query += f" AND branch_id = '{branch_id.upper().strip()}'"
+    query += " GROUP BY Hour ORDER BY quantity_sold DESC"
+    
+    df = pd.read_sql_query(query, conn)
+    conn.close()
+    return df.to_dict('records')
+
 def bulk_insert_sales(df, db_path):
+    """
+    Inserts data into sales_transaction while strictly avoiding UNIQUE constraint failures.
+    """
     conn = sqlite3.connect(db_path, timeout=30.0)
     try:
-        df.to_sql('sales_transaction', conn, if_exists='append', index=False)
+        # 1. Fetch existing IDs from DB to prevent collisions
+        cursor = conn.cursor()
+        cursor.execute("SELECT transaction_id FROM sales_transaction")
+        existing_ids = set(row[0] for row in cursor.fetchall())
+        
+        # 2. Filter dataframe
+        initial_count = len(df)
+        df_clean = df[~df['transaction_id'].isin(existing_ids)]
+        duplicate_count = initial_count - len(df_clean)
+        
+        if df_clean.empty:
+            return True, f"No new records to insert. ({duplicate_count} duplicates skipped)"
+            
+        # 3. Perform insert
+        df_clean.to_sql('sales_transaction', conn, if_exists='append', index=False)
         conn.commit()
-        return True, f"Successfully inserted {len(df)} records."
+        
+        msg = f"Successfully inserted {len(df_clean)} records."
+        if duplicate_count > 0:
+            msg += f" ({duplicate_count} existing IDs skipped)"
+        return True, msg
+        
     except Exception as e:
         return False, str(e)
     finally:
@@ -146,7 +294,8 @@ def get_dashboard_metrics(branch_id=None):
 
 def calculate_ingredient_demand(forecasted_sales_list):
     """
-    Calculates operational inventory drawdown mapped strictly to your 11 menu items.
+    Calculates operational inventory drawdown by querying the Product Recipe Registry.
+    Requirement 1: Dynamic Math Engine
     """
     inventory_demand = {
         "beans_g": 0,
@@ -155,70 +304,59 @@ def calculate_ingredient_demand(forecasted_sales_list):
         "ice_g": 0,
         "whip_g": 0,
         "cup_hot": 0,
-        "cup_cold": 0
+        "cup_cold": 0,
+        "custom": {}  # For dynamic aggregation of extra ingredients
     }
 
+    if not forecasted_sales_list:
+        return inventory_demand
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Get all recipes from DB for mapping
+    cursor.execute("SELECT * FROM product_recipes")
+    recipes_raw = cursor.fetchall()
+    # Map by item_name (upper)
+    recipe_map = {}
+    for r in recipes_raw:
+        recipe_map[r[0].upper().strip()] = {
+            "beans_g": r[1],
+            "milk_ml": r[2],
+            "choco_g": r[3],
+            "ice_g":   r[4],
+            "whip_g":  r[5],
+            "cup_type": r[6],
+            "custom_ingredients": json.loads(r[7] or '{}')
+        }
+    conn.close()
+
     for item in forecasted_sales_list:
-        sku = item.get('product_id', '').upper().strip()
+        # Use item_name if provided, otherwise fallback to product_id (which might be the name now)
+        name = item.get('item_name') or item.get('product_id', '')
+        name_key = str(name).upper().strip()
         qty = item.get('quantity', 0)
-
-        # ── 1. ESPRESSO & AMERICANOS ────────────────────────────────────────
-        if sku in ["SKU-1001", "SKU-1002"]:  # Hot Espresso, Hot Americano
-            inventory_demand["beans_g"] += 18 * qty
+        
+        recipe = recipe_map.get(name_key)
+        if not recipe:
+            continue
+            
+        inventory_demand["beans_g"] += recipe["beans_g"] * qty
+        inventory_demand["milk_ml"] += recipe["milk_ml"] * qty
+        inventory_demand["choco_g"] += recipe["choco_g"] * qty
+        inventory_demand["ice_g"]   += recipe["ice_g"]   * qty
+        inventory_demand["whip_g"]  += recipe["whip_g"]  * qty
+        
+        if recipe["cup_type"] == "Hot":
             inventory_demand["cup_hot"] += 1 * qty
-        elif sku == "SKU-1003":  # Iced Americano
-            inventory_demand["beans_g"] += 18 * qty
-            inventory_demand["ice_g"] += 150 * qty
+        elif recipe["cup_type"] == "Cold":
             inventory_demand["cup_cold"] += 1 * qty
-
-        # ── 2. MILK-BASED ESPRESSO CORES ────────────────────────────────────
-        elif sku == "SKU-1004":  # Hot Latte
-            inventory_demand["beans_g"] += 18 * qty
-            inventory_demand["milk_ml"] += 200 * qty
-            inventory_demand["cup_hot"] += 1 * qty
-        elif sku == "SKU-1005":  # Ice Latte
-            inventory_demand["beans_g"] += 18 * qty
-            inventory_demand["milk_ml"] += 220 * qty
-            inventory_demand["ice_g"] += 120 * qty
-            inventory_demand["cup_cold"] += 1 * qty
-
-        elif sku == "SKU-1006":  # Hot Cappuccino
-            inventory_demand["beans_g"] += 18 * qty
-            inventory_demand["milk_ml"] += 150 * qty
-            inventory_demand["cup_hot"] += 1 * qty
-        elif sku == "SKU-1007":  # Ice Cappuccino
-            inventory_demand["beans_g"] += 18 * qty
-            inventory_demand["milk_ml"] += 180 * qty
-            inventory_demand["ice_g"] += 120 * qty
-            inventory_demand["cup_cold"] += 1 * qty
-
-        elif sku == "SKU-1008":  # Hot Mocha
-            inventory_demand["beans_g"] += 18 * qty
-            inventory_demand["milk_ml"] += 180 * qty
-            inventory_demand["choco_g"] += 20 * qty
-            inventory_demand["cup_hot"] += 1 * qty
-        elif sku == "SKU-1009":  # Ice Mocha
-            inventory_demand["beans_g"] += 18 * qty
-            inventory_demand["milk_ml"] += 200 * qty
-            inventory_demand["choco_g"] += 25 * qty
-            inventory_demand["ice_g"] += 120 * qty
-            inventory_demand["cup_cold"] += 1 * qty
-
-        # ── 3. PREMIUM ICE BLENDED LINES ────────────────────────────────────
-        elif sku == "SKU-1010":  # Ice Blended Mocha
-            inventory_demand["beans_g"] += 18 * qty
-            inventory_demand["milk_ml"] += 120 * qty
-            inventory_demand["choco_g"] += 25 * qty
-            inventory_demand["ice_g"] += 200 * qty
-            inventory_demand["whip_g"] += 20 * qty
-            inventory_demand["cup_cold"] += 1 * qty
-
-        elif sku == "SKU-1011":  # Ice Blended Chocolate Chip
-            inventory_demand["milk_ml"] += 150 * qty
-            inventory_demand["choco_g"] += 40 * qty
-            inventory_demand["ice_g"] += 200 * qty
-            inventory_demand["whip_g"] += 20 * qty
-            inventory_demand["cup_cold"] += 1 * qty
+            
+        # Handle custom ingredients
+        for ing_name, ing_val in recipe["custom_ingredients"].items():
+            if ing_name not in inventory_demand["custom"]:
+                inventory_demand["custom"][ing_name] = 0
+            inventory_demand["custom"][ing_name] += ing_val * qty
 
     return inventory_demand
 

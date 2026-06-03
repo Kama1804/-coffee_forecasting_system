@@ -11,6 +11,21 @@ from weather_api import fetch_future_weather
 #    MALAYSIA PUBLIC HOLIDAYS & DYNAMIC OPERATIONAL PATTERNS
 # ============================================================
 MY_PUBLIC_HOLIDAYS = [
+    # 2024 Base Events
+    ("2024-01-01", "New Year's Day"),
+    ("2024-02-10", "Chinese New Year"),
+    ("2024-02-11", "Chinese New Year (Day 2)"),
+    ("2024-04-10", "Hari Raya Aidilfitri"),
+    ("2024-04-11", "Hari Raya Aidilfitri (Day 2)"),
+    ("2024-05-01", "Labour Day"),
+    ("2024-05-22", "Wesak Day"),
+    ("2024-06-03", "Agong Birthday"),
+    ("2024-06-17", "Hari Raya Aidiladha"),
+    ("2024-08-31", "Merdeka Day"),
+    ("2024-09-16", "Malaysia Day"),
+    ("2024-10-31", "Deepavali"),
+    ("2024-12-25", "Christmas Day"),
+
     # 2025 Base Events
     ("2025-01-01", "New Year's Day"),
     ("2025-01-29", "Chinese New Year"),
@@ -51,15 +66,19 @@ MY_PUBLIC_HOLIDAYS = [
 ]
 
 MY_SEASONS = [
-    # 2026 School Terms & Ramadan Baseline
+    # Ramadan Windows (Confirmed 2024-2027)
+    ("2024-03-12", "2024-04-09", "Ramadan 2024"),
+    ("2025-03-02", "2025-03-30", "Ramadan 2025"),
+    ("2026-02-19", "2026-03-20", "Ramadan 2026"),
+    ("2027-02-08", "2027-03-09", "Ramadan 2027"),
+
+    # 2026 School Terms
     ("2026-03-14", "2026-03-22", "School Holidays March"),
     ("2026-05-30", "2026-06-14", "School Holidays June"),
     ("2026-08-15", "2026-08-23", "School Holidays August"),
     ("2026-11-14", "2026-12-31", "Year-End School Holidays"),
-    ("2026-02-18", "2026-03-19", "Ramadan"),
 
-    # 2027 Future School Terms & Ramadan Window
-    ("2027-02-07", "2027-03-08", "Ramadan 2027"),
+    # 2027 Future School Terms
     ("2027-03-13", "2027-03-21", "School Holidays March 2027"),
     ("2027-05-29", "2027-06-13", "School Holidays June 2027"),
     ("2027-08-21", "2027-08-29", "School Holidays August 2027"),
@@ -181,9 +200,37 @@ class ForecastEngine:
         return pd.DataFrame(records)
 
     # ----------------------------------------------------------------
-    def _add_promotion_features(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _add_promotion_features(self, df: pd.DataFrame, branch_id: str = None) -> pd.DataFrame:
+        """
+        Requirement 2: Dynamic Promotion Intelligence
+        Detects recurring Promo_Codes from history and flags them.
+        """
         df = df.copy()
-        df['friday_promo'] = (df['ds'].dt.dayofweek == 4).astype(int)
+        
+        # 1. Hardcoded 'Friday' removed. Instead, we check the DB for what usually happens on Fridays.
+        # But to maintain Prophet compatibility, we create a generic 'historical_promo' regressor.
+        df['historical_promo'] = 0
+        
+        if branch_id:
+            conn = sqlite3.connect(self.db_path)
+            # Find promo codes that appear frequently on specific days of the week
+            promo_query = """
+                SELECT strftime('%w', transaction_date) as dow, promo_code, COUNT(*) as cnt
+                FROM sales_transaction
+                WHERE branch_id = ? AND promo_code != 'NONE'
+                GROUP BY dow, promo_code
+                HAVING cnt > 2
+            """
+            promo_df = pd.read_sql_query(promo_query, conn, params=(branch_id,))
+            conn.close()
+            
+            if not promo_df.empty:
+                # If current day of week matches a historically high-promo day
+                df['dow'] = df['ds'].dt.strftime('%w')
+                high_promo_dows = promo_df['dow'].unique()
+                df.loc[df['dow'].isin(high_promo_dows), 'historical_promo'] = 1
+                df.drop(columns=['dow'], inplace=True)
+
         _, raw_promo_map = self._build_promo_and_closure_maps()
         df['seasonal_promo'] = df['ds'].dt.strftime('%Y-%m-%d').isin(raw_promo_map).astype(int)
         return df
@@ -211,7 +258,7 @@ class ForecastEngine:
         daily_df['weather_encoded'] = daily_df['weather_condition'].map(
             self.weather_weights).fillna(0)
         daily_df['ds'] = pd.to_datetime(daily_df['ds'])
-        daily_df = self._add_promotion_features(daily_df)
+        daily_df = self._add_promotion_features(daily_df, branch_id)
         daily_df['is_weekday'] = (daily_df['ds'].dt.dayofweek < 5).astype(int)
         daily_df['is_weekend'] = (daily_df['ds'].dt.dayofweek >= 5).astype(int)
         return daily_df.sort_values('ds').reset_index(drop=True)
@@ -295,12 +342,12 @@ class ForecastEngine:
             interval_width=0.95, seasonality_mode='multiplicative', holidays=holidays_df
         )
         m.add_regressor('weather_encoded', standardize=True)
-        m.add_regressor('friday_promo',    standardize=False, prior_scale=5.0)
+        m.add_regressor('historical_promo', standardize=False, prior_scale=5.0)
         m.add_regressor('seasonal_promo',  standardize=False, prior_scale=5.0)
         m.add_regressor('is_weekday',      standardize=False)
         m.add_regressor('is_weekend',      standardize=False)
 
-        fit_cols = ['ds', 'y', 'weather_encoded', 'friday_promo',
+        fit_cols = ['ds', 'y', 'weather_encoded', 'historical_promo',
                     'seasonal_promo', 'is_weekday', 'is_weekend']
         m.fit(df[fit_cols])
 
@@ -342,7 +389,7 @@ class ForecastEngine:
         if 'weather_encoded' in future.columns:
             future = future.drop(columns=['weather_encoded'])
         future = pd.merge(future, df[['ds', 'weather_encoded']], on='ds', how='left')
-        future = self._add_promotion_features(future)
+        future = self._add_promotion_features(future, branch_id)
 
         future_weather_labels = {}
         for idx, row in future.iterrows():
@@ -373,13 +420,27 @@ class ForecastEngine:
         conn   = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
+        # Requirement 2: Detect most likely promo codes for specific DOWs
+        cursor.execute("""
+            SELECT strftime('%w', transaction_date) as dow, promo_code, COUNT(*) as cnt
+            FROM sales_transaction
+            WHERE branch_id = ? AND promo_code != 'NONE'
+            GROUP BY dow, promo_code
+            HAVING cnt > 2
+            ORDER BY cnt DESC
+        """, (branch_id,))
+        promo_patterns = {}
+        for dow, p_code, _ in cursor.fetchall():
+            if dow not in promo_patterns:
+                promo_patterns[dow] = p_code
+
         mix_df = pd.read_sql_query("""
-            SELECT product_id, product_detail,
+            SELECT item_name, product_id, product_detail,
                    SUM(transaction_qty) as total_qty,
                    SUM(Total_Bill_MYR) as total_rev
             FROM sales_transaction
             WHERE branch_id = ? AND transaction_date >= date('now', '-30 day')
-            GROUP BY product_id, product_detail
+            GROUP BY item_name, product_id, product_detail
         """, conn, params=(branch_id,))
 
         total_hist_rev = mix_df['total_rev'].sum() if not mix_df.empty else 1
@@ -422,6 +483,7 @@ class ForecastEngine:
 
             if is_future and len(fore_payload) < 5:
                 is_friday          = (row['ds'].dayofweek == 4)   # Python: 4=Friday
+                dow_str = row['ds'].strftime('%w')
                 is_holiday_active  = date_str in holiday_date_set
 
                 # ── Build promotion list ──────────────────────────────────
@@ -439,9 +501,14 @@ class ForecastEngine:
                     # Use the RESOLVED promo map (already skipped closed days)
                     resolved_label = resolved_promo_map.get(date_str)
                     if resolved_label:
-                        promo_list.append(resolved_label)
-                    if is_friday:
-                        promo_list.append("Friday Promo — 20% off Lattes")
+                        from analytics import shorten_promo_code
+                        promo_list.append(shorten_promo_code(resolved_label))
+                    
+                    # Requirement 2: Dynamic Promo Detection from patterns
+                    pattern_promo = promo_patterns.get(dow_str)
+                    if pattern_promo:
+                        from analytics import shorten_promo_code
+                        promo_list.append(f"Recurring Promo: {shorten_promo_code(pattern_promo)}")
 
                 # ── Weather: blank out for closed days ────────────────────
                 if is_closed:
@@ -458,9 +525,12 @@ class ForecastEngine:
                 day_items = []
                 if adj_yhat > 0:
                     for _, m_row in mix_df.iterrows():
-                        pred_qty = int(round(m_row['qty_per_rm'] * adj_yhat))
-                        if pred_qty > 0:
+                        # We use floats for fractional quantities to ensure low-volume items
+                        # are correctly aggregated in the ingredient shopping guide.
+                        pred_qty = m_row['qty_per_rm'] * adj_yhat
+                        if pred_qty > 0.001:
                             item = {
+                                'item_name':      m_row['item_name'],
                                 'product_id':     m_row['product_id'],
                                 'product_detail': m_row['product_detail'],
                                 'quantity':       pred_qty

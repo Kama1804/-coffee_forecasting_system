@@ -1011,6 +1011,31 @@ function buildPage3(report, branch, monthLabel, from, to) {
 function buildPage4(report, branch, monthLabel, from, to) {
     const branchLabel = branch === 'all' ? 'All Operational Outlets' : branch;
 
+    const promoRows = (report.promo_efficiency || []).map(p => `
+        <tr>
+            <td style="font-weight:700; color:#1E40AF;">${p.promo_code}</td>
+            <td class="c">
+                <span class="badge ${p.promo_type.includes('Volume') ? 'badge-amber' : 'badge-blue'}">
+                    ${p.promo_type}
+                </span>
+            </td>
+            <td class="r">${fmtInt(p.total_qty)}</td>
+            <td class="r">RM ${fmt(p.total_gross)}</td>
+            <td class="r" style="color:#991B1B;">-RM ${fmt(p.total_discount)}</td>
+            <td class="r" style="font-weight:700;">RM ${fmt(p.total_net)}</td>
+        </tr>`).join('');
+
+    const promoSection = `
+        ${sectionHead('Promotion Efficiency & ROI', 'Analyzing campaign performance: Volume drivers vs. Revenue value.')}
+        <table class="rpt-table">
+            <thead><tr>
+                <th>Campaign Code</th><th class="c">Strategy</th>
+                <th class="r">Volume (Qty)</th><th class="r">Gross Sales</th>
+                <th class="r">Discounts</th><th class="r">Net Sales</th>
+            </tr></thead>
+            <tbody>${promoRows || '<tr><td colspan="6" style="color:#94A3B8;text-align:center;">No promotions detected.</td></tr>'}</tbody>
+        </table>`;
+
     const hourly    = report.hourly_breakdown || [];
     const dow       = report.dow_breakdown || [];
     const hourlyMax = Math.max(...hourly.map(h => h.txns), 1);
@@ -1037,6 +1062,7 @@ function buildPage4(report, branch, monthLabel, from, to) {
 
     return contHeader(branchLabel, monthLabel, 4, 5) + `
     <div class="rpt-body">
+        ${promoSection}
         ${sectionHead('Transaction Flow by Time',
           'Hourly order volume and day-of-week revenue patterns. ★ marks the peak window.')}
         <div class="rpt-dist-grid">

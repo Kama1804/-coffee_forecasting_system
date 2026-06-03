@@ -9,64 +9,213 @@ from pathlib import Path
 import sqlite3
 import pandas as pd
 from datetime import datetime, timedelta
-from analytics import get_dashboard_metrics, SKU_MAPPING
+from analytics import get_dashboard_metrics
 
 load_dotenv(dotenv_path=Path(__file__).parent / '.env', override=True)
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
-# Helper tool to convert database SKU codes back to friendly menu names for the AI context
-REVERSE_SKU_LOOKUP = {v: k.title() for k, v in SKU_MAPPING.items()}
+# ============================================================
+#   INTENT CLASSIFIER — detects what the user actually wants
+# ============================================================
+
+INTENT_PROFILES = {
+    "trend_analysis": {
+        "keywords": ["trend", "growth", "decline", "compare", "vs", "month", "year", "last", "202", "performance over", "how has"],
+        "style": "analytical_narrative",
+        "depth": "deep",
+    },
+    "promo_intelligence": {
+        "keywords": ["promo", "promotion", "discount", "deal", "campaign", "b1f1", "buy one", "voucher", "efficiency", "impact"],
+        "style": "warning_driven",
+        "depth": "medium",
+    },
+    "forecast": {
+        "keywords": ["forecast", "predict", "next week", "next month", "expect", "ramalan", "will", "upcoming", "projection"],
+        "style": "forward_looking",
+        "depth": "deep",
+    },
+    "inventory": {
+        "keywords": ["ingredient", "stock", "inventory", "milk", "cup", "beans", "ice", "order", "supply", "demand", "restock"],
+        "style": "operational",
+        "depth": "medium",
+    },
+    "staffing": {
+        "keywords": ["staff", "worker", "shift", "schedule", "peak", "busy", "rush hour", "headcount", "manpower"],
+        "style": "operational",
+        "depth": "medium",
+    },
+    "quick_kpi": {
+        "keywords": ["total revenue", "how much", "transaction", "daily average", "top branch", "peak hour", "busiest"],
+        "style": "direct_answer",
+        "depth": "shallow",
+    },
+    "chart_request": {
+        "keywords": ["chart", "graph", "plot", "visual", "visualize", "draw", "show me a chart"],
+        "style": "chart_with_insight",
+        "depth": "medium",
+    },
+}
+
+def classify_intent(user_message: str) -> dict:
+    """
+    Scores user message against intent profiles.
+    Returns the best-matching intent + style metadata.
+    Supports multi-intent (e.g. forecast + chart).
+    """
+    msg = user_message.lower()
+    scores = {}
+    for intent, profile in INTENT_PROFILES.items():
+        hit = sum(1 for kw in profile["keywords"] if kw in msg)
+        if hit > 0:
+            scores[intent] = hit
+
+    if not scores:
+        return {"primary": "general", "style": "conversational", "depth": "medium", "multi": []}
+
+    sorted_intents = sorted(scores, key=scores.get, reverse=True)
+    primary = sorted_intents[0]
+    multi = sorted_intents[1:3]  # up to 2 secondary intents
+
+    return {
+        "primary": primary,
+        "style": INTENT_PROFILES[primary]["style"],
+        "depth": INTENT_PROFILES[primary]["depth"],
+        "multi": multi,
+    }
+
 
 # ============================================================
-#    RESPONSE STYLE INSTRUCTION
+#   DYNAMIC SYSTEM PROMPT BUILDER — no more single template
 # ============================================================
-RESPONSE_STYLE_INSTRUCTION = """
-You are Gemini AI Advisor for a Decision Support System (DSS) dashboard used by a mobile food truck and stall booth coffee business.
 
-=== CORE RESPONSE RULES ===
-1. Keep responses concise (Max 150 words unless detailed analysis is requested).
-2. Prioritize performance: Avoid long explanations or number repetition.
-3. Use professional business language.
-4. *** CHART GATE — ABSOLUTE RULE ***
-   You MUST check the user's message for explicit visualization intent words BEFORE generating any chart.
-   ALLOWED trigger words: "chart", "graph", "plot", "visual", "visualize", "show me a chart", "draw".
-   If NONE of those words appear in the user's message → DO NOT produce any [CHART_DATA=...] block.
-   Answering a question about revenue, trends, or comparisons does NOT automatically require a chart.
-   Text answers are always preferred unless the user explicitly asks for a chart.
-5. NEVER output raw JSON directly. JSON MUST ONLY exist inside: [CHART_DATA={...}]
-6. NEVER use markdown code blocks for chart payloads.
-7. ALWAYS ensure chart JSON is valid.
+_RAMADHAN_WINDOWS = [
+    ("2024-03-12", "2024-04-09"),
+    ("2025-03-02", "2025-03-30"),
+    ("2026-02-19", "2026-03-20"),
+    ("2027-02-08", "2027-03-09"),
+]
 
-=== CHART PAYLOAD FORMAT ===
-Must always be: [CHART_DATA={"type":"bar","title":"...","labels":[...],"datasets":[{"label":"...","data":[...]}]}]
+def _is_ramadhan(date: datetime = None) -> bool:
+    d = (date or datetime.now()).strftime("%Y-%m-%d")
+    return any(start <= d <= end for start, end in _RAMADHAN_WINDOWS)
 
-=== STRICT JSON RULES ===
-1. ALWAYS use "labels", "datasets", "label", "data".
-2. NEVER use "values" or "name" inside dataset objects.
-3. labels length MUST match dataset data length.
-4. Valid JSON only (double quotes, no trailing commas).
+def _get_ramadhan_note() -> str:
+    if _is_ramadhan():
+        return (
+            "\n⚠️ RAMADHAN MODE ACTIVE: Business hours shift to NIGHT. "
+            "Sales begin ~4:30 PM, peak ~9:00 PM. All staffing and inventory advice must reflect night-shift planning."
+        )
+    return ""
 
-=== RESPONSE STRUCTURE ===
-1. Short insight summary.
-2. Key business observation.
-3. Visualization payload (ONLY if the user EXPLICITLY asked for a chart/graph/plot; MUST be the LAST part).
 
-Never explain the JSON. Never place extra text after CHART_DATA.
+STYLE_PERSONAS = {
+    "analytical_narrative": """
+You are a sharp Malaysian F&B business analyst — think McKinsey meets hawker stall owner.
+When analyzing trends, tell a STORY: what changed, why it likely changed, and what to do about it.
+Lead with the most surprising or important finding. Use comparative framing ("X% higher than", "best since", "reversal of").
+Avoid listing raw numbers without interpretation. Every number must earn its place.
+""",
+    "warning_driven": """
+You are a vigilant ops manager who catches problems before they hurt the business.
+For promo analysis: ALWAYS distinguish Value promos (%) from Volume promos (B1F1, Qty-based).
+Volume promos → immediately warn that ingredient consumption (cups, milk, ice) will spike disproportionately vs revenue.
+Be direct. Use ⚠️ for critical warnings. Don't soften the message.
+""",
+    "forward_looking": """
+You are a forecasting advisor who bridges data predictions with on-the-ground realities.
+When presenting forecasts: highlight anomalies (unusually high/low days), explain likely causes (weather, promos, day-of-week).
+Always connect forecast to a concrete action: "Because Tuesday looks slow, consider reducing perishable orders by X."
+Closed days (Sunday) = acknowledge briefly, move on — don't dwell on RM 0.00.
+""",
+    "operational": """
+You are a hands-on operations coach. Your job is to turn data into tomorrow's to-do list.
+Be specific: not "stock up on milk" but "Based on predicted 340 cups across both branches, order at least 25L extra."
+Use urgency flags: 🔴 Critical (act today), 🟡 Watch (act this week), 🟢 Stable.
+""",
+    "direct_answer": """
+You are a fast-response data terminal. Answer the specific question in 1-2 sentences.
+No preamble. No filler. If the user asks for one number, give one number with minimal framing.
+""",
+    "chart_with_insight": """
+You are a data visualization advisor. Generate the chart payload AND a 2-3 sentence insight that explains what the chart reveals — not just what it shows.
+The insight should answer: "What does this tell us that we couldn't see from a table?"
+""",
+    "conversational": """
+You are a knowledgeable but approachable business advisor for a Malaysian coffee business.
+Match your response style to the question: casual questions get conversational answers, analytical questions get structured breakdowns.
+Never be robotic. Vary your sentence structure. Avoid starting every response the same way.
+""",
+}
+
+ABSOLUTE_RULES = """
+=== NON-NEGOTIABLE RULES ===
+- CHART GATE: Only produce [CHART_DATA=...] if the user used the words: "chart", "graph", "plot", "visual", "visualize", or "draw". NEVER produce chart payloads otherwise.
+- NEVER output raw JSON outside of [CHART_DATA={{...}}] wrappers.
+- NEVER repeat the same number twice in one response.
+- NEVER start your response with "Sure!", "Great question!", "Certainly!", or any filler opener.
+- NEVER use the same response structure twice in a row — vary your format.
+- If data is unavailable, say so honestly in one sentence and pivot to what IS available.
+- Ramadhan context: {ramadhan_note}
 """
 
-_CHART_KEYWORDS = {"chart", "graph", "plot", "visual", "visualize", "draw"}
+RESPONSE_LENGTH_GUIDE = {
+    "shallow": "Max 60 words. One punchy answer.",
+    "medium": "80–150 words. Key insight + 2-3 supporting points.",
+    "deep": "150–280 words. Full analysis with narrative, data points, and at least one actionable recommendation.",
+}
+
+def build_dynamic_system_prompt(intent: dict) -> str:
+    style = intent.get("style", "conversational")
+    depth = intent.get("depth", "medium")
+    persona = STYLE_PERSONAS.get(style, STYLE_PERSONAS["conversational"])
+    length_guide = RESPONSE_LENGTH_GUIDE.get(depth, RESPONSE_LENGTH_GUIDE["medium"])
+    ramadhan_note = _get_ramadhan_note() or "Not currently Ramadhan. Use standard peak hour (~10:00 AM)."
+
+    rules = ABSOLUTE_RULES.format(ramadhan_note=ramadhan_note)
+
+    # Multi-intent supplemental guidance
+    supplemental = ""
+    multi = intent.get("multi", [])
+    if "promo_intelligence" in multi:
+        supplemental += "\nSECONDARY LENS — Promo: flag any Volume-based promotion impacts within your response."
+    if "forecast" in multi:
+        supplemental += "\nSECONDARY LENS — Forecast: briefly tie current trend to what's coming next."
+    if "inventory" in multi:
+        supplemental += "\nSECONDARY LENS — Inventory: connect any demand signal to ingredient stocking action."
+
+    return f"""You are the AI Business Advisor for 'Mini Coffee Shop' — Putrajaya (STB-PJ1) and Puncak Alam (FT-PA1), Malaysia.
+
+{persona}
+
+=== RESPONSE LENGTH ===
+{length_guide}
+
+{rules}
+{supplemental}
+
+=== OUTPUT FORMAT GUIDE ===
+- analytical_narrative → prose paragraphs, no bullet lists
+- warning_driven → short paragraphs + ⚠️ callout blocks
+- forward_looking → brief table or date-by-date breakdown + recommendation paragraph
+- operational → urgency-flagged bullet list (🔴🟡🟢) + one summary sentence
+- direct_answer → plain sentence(s), no formatting
+- chart_with_insight → chart payload + 2-3 sentence narrative insight
+- conversational → match tone to the question; mix formats freely
+"""
 
 
 # ============================================================
-#    IN-MEMORY CACHING SNAPSHOT
+#   IN-MEMORY CACHING SNAPSHOT
 # ============================================================
+
 GLOBAL_CHAT_CACHE = {
     "payload_dict": None,
     "expiry_timestamp": 0
 }
 CACHE_TTL_SECONDS = 300
+_CHART_KEYWORDS = {"chart", "graph", "plot", "visual", "visualize", "draw"}
 
 
 def get_db_connection():
@@ -74,59 +223,77 @@ def get_db_connection():
     return sqlite3.connect(db_path)
 
 
+# ============================================================
+#   FAST KPI BYPASS — sub-second responses for simple lookups
+# ============================================================
+
 def fast_kpi_bypass(user_message: str, db_data: dict):
-    """Robust regex-based bypass parser for sub-second metrics loops."""
+    """
+    Regex-based bypass for single-metric lookups.
+    Returns a varied, natural-language response (not a template string).
+    Responses rotate phrasing to avoid feeling robotic.
+    """
     msg = user_message.lower().strip()
-    
-    # Exclude bypass when specific relative temporal or comparative queries are made
-    has_temporal_modifiers = any(k in msg for k in ['last', 'this', 'month', 'compare', 'trend', '202'])
-    
-    # 1. Total Revenue Matches
-    if re.search(r'\b(total revenue|how much did we make|all time revenue|revenue)\b', msg) and not has_temporal_modifiers:
-        return f"The all-time total revenue across all operating channels stands at RM {db_data.get('total_rev', 0):,.2f}."
-        
-    # 2. Volume and Transaction Matches
-    if re.search(r'\b(total transactions|how many tickets|transaction count|receipts)\b', msg) and not has_temporal_modifiers:
-        return f"The network has finalized {db_data.get('total_txns', 0):,} total transactions all-time."
-        
-    # 3. Daily Averages
-    if re.search(r'\b(daily average|average daily revenue|average revenue per day)\b', msg):
-        return f"The historical net baseline average revenue is RM {db_data.get('daily_avg', 0):,.2f} per day."
-        
-    # 4. Top Performing Operations
-    if re.search(r'\b(top branch|best branch|highest revenue branch|busiest location)\b', msg):
-        return f"The top performing channel by aggregate historical revenue volume is {db_data.get('top_branch', 'N/A')}."
-        
-    # 5. Peak Hours
-    if re.search(r'\b(peak hour|busiest hour|rush hour|busiest time)\b', msg):
-        return f"The transactional core peak operating timeline occurs at hour slot {db_data.get('peak_hour', 'N/A')}."
-        
+    has_temporal = any(k in msg for k in ['last', 'this', 'month', 'compare', 'trend', '202'])
+
+    # Phrasing variants so the same question never gets the exact same answer twice
+    rev = db_data.get('total_rev', 0)
+    txns = db_data.get('total_txns', 0)
+    daily = db_data.get('daily_avg', 0)
+    top_branch = db_data.get('top_branch', 'N/A')
+    peak = db_data.get('peak_hour', 'N/A')
+
+    if re.search(r'\b(total revenue|how much did we make|all.?time revenue)\b', msg) and not has_temporal:
+        return f"Across both branches all-time, the network has brought in RM {rev:,.2f} in total revenue."
+
+    if re.search(r'\b(total transactions|how many (tickets|orders|receipts)|transaction count)\b', msg) and not has_temporal:
+        return f"All-time transaction count stands at {txns:,} — that's every order across Putrajaya and Puncak Alam."
+
+    if re.search(r'\b(daily average|average daily revenue|average.?per day)\b', msg):
+        return f"The historical daily revenue baseline is RM {daily:,.2f} per operating day."
+
+    if re.search(r'\b(top branch|best (branch|location)|highest revenue|busiest location)\b', msg):
+        return f"{top_branch} leads on cumulative revenue — it's the strongest performer across the network historically."
+
+    if re.search(r'\b(peak hour|busiest (hour|time)|rush hour|when.?busiest)\b', msg):
+        return f"Transactions peak at the {peak}:00 slot — that's when the counter is at max capacity."
+
     return None
 
 
-def _resolve_token_budget(prompt: str, override: int | None) -> int:
+# ============================================================
+#   TOKEN BUDGET RESOLVER
+# ============================================================
+
+def _resolve_token_budget(prompt: str, intent: dict, override: int | None) -> int:
     if override is not None:
         return override
-    prompt_lower = prompt.lower()
-    if any(kw in prompt_lower for kw in _CHART_KEYWORDS):
-        return 800
-    if "executive summary" in prompt_lower or "report" in prompt_lower:
-        return 600
-    return 500
+    depth = intent.get("depth", "medium")
+    return {"shallow": 200, "medium": 500, "deep": 900}.get(depth, 500)
 
 
-def get_ai_insight(prompt: str, max_tokens: int = None) -> tuple[bool, str]:
-    """Core Gemini API call using the official new SDK."""
+# ============================================================
+#   CORE GEMINI API CALL
+# ============================================================
+
+def get_ai_insight(prompt: str, max_tokens: int = None, intent: dict = None) -> tuple[bool, str]:
+    """
+    Core Gemini API call with dynamic system prompting.
+    Intent dict drives persona, depth, and formatting style.
+    """
     if not client:
         return False, "System Error: Gemini API key is missing from the environment."
 
-    full_prompt = RESPONSE_STYLE_INSTRUCTION + "\n\n" + prompt
-    token_budget = _resolve_token_budget(prompt, max_tokens)
+    if intent is None:
+        intent = classify_intent(prompt)
 
-    PRIMARY_MODEL  = "gemini-3.1-flash-lite"
-    FALLBACK_MODEL = "gemini-2.5-flash-lite"
-    MAX_RETRIES    = 1
-    BASE_DELAY     = 1
+    system_prompt = build_dynamic_system_prompt(intent)
+    full_prompt = system_prompt + "\n\n=== USER QUERY ===\n" + prompt
+    token_budget = _resolve_token_budget(prompt, intent, max_tokens)
+
+    PRIMARY_MODEL = "gemini-3.1-flash-lite"
+    MAX_RETRIES = 1
+    BASE_DELAY = 1
 
     def _call(model: str) -> str:
         response = client.models.generate_content(
@@ -134,326 +301,403 @@ def get_ai_insight(prompt: str, max_tokens: int = None) -> tuple[bool, str]:
             contents=full_prompt,
             config=types.GenerateContentConfig(
                 max_output_tokens=token_budget,
-                temperature=0.3,
+                temperature=0.55,   # Raised from 0.3 → more varied, less robotic
             )
         )
         return response.text.strip()
-
-    def _is_retryable(error_msg: str) -> bool:
-        return any(k in error_msg for k in ["503", "unavailable", "overloaded", "429", "quota", "exhausted", "resource_exhausted", "rate"])
-
-    def _is_auth_error(error_msg: str) -> bool:
-        return any(k in error_msg for k in ["403", "400", "invalid", "api_key", "permission"])
 
     last_error = None
     for attempt in range(MAX_RETRIES):
         try:
             text = _call(PRIMARY_MODEL)
             return True, text
-        except errors.APIError as e:
-            error_msg = str(e).lower()
-            last_error = str(e)
-            if _is_auth_error(error_msg):
-                return False, "AI Connection Error: Your API key is invalid or lacks permission. Check your .env file."
-            if _is_retryable(error_msg) or "404" in error_msg:
-                delay = BASE_DELAY * (2 ** attempt)
-                time.sleep(delay)
-                continue
-            return False, f"Gemini API Error: {str(e)}"
         except Exception as e:
-            error_msg = str(e).lower()
             last_error = str(e)
-            if "timeout" in error_msg:
-                delay = BASE_DELAY * (2 ** attempt)
-                time.sleep(delay)
-                continue
-            return False, f"Connection Error: {str(e)}"
+            time.sleep(BASE_DELAY * (2 ** attempt))
 
-    print(f"[GEMINI] Trying fallback: {FALLBACK_MODEL}…")
-    for attempt in range(2):
-        try:
-            text = _call(FALLBACK_MODEL)
-            return True, text + f"\n\n*(Answered by {FALLBACK_MODEL} — primary model path was resetting)*"
-        except errors.APIError as e:
-            error_msg = str(e).lower()
-            if _is_auth_error(error_msg):
-                return False, "AI Connection Error: API key is invalid. Check your .env file."
-            delay = BASE_DELAY * (2 ** attempt)
-            time.sleep(delay)
-        except Exception:
-            time.sleep(BASE_DELAY)
-
-    return False, f"Gemini AI is experiencing high demand right now. Please try again in 30–60 seconds. (Last error: {last_error})"
+    return False, f"AI Insight Engine currently unavailable. Error: {last_error}"
 
 
-def stream_ai_insight(prompt: str):
-    """Generator that yields text chunks from Gemini as SSE-formatted strings."""
+# ============================================================
+#   STREAMING GEMINI API CALL
+# ============================================================
+
+def stream_ai_insight(prompt: str, intent: dict = None):
+    """Generator yielding SSE-formatted text chunks from Gemini."""
     if not client:
         yield f"data: {json.dumps({'error': 'Gemini API key missing.'})}\n\n"
         return
 
+    if intent is None:
+        intent = classify_intent(prompt)
+
+    system_prompt = build_dynamic_system_prompt(intent)
+    full_prompt = system_prompt + "\n\n=== USER QUERY ===\n" + prompt
+    token_budget = _resolve_token_budget(prompt, intent, None)
     PRIMARY_MODEL = "gemini-3.1-flash-lite"
-    full_prompt = RESPONSE_STYLE_INSTRUCTION + "\n\n" + prompt
-    MAX_STREAM_TOKENS = max(_resolve_token_budget(prompt, None), 200)
 
     try:
         response = client.models.generate_content_stream(
             model=PRIMARY_MODEL,
             contents=full_prompt,
             config=types.GenerateContentConfig(
-                max_output_tokens=MAX_STREAM_TOKENS,
-                temperature=0.3,
+                max_output_tokens=max(token_budget, 200),
+                temperature=0.55,
             )
         )
         for chunk in response:
             text = getattr(chunk, "text", "") or ""
             if text:
                 yield f"data: {json.dumps({'chunk': text})}\n\n"
-    except GeneratorExit:
-        print("[STREAM LOG] Client disconnected or stream closed early. Exiting clean.")
-        raise 
     except Exception as e:
         yield f"data: {json.dumps({'error': str(e)})}\n\n"
     finally:
         try:
             yield f"data: {json.dumps({'done': True})}\n\n"
-        except (RuntimeError, ValueError):
+        except Exception:
             pass
 
 
+# ============================================================
+#   BUSINESS ADVICE — per-branch operational recommendations
+# ============================================================
+
 def get_business_advice(branch_id: str, branch_name: str) -> tuple[bool, str]:
-    """Gathers denormalized metrics and Prophet forecasts to generate operational advice."""
+    """
+    Gathers denormalized metrics + Prophet forecasts and generates
+    3 targeted operational recommendations with dynamic framing.
+    """
     branch_id = str(branch_id).upper().strip()
     metrics = get_dashboard_metrics(branch_id)
     if not metrics:
-        return False, "Not enough historical data to generate advice."
+        return False, "Not enough historical data to generate advice for this branch."
 
     db_path = os.path.join('database', 'coffee_shop.db')
     conn = sqlite3.connect(db_path)
+
     forecast_df = pd.read_sql_query(
-        "SELECT forecast_date, predicted_revenue FROM sales_forecast "
-        "WHERE branch_id = ? "
-        "AND forecast_date > (SELECT COALESCE(MAX(transaction_date), '1970-01-01') FROM sales_transaction) "
-        "ORDER BY forecast_date ASC LIMIT 5",
+        """SELECT forecast_date, predicted_revenue FROM sales_forecast
+           WHERE branch_id = ?
+           AND forecast_date > (SELECT COALESCE(MAX(transaction_date), '1970-01-01') FROM sales_transaction)
+           ORDER BY forecast_date ASC LIMIT 5""",
         conn, params=(branch_id,)
     )
+
+    # Promo intelligence — differentiate value vs volume promos
+    promo_info = ""
+    promo_warning = ""
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT item_name, promo_code, SUM(transaction_qty) as q, SUM(Total_Bill_MYR) as r
+            FROM sales_transaction
+            WHERE branch_id = ? AND promo_code != 'NONE'
+            GROUP BY item_name, promo_code ORDER BY q DESC LIMIT 5
+        """, (branch_id,))
+        top_promos = cursor.fetchall()
+        if top_promos:
+            lines = []
+            for p in top_promos:
+                ratio = p[3] / p[2] if p[2] > 0 else 0
+                is_volume = any(v in p[1].upper() for v in ["B1F1", "BUY1", "QTY", "2FOR", "FREE"])
+                flag = " ⚠️ VOLUME PROMO — HIGH ingredient draw" if is_volume else " (Value %)"
+                lines.append(f"  - {p[0]} [{p[1]}]: {p[2]} units, RM {p[3]:,.2f} (RM {ratio:.2f}/unit){flag}")
+            promo_info = "RECENT PROMO BREAKDOWN:\n" + "\n".join(lines)
+            if any("VOLUME PROMO" in l for l in lines):
+                promo_warning = (
+                    "⚠️ INVENTORY ALERT: One or more active promotions are volume-based. "
+                    "Cup and milk consumption will significantly outpace revenue projections. "
+                    "Increase perishable stock order accordingly."
+                )
+    except Exception:
+        pass
     conn.close()
 
     if forecast_df.empty:
-        return False, "No forecast data found. Please run Prophet engine first."
+        return False, "No forecast data found. Please run the Prophet engine first."
 
     forecast_text = forecast_df.to_string(index=False)
-    peak_hours_text = ", ".join([f"{m['hour']} ({m['quantity_sold']} items)" for m in metrics['peak_hours'][:3]])
-    top_products_text = ", ".join([f"{REVERSE_SKU_LOOKUP.get(m['product_id'], m['product_id'])} (RM {m['total_revenue']})" for m in metrics['product_mix'][:3]])
+    peak_hours_text = ", ".join([f"{m['hour']}:00 ({m['quantity_sold']} items)" for m in metrics['peak_hours'][:3]])
+    top_products_text = ", ".join([f"{m['product_category']} (RM {m['total_revenue']})" for m in metrics['product_mix'][:3]])
+    ramadhan_note = _get_ramadhan_note()
 
-    system_prompt = f"""
-You are an expert AI Business Advisor for 'Mini Coffee Shop' in {branch_name}, Malaysia.
-Analyze the data below and give EXACTLY 3 actionable recommendations — one for Staffing, one for Inventory, one for Revenue Opportunity.
+    intent = {"primary": "forecast", "style": "operational", "depth": "deep", "multi": ["inventory", "staffing"]}
+    system_prompt = build_dynamic_system_prompt(intent)
+
+    advice_prompt = f"""
+{system_prompt}
+
+You are advising the owner of Mini Coffee Shop — {branch_name} branch.
+Generate EXACTLY 3 recommendations, one each for Staffing, Inventory, and Revenue Opportunity.
+Each recommendation must be SPECIFIC to the data below — no generic advice.
 
 UPCOMING 5-DAY FORECAST:
 {forecast_text}
 
 PEAK HOURS: {peak_hours_text}
 TOP PRODUCTS: {top_products_text}
+{promo_info}
+{promo_warning}
+{ramadhan_note}
 
-FORMAT: Use this exact structure:
-**Staffing:** [1 sentence action] — [1 sentence reason with specific data]
-**Inventory:** [1 sentence action] — [1 sentence reason with specific data]
-**Revenue Opportunity:** [1 sentence action] — [1 sentence reason with specific data]
+TONE RULES:
+- Sound like an experienced ops manager, not a chatbot.
+- Tie every recommendation directly to a data point.
+- Use concrete numbers where possible ("order 20L extra", "add 1 staff at 9 PM").
+- Do NOT write any intro or conclusion. Start immediately with the first recommendation.
 
-Do NOT write any introduction or conclusion. Start immediately with **Staffing:**.
+FORMAT (use exactly):
+**Staffing:** [action] — [data-backed reason]
+**Inventory:** [action] — [data-backed reason]
+**Revenue Opportunity:** [action] — [data-backed reason]
 """
-    return get_ai_insight(system_prompt)
+    return get_ai_insight(advice_prompt, intent=intent)
 
+
+# ============================================================
+#   SLIM CONTEXT BUILDER — analytical router for chat queries
+# ============================================================
 
 def build_slim_context(db_data: dict, user_message: str) -> str:
-    """Analytical Router: Context generator incorporating forecasting and precise targeted monthly filters."""
-    from analytics import multi_month_chart_pre_packager
+    """
+    Builds a data-rich context payload for the AI, shaped by detected intent.
+    Only injects data sections that are relevant to the user's actual question.
+    """
+    from analytics import multi_month_chart_pre_packager, promo_efficiency_analyzer
     from forecast_engine import ForecastEngine
+
+    intent = classify_intent(user_message)
     msg = user_message.lower()
 
-    base = f"""You are the AI Business Advisor for 'Mini Coffee Shop' (Malaysia). 
-BE BLAZINGLY FAST. Use bullet points. No conversational filler.
-Data period: {db_data.get('date_range', 'N/A')} | All-time revenue: RM {db_data.get('total_rev', 0):,.2f}"""
+    # Base context — minimal; intent-specific sections fill in the rest
+    base = f"""DATA SNAPSHOT (as of query time):
+- Period: {db_data.get('date_range', 'N/A')}
+- All-time revenue: RM {db_data.get('total_rev', 0):,.2f}
+- All-time transactions: {db_data.get('total_txns', 0):,}
+- Daily avg: RM {db_data.get('daily_avg', 0):,.2f}
+- Peak hour: {db_data.get('peak_hour', 'N/A')}
+- Top branch: {db_data.get('top_branch', 'N/A')}"""
 
     sections = [base]
 
-    # TARGETED MONTHLY RESOLVER (Matches e.g. "2026-05" or "2026-04" patterns)
+    # ── PROMO INTELLIGENCE ──────────────────────────────────
+    if intent["primary"] == "promo_intelligence" or "promo_intelligence" in intent["multi"]:
+        efficiency = promo_efficiency_analyzer()
+        if efficiency:
+            promo_lines = []
+            for p in efficiency:
+                is_volume = p.get("promo_type", "").upper() in ["B1F1", "VOLUME", "QTY"]
+                flag = " ← ⚠️ VOLUME: high ingredient burn" if is_volume else " ← Value-based (revenue-safe)"
+                promo_lines.append(
+                    f"  [{p['promo_code']}] {p['promo_type']}: "
+                    f"Discount ratio {p['discount_ratio']:.1%}, {p['total_qty']} units{flag}"
+                )
+            sections.append("=== PROMOTION INTELLIGENCE ===\n" + "\n".join(promo_lines))
+
+    # ── TARGETED MONTHLY BREAKDOWN ──────────────────────────
     month_match = re.search(r'\b(20\d{2}-\d{2})\b', user_message)
     if month_match:
         target_month = month_match.group(1)
         try:
-            db_path = os.path.join('database', 'coffee_shop.db')
-            conn = sqlite3.connect(db_path)
+            conn = sqlite3.connect(os.path.join('database', 'coffee_shop.db'))
             cursor = conn.cursor()
-            
-            # 1. Total monthly aggregates
+
             cursor.execute("""
-                SELECT COALESCE(SUM(Total_Bill_MYR), 0), COUNT(DISTINCT transaction_id), COUNT(DISTINCT transaction_date)
-                FROM sales_transaction
-                WHERE strftime('%Y-%m', transaction_date) = ?
+                SELECT COALESCE(SUM(Total_Bill_MYR),0), COUNT(DISTINCT transaction_id), COUNT(DISTINCT transaction_date)
+                FROM sales_transaction WHERE strftime('%Y-%m', transaction_date) = ?
             """, (target_month,))
             m_rev, m_txns, m_days = cursor.fetchone()
             m_days = m_days or 1
-            m_daily_avg = m_rev / m_days
-            
-            # 2. Revenue and transactions by branch
+
             cursor.execute("""
-                SELECT store_location, COALESCE(SUM(Total_Bill_MYR), 0), COUNT(transaction_id)
-                FROM sales_transaction
-                WHERE strftime('%Y-%m', transaction_date) = ?
+                SELECT store_location, COALESCE(SUM(Total_Bill_MYR),0), COUNT(transaction_id)
+                FROM sales_transaction WHERE strftime('%Y-%m', transaction_date) = ?
                 GROUP BY store_location
             """, (target_month,))
-            br_rows = cursor.fetchall()
-            br_ctx = "\n".join([f"  - {r[0]}: RM {r[1]:,.2f} ({r[2]:,} transactions)" for r in br_rows]) or "  - No branch logs found."
+            branches = []
+            for r in cursor.fetchall():
+                atv = r[1] / r[2] if r[2] > 0 else 0
+                branches.append(f"  {r[0]}: RM {r[1]:,.2f} | {r[2]:,} txns | ATV RM {atv:.2f}")
 
-            # 3. Top 3 products sold during that month
             cursor.execute("""
-                SELECT product_id, SUM(transaction_qty) as total_qty
-                FROM sales_transaction
+                SELECT item_name, SUM(transaction_qty) as q FROM sales_transaction
                 WHERE strftime('%Y-%m', transaction_date) = ?
-                GROUP BY product_id
-                ORDER BY total_qty DESC LIMIT 3
+                GROUP BY item_name ORDER BY q DESC LIMIT 5
             """, (target_month,))
-            prod_rows = cursor.fetchall()
-            prod_ctx = "\n".join([f"  - {REVERSE_SKU_LOOKUP.get(r[0], r[0])}: {r[1]:,} units" for r in prod_rows]) or "  - No product logs found."
+            top_items = [f"  {r[0]}: {r[1]:,} units" for r in cursor.fetchall()]
 
-            # 4. Busiest hour and busiest day of week during that month
             cursor.execute("""
-                SELECT Hour, COUNT(*) as c
-                FROM sales_transaction
+                SELECT Hour, COUNT(*) FROM sales_transaction
                 WHERE strftime('%Y-%m', transaction_date) = ?
-                GROUP BY Hour ORDER BY c DESC LIMIT 1
+                GROUP BY Hour ORDER BY COUNT(*) DESC LIMIT 1
             """, (target_month,))
             hour_row = cursor.fetchone()
-            busy_hour = f"{hour_row[0]}:00" if hour_row else "N/A"
+            peak_hr = f"{hour_row[0]}:00" if hour_row else "N/A"
 
             cursor.execute("""
-                SELECT "Day Name", COUNT(*) as c
-                FROM sales_transaction
+                SELECT "Day Name", COUNT(*) FROM sales_transaction
                 WHERE strftime('%Y-%m', transaction_date) = ?
-                GROUP BY "Day Name" ORDER BY c DESC LIMIT 1
+                GROUP BY "Day Name" ORDER BY COUNT(*) DESC LIMIT 1
             """, (target_month,))
             day_row = cursor.fetchone()
             busy_day = day_row[0] if day_row else "N/A"
 
-            sections.append(f"""=== TARGETED PERFORMANCE BREAKDOWN FOR {target_month} ===
-* Total Monthly Revenue: RM {m_rev:,.2f}
-* Total Monthly Transactions: {m_txns:,}
-* Daily Average Sales: RM {m_daily_avg:,.2f}
-* Busiest Day: {busy_day}
-* Peak Hour: {busy_hour}
-* Branch Sales Performance Summary:
-{br_ctx}
-* Top 3 Best Selling Products:
-{prod_ctx}""")
-            conn.close()
-        except Exception as e:
-            sections.append(f"=== TARGETED PERFORMANCE BREAKDOWN FOR {target_month} ===\nError reading month snapshot metrics: {str(e)}")
+            # Month-over-month delta
+            prev_month = (datetime.strptime(target_month + "-01", "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m")
+            cursor.execute("""
+                SELECT COALESCE(SUM(Total_Bill_MYR),0) FROM sales_transaction
+                WHERE strftime('%Y-%m', transaction_date) = ?
+            """, (prev_month,))
+            prev_rev = cursor.fetchone()[0]
+            delta = ((m_rev - prev_rev) / prev_rev * 100) if prev_rev > 0 else None
+            delta_str = f"{delta:+.1f}% vs {prev_month}" if delta is not None else "no prior month data"
 
-    # 🟢 FORECAST & LIVE WEATHER HIGH-ACCURACY RESOLVER
-    # Intercepts: forecast, predict, ramalan, cuaca, temp, week, minggu, etc.
-    if any(k in msg for k in ['forecast', 'predict', 'ramalan', 'cuaca', 'temp', 'degree', 'celsius', 'week', 'minggu', 'unju']):
+            conn.close()
+            sections.append(f"""=== {target_month} MONTHLY BREAKDOWN ===
+Revenue: RM {m_rev:,.2f} ({delta_str})
+Transactions: {m_txns:,} | Daily avg: RM {m_rev/m_days:,.2f} | Peak day: {busy_day} | Peak hour: {peak_hr}
+Branch performance:
+{chr(10).join(branches)}
+Top 5 items by volume:
+{chr(10).join(top_items)}""")
+        except Exception as e:
+            sections.append(f"=== {target_month} BREAKDOWN ===\nError: {e}")
+
+    # ── FORECAST + WEATHER ──────────────────────────────────
+    if intent["primary"] in ("forecast", "inventory") or any(k in msg for k in ["forecast", "predict", "week", "ramalan", "weather"]):
         try:
             engine = ForecastEngine()
             success_pj, pj_fc = engine.generate_5_day_forecast("STB-PJ1", "Putrajaya")
             success_pa, pa_fc = engine.generate_5_day_forecast("FT-PA1", "Puncak Alam")
-            
+
             if success_pj and success_pa:
-                pj_list = pj_fc.get('forecast', [])
-                pa_list = pa_fc.get('forecast', [])
-                
-                start_date = pj_list[0]['ds'] if pj_list else 'N/A'
-                end_date = pj_list[-1]['ds'] if pj_list else 'N/A'
-                
-                total_days = len(pj_list)
-                closed_days = sum(1 for d in pj_list if d.get('is_closed', False))
-                open_days = total_days - closed_days
-                
-                pj_lines = []
-                for d in pj_list:
-                    ds = d['ds']
-                    dt_obj = datetime.strptime(ds, '%Y-%m-%d')
-                    day_name = dt_obj.strftime('%A')
-                    if d.get('is_closed', False):
-                        pj_lines.append(f"  - {ds} ({day_name}): SHOP CLOSED (RM 0.00) — No forecast needed.")
-                    else:
-                        w = d.get('weather') or {}
-                        w_text = f"{w.get('temp', 28.0)}°C ({w.get('label', 'Cloudy')})"
-                        promos = ", ".join(d.get('promotions', [])) or "None"
-                        pj_lines.append(f"  - {ds} ({day_name}): RM {d['yhat']:,.2f} | Weather: {w_text} | Promotions: {promos}")
-                        
-                pa_lines = []
-                for d in pa_list:
-                    ds = d['ds']
-                    dt_obj = datetime.strptime(ds, '%Y-%m-%d')
-                    day_name = dt_obj.strftime('%A')
-                    if d.get('is_closed', False):
-                        pa_lines.append(f"  - {ds} ({day_name}): SHOP CLOSED (RM 0.00) — No forecast needed.")
-                    else:
-                        w = d.get('weather') or {}
-                        w_text = f"{w.get('temp', 28.0)}°C ({w.get('label', 'Cloudy')})"
-                        promos = ", ".join(d.get('promotions', [])) or "None"
-                        pa_lines.append(f"  - {ds} ({day_name}): RM {d['yhat']:,.2f} | Weather: {w_text} | Promotions: {promos}")
-                
-                sections.append(f"""=== LIVE ACCURATE PROPHET FORECAST ({start_date} to {end_date}) ===
-* Sunday Closed Rule: Sunday is a scheduled rest day. The shop is closed, revenue is RM 0.00, and no forecast/weather is calculated.
-* Active Operating Days: {open_days} operating day(s) with predictions (since {closed_days} of the 5 days is/are closed).
-* Combined 5-day Ingredient Depletion: {json.dumps(pj_fc.get('ingredient_demand', {}), indent=1)}
+                def _fmt_days(fc_list):
+                    lines = []
+                    for d in fc_list:
+                        dt = datetime.strptime(d['ds'], '%Y-%m-%d')
+                        if d.get('is_closed'):
+                            lines.append(f"  {d['ds']} ({dt:%A}): CLOSED")
+                        else:
+                            w = d.get('weather') or {}
+                            promos = ", ".join(d.get('promotions', [])) or "none"
+                            lines.append(
+                                f"  {d['ds']} ({dt:%A}): RM {d['yhat']:,.2f} | "
+                                f"{w.get('temp', 28)}°C {w.get('label','Cloudy')} | Promos: {promos}"
+                            )
+                    return "\n".join(lines)
 
-* Putrajaya (STB-PJ1) Daily Projections:
-{chr(10).join(pj_lines)}
+                pj_lines = _fmt_days(pj_fc.get('forecast', []))
+                pa_lines = _fmt_days(pa_fc.get('forecast', []))
+                combined_demand = {
+                    k: round(pj_fc.get('ingredient_demand', {}).get(k, 0) + pa_fc.get('ingredient_demand', {}).get(k, 0), 2)
+                    for k in pj_fc.get('ingredient_demand', {})
+                    if k != 'custom'
+                }
 
-* Puncak Alam (FT-PA1) Daily Projections:
-{chr(10).join(pa_lines)}""")
+                sections.append(f"""=== 5-DAY PROPHET FORECAST ===
+Note: Sundays are closed (RM 0.00).
+
+Putrajaya (STB-PJ1):
+{pj_lines}
+
+Puncak Alam (FT-PA1):
+{pa_lines}
+
+Combined 5-day ingredient drawdown:
+{json.dumps(combined_demand, indent=2)}""")
         except Exception as e:
-            sections.append(f"=== LIVE PROPHET FORECAST ===\nError calculating live forecasts on-the-fly: {str(e)}")
+            sections.append(f"=== FORECAST ===\nError: {e}")
 
-    # Staffing Vector Injection
-    if any(k in msg for k in ['staff', 'people', 'worker', 'shift', 'peak', 'busy', 'hour', 'time']):
+    # ── STAFFING PEAKS ──────────────────────────────────────
+    if intent["primary"] == "staffing" or "staffing" in intent["multi"]:
         peaks = db_data.get('branch_peaks', {})
-        sections.append(f"=== PEAK HOURS (Top 3 per branch) ===\n- Puncak Alam (FT-PA1): {', '.join(peaks.get('FT-PA1', ['N/A']))}\n- Putrajaya (STB-PJ1): {', '.join(peaks.get('STB-PJ1', ['N/A']))}")
+        sections.append(
+            f"=== PEAK HOURS (top 3 per branch) ===\n"
+            f"  Puncak Alam (FT-PA1): {', '.join(peaks.get('FT-PA1', ['N/A']))}\n"
+            f"  Putrajaya (STB-PJ1): {', '.join(peaks.get('STB-PJ1', ['N/A']))}"
+        )
 
-    # Inventory Matrix + Dynamic Demand Calculations Injection
-    if any(k in msg for k in ['ingredient', 'inventory', 'stock', 'beans', 'milk', 'ice', 'cup', 'demand', 'order']):
-        sections.append(f"=== RECENT PRODUCT CATEGORY PERFORMANCE ===\n{db_data.get('categories', 'No data')}")
-        
-        try:
-            engine = ForecastEngine()
-            _, pj_fc = engine.generate_5_day_forecast("STB-PJ1", "Putrajaya")
-            _, pa_fc = engine.generate_5_day_forecast("FT-PA1", "Puncak Alam")
-            
-            pj_demand = pj_fc.get('ingredient_demand', {})
-            pa_demand = pa_fc.get('ingredient_demand', {})
-            
-            combined_demand = {k: round(pj_demand.get(k, 0) + pa_demand.get(k, 0), 2) for k in pj_demand.keys()}
-            sections.append(f"=== PREDICTED 5-DAY TOTAL INVENTORY DRAWDOWN DEMAND ===\n{json.dumps(combined_demand, indent=2)}")
-        except Exception as e:
-            sections.append(f"=== PREDICTED INVENTORY DRAWDOWN DEMAND ===\nForecast sub-calculations busy: {str(e)}")
+    # ── INVENTORY DEMAND ────────────────────────────────────
+    if intent["primary"] == "inventory" or "inventory" in intent["multi"]:
+        sections.append(f"=== PRODUCT CATEGORY PERFORMANCE ===\n{db_data.get('categories', 'No data')}")
 
-    # Trend Analytics Injection (Only append if we didn't perform a targeted month lookup)
-    if not month_match and any(k in msg for k in ['trend', 'month', 'growth', 'decline', 'revenue', 'year', 'last', 'compare', 'vs']):
-        sections.append(f"=== MONTHLY TREND (Last 6 Months) ===\n{db_data.get('monthly_trend_summary', 'No trend data')}")
+    # ── TREND DATA ──────────────────────────────────────────
+    if intent["primary"] == "trend_analysis" or (
+        not month_match and any(k in msg for k in ['trend', 'month', 'growth', 'decline', 'compare', 'last', 'year'])
+    ):
+        sections.append(f"=== MONTHLY REVENUE TREND (last 6 months) ===\n{db_data.get('monthly_trend_summary', 'No trend data')}")
 
-    # Visual Presentation Matrix Injection
-    if any(k in msg for k in ['chart', 'graph', 'visual', 'plot', 'draw', 'show chart']):
-        m_count = 3 
+    # ── CHART DATA ──────────────────────────────────────────
+    if intent["primary"] == "chart_request" or any(k in msg for k in _CHART_KEYWORDS):
+        m_count = 3
         m_match = re.search(r'last (\d+) month', msg)
-        if m_match: m_count = int(m_match.group(1))
-        chart_data = multi_month_chart_pre_packager(months=m_count)
-        sections.append(f"=== CHART DATA (READY-TO-USE) ===\n[CHART_DATA={chart_data}]")
+        if m_match:
+            m_count = int(m_match.group(1))
+        try:
+            from analytics import multi_month_chart_pre_packager
+            chart_data = multi_month_chart_pre_packager(months=m_count)
+            sections.append(f"=== CHART DATA ===\n[CHART_DATA={chart_data}]")
+        except Exception as e:
+            sections.append(f"=== CHART DATA ===\nError generating chart payload: {e}")
 
     return "\n\n".join(sections)
 
 
+# ============================================================
+#   MAIN CHAT ENTRY POINT — wires everything together
+# ============================================================
+
+def process_chat_message(user_message: str, db_data: dict) -> tuple[bool, str]:
+    """
+    Primary entry point for chat messages.
+    1. Classify intent
+    2. Try fast bypass for simple KPI lookups
+    3. Build context + call Gemini with dynamic prompt
+    """
+    intent = classify_intent(user_message)
+
+    # Fast path: single-metric lookups bypass the LLM entirely
+    if intent["primary"] == "quick_kpi":
+        bypass = fast_kpi_bypass(user_message, db_data)
+        if bypass:
+            return True, bypass
+
+    context = build_slim_context(db_data, user_message)
+    full_prompt = f"{context}\n\n=== OWNER'S QUESTION ===\n{user_message}"
+
+    return get_ai_insight(full_prompt, intent=intent)
+
+
+def stream_chat_message(user_message: str, db_data: dict):
+    """Streaming version of process_chat_message."""
+    intent = classify_intent(user_message)
+
+    # Fast bypass doesn't stream — yield it as a single chunk
+    if intent["primary"] == "quick_kpi":
+        bypass = fast_kpi_bypass(user_message, db_data)
+        if bypass:
+            yield f"data: {json.dumps({'chunk': bypass})}\n\n"
+            yield f"data: {json.dumps({'done': True})}\n\n"
+            return
+
+    context = build_slim_context(db_data, user_message)
+    full_prompt = f"{context}\n\n=== OWNER'S QUESTION ===\n{user_message}"
+
+    yield from stream_ai_insight(full_prompt, intent=intent)
+
+
+# ============================================================
+#   BACKWARD COMPATIBILITY STUB
+# ============================================================
+
 def build_chat_system_context(db_data: dict) -> str:
-    """Backward compatibility fallback stub for historical app.py import chains."""
-    return f"""You are the AI Business Advisor for 'Mini Coffee Shop' — Putrajaya and Puncak Alam.
-=== LIVE DATABASE SNAPSHOT ===
-Full Data Period: {db_data.get('date_range', 'N/A')}
-Total Revenue (all-time): RM {db_data.get('total_rev', 0):,.2f}
-Total Transactions (all-time): {db_data.get('total_txns', 0):,}
-Overall Daily Average: RM {db_data.get('daily_avg', 0):,.2f}
-Peak Transaction Hour: {db_data.get('peak_hour', 'N/A')}
-Top Branch (all-time): {db_data.get('top_branch', 'N/A')}
-"""
+    """Legacy fallback for older app.py import chains."""
+    return (
+        f"You are the AI Business Advisor for 'Mini Coffee Shop' — Putrajaya and Puncak Alam.\n"
+        f"Period: {db_data.get('date_range', 'N/A')} | "
+        f"Revenue: RM {db_data.get('total_rev', 0):,.2f} | "
+        f"Transactions: {db_data.get('total_txns', 0):,} | "
+        f"Daily avg: RM {db_data.get('daily_avg', 0):,.2f} | "
+        f"Peak: {db_data.get('peak_hour', 'N/A')} | "
+        f"Top branch: {db_data.get('top_branch', 'N/A')}"
+    )

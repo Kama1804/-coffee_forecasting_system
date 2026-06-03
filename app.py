@@ -15,10 +15,13 @@ from dotenv import load_dotenv
 # Core Module Dependencies
 from init_db import initialize_database
 from etl_pipeline import ETLPipeline
-from gemini_agent import get_ai_insight, stream_ai_insight, build_slim_context, fast_kpi_bypass
+from gemini_agent import (get_ai_insight, stream_ai_insight, build_slim_context,
+                           fast_kpi_bypass, classify_intent, process_chat_message,
+                           stream_chat_message)
 from forecast_engine import ForecastEngine, MY_PUBLIC_HOLIDAYS, MY_SEASONS
 from analytics import (get_dashboard_metrics, calculate_ingredient_demand, 
-                       revenue_decline_and_product_mix_profiler, weather_payday_cross_tabulation, SKU_MAPPING)
+                       revenue_decline_and_product_mix_profiler, weather_payday_cross_tabulation,
+                       get_ramadhan_peak_hours, get_regular_peak_hours)
 from io import BytesIO
 
 load_dotenv(override=True)
@@ -80,9 +83,6 @@ if not os.path.exists(DB_PATH):
     initialize_database()
 else:
     print("Database found. System ready.")
-
-# Helper tool to convert database SKU codes back to friendly menu names for frontend charts
-REVERSE_SKU_LOOKUP = {v: k.title() for k, v in SKU_MAPPING.items()}
 
 
 # ============================================================
@@ -215,6 +215,9 @@ def upload_file():
             pipeline = ETLPipeline(filepath)
             success, message = pipeline.process_data()
             if success:
+                # Store missing recipes in session for the UI alert 
+                session['missing_recipes'] = getattr(pipeline, 'missing_recipes', [])
+                
                 db_success, db_message = pipeline.save_to_database(DB_PATH)
                 if db_success:
                     flash(f'Success! {filename} was cleaned and loaded. {db_message}', 'success')
@@ -284,6 +287,62 @@ def upload_file():
 
 
 # ============================================================
+#  RECIPE REGISTRY API
+# ============================================================
+@app.route('/api/get-missing-recipes')
+@login_required
+def api_get_missing_recipes():
+    """Returns the list of items from the last upload that need recipes."""
+    missing = session.get('missing_recipes', [])
+    return jsonify({"status": "success", "missing": missing})
+
+@app.route('/api/save-recipe', methods=['POST'])
+@login_required
+def api_save_recipe():
+    """Saves a new recipe to the database."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"status": "error", "message": "No data provided"}), 400
+    
+    item_name = data.get('item_name')
+    if not item_name:
+        return jsonify({"status": "error", "message": "Item name is required"}), 400
+        
+    try:
+        conn = get_db_connection()
+        cursor = conn.row_factory = None # Reset row factory for insert
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            INSERT OR REPLACE INTO product_recipes 
+            (item_name, beans_g, milk_ml, choco_g, ice_g, whip_g, cup_type, custom_ingredients)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            item_name,
+            float(data.get('beans_g', 0)),
+            float(data.get('milk_ml', 0)),
+            float(data.get('choco_g', 0)),
+            float(data.get('ice_g', 0)),
+            float(data.get('whip_g', 0)),
+            data.get('cup_type', 'None'),
+            json.dumps(data.get('custom_ingredients', {}))
+        ))
+        conn.commit()
+        conn.close()
+        
+        # Remove from session list once saved
+        missing = session.get('missing_recipes', [])
+        if item_name in missing:
+            missing.remove(item_name)
+            session['missing_recipes'] = missing
+            session.modified = True
+            
+        return jsonify({"status": "success", "message": f"Recipe for {item_name} saved successfully."})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ============================================================
 #    API — DASHBOARD FILTERS
 # ============================================================
 @app.route('/api/dashboard_filters')
@@ -304,6 +363,32 @@ def api_dashboard_filters():
         months = [r['mo'] for r in cursor.fetchall() if r['mo']]
         conn.close()
         return jsonify({"status": "success", "years": years, "months": months})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ============================================================
+#    PROMOTION INTELLIGENCE API
+# ============================================================
+@app.route('/api/promo-efficiency')
+@login_required
+def api_promo_efficiency():
+    """Returns promotion performance and ROI metrics."""
+    branch = request.args.get('branch', 'all')
+    time_filter = request.args.get('time', 'all')
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT MAX(transaction_date) as max_d FROM sales_transaction")
+        max_date = cursor.fetchone()['max_d'] or datetime.today().strftime('%Y-%m-%d')
+        conn.close()
+
+        where, params = build_where(branch, time_filter, max_date, alias='s')
+        
+        from analytics import promo_efficiency_analyzer
+        efficiency = promo_efficiency_analyzer(where, params)
+        return jsonify({"status": "success", "data": _sanitize_for_json(efficiency)})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -438,15 +523,24 @@ def api_charts():
         date_col    = "strftime('%Y-%m', s.transaction_date)" if use_monthly else "s.transaction_date"
 
         cursor.execute(f"""
-            SELECT {date_col} as period, SUM(s.Total_Bill_MYR) as rev
+            SELECT {date_col} as period, 
+                   SUM(s.gross_sales_MYR) as gross,
+                   SUM(s.discount_amount_MYR) as disc,
+                   SUM(s.Total_Bill_MYR) as net
             FROM sales_transaction s {where}
             GROUP BY period ORDER BY period ASC
         """, params)
         trend_rows = cursor.fetchall()
 
         trend_labels = []
+        trend_gross  = []
+        trend_disc   = []
+        trend_net    = []
         for r in trend_rows:
             p = r['period']
+            trend_gross.append(round(r['gross'], 2))
+            trend_disc.append(round(r['disc'], 2))
+            trend_net.append(round(r['net'], 2))
             if use_monthly and p:
                 try:
                     dt = datetime.strptime(p + '-01', '%Y-%m-%d')
@@ -464,20 +558,20 @@ def api_charts():
         cat_rows = cursor.fetchall()
 
         cursor.execute(f"""
-            SELECT s.product_id, SUM(s.transaction_qty) as qty
+            SELECT s.item_name, SUM(s.transaction_qty) as qty
             FROM sales_transaction s {where}
-            GROUP BY s.product_id ORDER BY qty DESC LIMIT 5
+            GROUP BY s.item_name ORDER BY qty DESC LIMIT 5
         """, params)
         top_prods = cursor.fetchall()
-        top_prod_labels = [REVERSE_SKU_LOOKUP.get(r['product_id'], r['product_id']) for r in top_prods]
+        top_prod_labels = [r['item_name'] for r in top_prods]
 
         cursor.execute(f"""
-            SELECT s.product_id, SUM(s.transaction_qty) as qty
+            SELECT s.item_name, SUM(s.transaction_qty) as qty
             FROM sales_transaction s {where}
-            GROUP BY s.product_id ORDER BY qty ASC LIMIT 3
+            GROUP BY s.item_name ORDER BY qty ASC LIMIT 3
         """, params)
         weak_prods = cursor.fetchall()
-        weak_prod_labels = [REVERSE_SKU_LOOKUP.get(r['product_id'], r['product_id']) for r in weak_prods]
+        weak_prod_labels = [r['item_name'] for r in weak_prods]
 
         cursor.execute(f"""
             SELECT s.payment_method, COUNT(*) as cnt
@@ -547,12 +641,18 @@ def api_charts():
 
         conn.close()
 
+        branch_id = None
+        if branch_filter == 'Putrajaya':    branch_id = 'STB-PJ1'
+        elif branch_filter == 'Puncak Alam': branch_id = 'FT-PA1'
+
         return jsonify({
             "status": "success",
             "trend": {
                 "labels":     trend_labels,
                 "raw":        [r['period'] for r in trend_rows],
-                "data":       [round(r['rev'], 2) for r in trend_rows],
+                "data":       trend_net,
+                "gross":      trend_gross,
+                "discount":   trend_disc,
                 "is_monthly": use_monthly
             },
             "monthly": {
@@ -585,7 +685,11 @@ def api_charts():
             "heatmap": [
                 {'day': r['d_name'], 'hour': r['hr'], 'value': r['txn_count']}
                 for r in heat_rows
-            ]
+            ],
+            "peak_data": {
+                "regular": _sanitize_for_json(get_regular_peak_hours(branch_id)),
+                "ramadhan": _sanitize_for_json(get_ramadhan_peak_hours(branch_id))
+            }
         })
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -771,7 +875,8 @@ def api_chat():
 User: {user_message}
 AI:"""
 
-    success, ai_response = get_ai_insight(final_prompt)
+    intent = classify_intent(user_message)
+    success, ai_response = get_ai_insight(final_prompt, intent=intent)  
 
     if success:
         history_cache = session['chat_history']
@@ -842,8 +947,9 @@ AI:"""
     session['_pending_user_msg'] = user_message
     session.modified = True
 
+    intent = classify_intent(user_message)
     return Response(
-        stream_ai_insight(final_prompt),
+        stream_ai_insight(final_prompt, intent=intent),
         mimetype='text/event-stream',
         headers={
             'Cache-Control': 'no-cache',
@@ -1131,34 +1237,34 @@ def _build_report_data(branch_filter, date_from, date_to):
 
     # ── Product performance ────────────────────────────────────
     cursor.execute(f"""
-        SELECT s.product_id as product_id,
+        SELECT s.item_name as product_id,
                SUM(s.transaction_qty) as qty,
                ROUND(SUM(s.Total_Bill_MYR), 2) as revenue
         FROM sales_transaction s
         {where_clause}
-        GROUP BY s.product_id ORDER BY qty DESC LIMIT 5
+        GROUP BY s.item_name ORDER BY qty DESC LIMIT 5
     """, base_params())
     top_products_raw = [dict(r) for r in cursor.fetchall()]
 
     top_products = []
     for p in top_products_raw:
         p['pct'] = round(p['revenue'] / period_revenue * 100, 1) if period_revenue else 0.0
-        p['product_id'] = REVERSE_SKU_LOOKUP.get(p['product_id'], p['product_id'])
+        # No more SKU mapping needed, name is already friendly
         top_products.append(p)
 
     cursor.execute(f"""
-        SELECT s.product_id as product_id,
+        SELECT s.item_name as product_id,
                SUM(s.transaction_qty) as qty,
                ROUND(SUM(s.Total_Bill_MYR), 2) as revenue
         FROM sales_transaction s
         {where_clause}
-        GROUP BY s.product_id ORDER BY qty ASC LIMIT 3
+        GROUP BY s.item_name ORDER BY qty ASC LIMIT 3
     """, base_params())
     bottom_products_raw = [dict(r) for r in cursor.fetchall()]
     
     bottom_products = []
     for p in bottom_products_raw:
-        p['product_id'] = REVERSE_SKU_LOOKUP.get(p['product_id'], p['product_id'])
+        # No more SKU mapping needed
         bottom_products.append(p)
 
     # ── Category breakdown ─────────────────────────────────────
@@ -1376,6 +1482,13 @@ def _build_report_data(branch_filter, date_from, date_to):
     except Exception:
         diagnostics = {}
 
+    # ── Promotion Efficiency Analysis ──────────────────────────
+    try:
+        from analytics import promo_efficiency_analyzer
+        promo_efficiency = promo_efficiency_analyzer(where_clause, base_params())
+    except Exception:
+        promo_efficiency = []
+
     conn.close()
 
     top_prod_ctx    = ", ".join([f"{p['product_id']} ({p['qty']} units)" for p in top_products]) or "N/A"
@@ -1397,7 +1510,8 @@ def _build_report_data(branch_filter, date_from, date_to):
         f"Then give exactly 3 numbered, actionable steps the owner can take this month to improve revenue. "
         f"Ensure each step is a complete, finished sentence."
     )
-    success_ai, insight = get_ai_insight(ai_prompt)
+    _report_intent = {"primary": "trend_analysis", "style": "analytical_narrative", "depth": "medium", "multi": []}
+    success_ai, insight = get_ai_insight(ai_prompt, intent=_report_intent)
 
     raw_result = {
         "status":               "success",
@@ -1433,6 +1547,7 @@ def _build_report_data(branch_filter, date_from, date_to):
         "pva_count_off":        pva_count_off,
         "pva_days_with_data":   len(pva_with_actual),
         "diagnostics":          diagnostics,
+        "promo_efficiency":     promo_efficiency,
         "ai_insight":           insight if success_ai else "AI insight temporarily unavailable."
     }
 

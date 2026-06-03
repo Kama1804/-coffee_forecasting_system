@@ -65,12 +65,17 @@
 .hist-item .ico { font-size: .75rem; color: var(--text3); flex-shrink: 0; }
 .hist-item.active .ico { color: var(--blue); }
 .hist-item .body { flex: 1; min-width: 0; }
-.hist-item .ttl { font-size: .78rem; font-weight: 500; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hist-item .ttl { font-size: .78rem; font-weight: 500; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; width: 100%; }
+.hist-item .ttl-inp { display: none; width: 100%; font-size: .78rem; border: 1px solid var(--blue); border-radius: 4px; padding: 2px 4px; outline: none; }
+.hist-item.editing .ttl { display: none; }
+.hist-item.editing .ttl-inp { display: block; }
 .hist-item.active .ttl { color: var(--blue); }
 .hist-item .ts { font-size: .66rem; color: var(--text3); margin-top: 1px; }
-.hist-item .del { opacity: 0; background: none; border: none; color: var(--text3); font-size: .7rem; cursor: pointer; padding: 2px 4px; border-radius: 4px; }
-.hist-item:hover .del { opacity: 1; }
+.hist-item .del { opacity: 0; background: none; border: none; color: var(--text3); font-size: .75rem; cursor: pointer; padding: 4px; border-radius: 4px; transition: all .15s; }
+.hist-item .ren { opacity: 0; background: none; border: none; color: var(--text3); font-size: .75rem; cursor: pointer; padding: 4px; border-radius: 4px; transition: all .15s; margin-right: 4px; }
+.hist-item:hover .del, .hist-item:hover .ren { opacity: 1; }
 .hist-item .del:hover { color: var(--red); background: #FEE2E2; }
+.hist-item .ren:hover { color: var(--blue); background: var(--blue-dim); }
 .hist-empty { text-align: center; padding: 2rem 1rem; color: var(--text3); font-size: .78rem; line-height: 1.6; }
 
 .main-panel {
@@ -413,17 +418,62 @@ function renderHist() {
       const a = current && s.id===current.id ? 'active':'';
       const t = new Date(s.updated).toLocaleTimeString('en-MY',{hour:'2-digit',minute:'2-digit'});
       const c = s.messages.filter(m=>m.r==='u').length;
-      h+=`<div class="hist-item ${a}" onclick="loadSess('${s.id}')">
+      h+=`<div class="hist-item ${a}" id="item_${s.id}" onclick="loadSess('${s.id}')">
         <i class="fa-regular fa-comment ico"></i>
         <div class="body">
-          <div class="ttl">${esc(s.title)}</div>
+          <div class="ttl" id="ttl_${s.id}">${esc(s.title)}</div>
+          <input type="text" class="ttl-inp" id="inp_${s.id}" 
+            value="${esc(s.title)}" 
+            onclick="event.stopPropagation()"
+            onkeydown="if(event.key==='Enter')saveRename('${s.id}')"
+            onblur="saveRename('${s.id}')">
           <div class="ts">${t} · ${c} msg${c!==1?'s':''}</div>
         </div>
-        <button class="del" onclick="delSess(event,'${s.id}')"><i class="fa-solid fa-xmark"></i></button>
+        <button class="ren" onclick="renameSess(event,'${s.id}')" title="Rename"><i class="fa-solid fa-pencil"></i></button>
+        <button class="del" onclick="delSess(event,'${s.id}')" title="Delete"><i class="fa-solid fa-trash-can"></i></button>
       </div>`;
     });
   });
   list.innerHTML = h;
+}
+
+function renameSess(e, id) {
+  if (e) { e.preventDefault(); e.stopPropagation(); }
+  const item = document.getElementById('item_'+id);
+  if (!item) return;
+  
+  item.classList.add('editing');
+  const inp = document.getElementById('inp_'+id);
+  if (inp) {
+    inp.focus();
+    inp.select();
+  }
+}
+
+function saveRename(id) {
+  const item = document.getElementById('item_'+id);
+  const inp = document.getElementById('inp_'+id);
+  if (!item || !inp || !item.classList.contains('editing')) return;
+
+  const newTitle = inp.value.trim();
+  if (newTitle !== "") {
+    const all = load();
+    const sess = all.find(s => s.id === id);
+    if (sess) {
+      sess.title = newTitle;
+      sess.updated = Date.now();
+      save(all);
+      
+      if (current && current.id === id) {
+        current.title = newTitle;
+        const sessTtlEl = document.getElementById('sessTtl');
+        if (sessTtlEl) sessTtlEl.textContent = newTitle;
+      }
+    }
+  }
+  
+  item.classList.remove('editing');
+  renderHist();
 }
 function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
@@ -853,9 +903,14 @@ async function send(text) {
 
         if (parsed.chunk) {
           accumulated += parsed.chunk;
+          
+          // Smart scroll: only scroll if user is near bottom
+          const isAtBottom = cv.scrollHeight - cv.scrollTop - cv.clientHeight < 100;
+          
           // During streaming: show clean text (hide chart tokens from view)
           textEl.innerHTML = mdToHtml(accumulated) + '<span class="stream-cursor">▌</span>';
-          scrollBot();
+          
+          if (isAtBottom) scrollBot();
         }
       }
     }

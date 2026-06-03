@@ -179,10 +179,37 @@ class ETLPipeline:
             self.df = self._enrich_weather(self.df)
             self.df = self._enrich_holidays(self.df)
 
+            # --- REQUIREMENT 1: Recipe Registry Detection ---
+            self.missing_recipes = self._check_for_missing_recipes(raw_df)
+            
             return True, "Data successfully processed, normalized, and validated via ETL pipeline."
 
         except Exception as e:
             return False, f"ETL Pipeline Error: {str(e)}"
+
+    def _check_for_missing_recipes(self, raw_df):
+        """
+        Compare Item_Names from CSV against the product_recipes table.
+        """
+        try:
+            db_path = os.path.join('database', 'coffee_shop.db')
+            conn = sqlite3.connect(db_path)
+            
+            # Get unique items from the uploaded CSV
+            csv_items = set(raw_df['Item_Name'].unique())
+            
+            # Get existing recipes from DB
+            cursor = conn.cursor()
+            cursor.execute("SELECT item_name FROM product_recipes")
+            db_items = set(row[0] for row in cursor.fetchall())
+            conn.close()
+            
+            # Identify missing ones
+            missing = [item for item in csv_items if item.upper().strip() not in [db_i.upper().strip() for db_i in db_items]]
+            return missing
+        except Exception as e:
+            print(f"[RECIPE CHECK ERROR] {e}")
+            return []
 
     def save_to_database(self, db_path):
         try:

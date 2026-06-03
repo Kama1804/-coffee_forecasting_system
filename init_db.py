@@ -25,11 +25,15 @@ def initialize_database():
         "Month Name" TEXT NOT NULL,
         Month TEXT NOT NULL,
         product_id TEXT NOT NULL,
+        item_name TEXT NOT NULL,
         product_category TEXT NOT NULL,
         product_detail TEXT,
         transaction_qty INTEGER NOT NULL,
         order_type TEXT NOT NULL,
         unit_price_MYR REAL NOT NULL,
+        gross_sales_MYR REAL DEFAULT 0,
+        discount_amount_MYR REAL DEFAULT 0,
+        promo_code TEXT DEFAULT 'NONE',
         sst_amount_MYR REAL NOT NULL,
         Total_Bill_MYR REAL NOT NULL,
         payment_method TEXT NOT NULL,
@@ -60,6 +64,20 @@ def initialize_database():
         predicted_revenue REAL NOT NULL,
         lower_bound_revenue REAL NOT NULL,
         upper_bound_revenue REAL NOT NULL
+    )
+    ''')
+    
+    # 3. Create the Product Recipes Table (Requirement 1: Recipe Registry)
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS product_recipes (
+        item_name TEXT PRIMARY KEY,
+        beans_g REAL DEFAULT 0,
+        milk_ml REAL DEFAULT 0,
+        choco_g REAL DEFAULT 0,
+        ice_g REAL DEFAULT 0,
+        whip_g REAL DEFAULT 0,
+        cup_type TEXT,
+        custom_ingredients TEXT  -- JSON string for extensibility
     )
     ''')
     
