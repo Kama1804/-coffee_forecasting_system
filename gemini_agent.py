@@ -22,7 +22,7 @@ client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 INTENT_PROFILES = {
     "trend_analysis": {
-        "keywords": ["trend", "growth", "decline", "compare", "vs", "month", "year", "last", "202", "performance over", "how has"],
+        "keywords": ["trend", "growth", "decline", "compare", "vs", "month", "year", "last", "202", "performance over", "how has", "ramadhan", "puasa", "raya", "holiday"],
         "style": "analytical_narrative",
         "depth": "deep",
     },
@@ -471,12 +471,12 @@ def build_slim_context(db_data: dict, user_message: str) -> str:
 
     # Base context — minimal; intent-specific sections fill in the rest
     base = f"""DATA SNAPSHOT (as of query time):
-- Period: {db_data.get('date_range', 'N/A')}
-- All-time revenue: RM {db_data.get('total_rev', 0):,.2f}
-- All-time transactions: {db_data.get('total_txns', 0):,}
-- Daily avg: RM {db_data.get('daily_avg', 0):,.2f}
-- Peak hour: {db_data.get('peak_hour', 'N/A')}
-- Top branch: {db_data.get('top_branch', 'N/A')}"""
+    - Period: {db_data.get('date_range', 'N/A')}
+    - All-time revenue: RM {db_data.get('total_rev', 0):,.2f}
+    - All-time transactions: {db_data.get('total_txns', 0):,}
+    - Daily avg: RM {db_data.get('daily_avg', 0):,.2f}
+    - Peak hour: {db_data.get('peak_hour', 'N/A')}
+    - Top branch: {db_data.get('top_branch', 'N/A')}"""
 
     sections = [base]
 
@@ -554,12 +554,12 @@ def build_slim_context(db_data: dict, user_message: str) -> str:
 
             conn.close()
             sections.append(f"""=== {target_month} MONTHLY BREAKDOWN ===
-Revenue: RM {m_rev:,.2f} ({delta_str})
-Transactions: {m_txns:,} | Daily avg: RM {m_rev/m_days:,.2f} | Peak day: {busy_day} | Peak hour: {peak_hr}
-Branch performance:
-{chr(10).join(branches)}
-Top 5 items by volume:
-{chr(10).join(top_items)}""")
+            Revenue: RM {m_rev:,.2f} ({delta_str})
+            Transactions: {m_txns:,} | Daily avg: RM {m_rev/m_days:,.2f} | Peak day: {busy_day} | Peak hour: {peak_hr}
+            Branch performance:
+            {chr(10).join(branches)}
+            Top 5 items by volume:
+            {chr(10).join(top_items)}""")
         except Exception as e:
             sections.append(f"=== {target_month} BREAKDOWN ===\nError: {e}")
 
@@ -595,16 +595,16 @@ Top 5 items by volume:
                 }
 
                 sections.append(f"""=== 5-DAY PROPHET FORECAST ===
-Note: Sundays are closed (RM 0.00).
+                Note: Sundays are closed (RM 0.00).
 
-Putrajaya (STB-PJ1):
-{pj_lines}
+                Putrajaya (STB-PJ1):
+                {pj_lines}
 
-Puncak Alam (FT-PA1):
-{pa_lines}
+                Puncak Alam (FT-PA1):
+                {pa_lines}
 
-Combined 5-day ingredient drawdown:
-{json.dumps(combined_demand, indent=2)}""")
+        Combined 5-day ingredient drawdown:
+        {json.dumps(combined_demand, indent=2)}""")
         except Exception as e:
             sections.append(f"=== FORECAST ===\nError: {e}")
 
@@ -627,6 +627,48 @@ Combined 5-day ingredient drawdown:
     ):
         sections.append(f"=== MONTHLY REVENUE TREND (last 6 months) ===\n{db_data.get('monthly_trend_summary', 'No trend data')}")
 
+    # ── RAMADHAN SPECIAL CONTEXT ─────────────────────────────
+    if "ramadhan" in msg or "puasa" in msg:
+        # Fetch data for the 2026 window specifically
+        r_start, r_end = "2026-02-19", "2026-03-20"
+        try:
+            conn = sqlite3.connect(os.path.join('database', 'coffee_shop.db'))
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT COALESCE(SUM(Total_Bill_MYR),0), COUNT(*), COUNT(DISTINCT transaction_date)
+                FROM sales_transaction WHERE transaction_date BETWEEN ? AND ?
+            """, (r_start, r_end))
+            r_rev, r_txns, r_days = cursor.fetchone()
+            
+            # Top branch during Ramadhan
+            cursor.execute("""
+                SELECT store_location, SUM(Total_Bill_MYR) as rev
+                FROM sales_transaction WHERE transaction_date BETWEEN ? AND ?
+                GROUP BY store_location ORDER BY rev DESC LIMIT 1
+            """, (r_start, r_end))
+            r_top_row = cursor.fetchone()
+            r_top = r_top_row[0] if r_top_row else "N/A"
+            
+            # Peak hour during Ramadhan
+            cursor.execute("""
+                SELECT Hour, COUNT(*) as cnt
+                FROM sales_transaction WHERE transaction_date BETWEEN ? AND ?
+                GROUP BY Hour ORDER BY cnt DESC LIMIT 1
+            """, (r_start, r_end))
+            r_peak_row = cursor.fetchone()
+            r_peak = f"{int(r_peak_row[0]):02d}:00" if r_peak_row else "N/A"
+
+            conn.close()
+            sections.append(f"""=== HISTORICAL RAMADHAN 2026 DATA ({r_start} to {r_end}) ===
+            - Total Ramadhan Revenue: RM {r_rev:,.2f}
+            - Total Transactions: {r_txns:,}
+            - Operating Days: {r_days}
+            - Daily Avg: RM {r_rev/max(r_days,1):,.2f}
+            - Top Performing Branch: {r_top}
+            - Peak Transaction Hour: {r_peak} (Note: Sales peak shifted to late afternoon/night during fasting)""")
+        except Exception as e:
+            sections.append(f"=== RAMADHAN DATA ===\nError fetching historical Ramadhan data: {e}")
+
     # ── CHART DATA ──────────────────────────────────────────
     if intent["primary"] == "chart_request" or any(k in msg for k in _CHART_KEYWORDS):
         m_count = 3
@@ -644,7 +686,7 @@ Combined 5-day ingredient drawdown:
 
 
 # ============================================================
-#   MAIN CHAT ENTRY POINT — wires everything together
+#   MAIN CHAT ENTRY POINT 
 # ============================================================
 
 def process_chat_message(user_message: str, db_data: dict) -> tuple[bool, str]:

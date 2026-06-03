@@ -1,148 +1,103 @@
-# Mini Coffee Shop Sales Forecasting System
+# Mini Coffee Shop Sales Forecasting System (Production Edition)
 
-![Python Version](https://img.shields.io/badge/python-3.x-blue.svg)
+![Python Version](https://img.shields.io/badge/python-3.9+-blue.svg)
 ![Flask](https://img.shields.io/badge/flask-3.x-green.svg)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-An AI-powered business intelligence platform designed specifically for small coffee shop owners in Malaysia. It transforms raw Point of Sale (POS) data into actionable insights, providing accurate sales forecasts, automated executive reporting, and a Gemini-powered conversational AI advisor.
+An AI-powered business intelligence and forecasting platform designed for Malaysian coffee shop owners. This system transforms raw POS data into actionable operational insights, providing precise sales forecasts, automated inventory planning, and a Gemini-powered conversational AI advisor.
 
-## 🚀 Main Features
+## 🚀 Core Production Features
 
-*   **Automated Data Pipeline (ETL):** Seamlessly upload raw POS CSV logs. The system cleans the data, handles collisions, normalizes categories, and enriches it with historical weather data via the Open-Meteo API.
-*   **Predictive Analytics (Prophet Engine):** Generates 7-day revenue forecasts tailored with Branch Personas (e.g., student vs. office worker demographics). It incorporates advanced regressors including Malaysian public holidays (mapped to 2027), Ramadan seasonality, custom promotional events, and 5-day future weather forecasts via OpenWeatherMap.
-*   **AI Business Advisor:** A Gemini-powered chatbot (`gemini-3.1-flash-lite`) that acts as a business consultant. Ask questions in English, Bahasa Melayu, or Manglish. It generates insights on Staffing, Inventory, and Revenue opportunities, and can even plot interactive charts directly in the chat.
-*   **Live Dashboard & Visualizations:** Interactive real-time metrics, day-by-hour heatmaps, product mix analysis, and branch performance comparisons powered by Plotly.js and Chart.js.
-*   **Executive Reporting:** Generate comprehensive, multi-page PDF reports.
-    *   **Executive Sales Report:** Detailed period-over-period breakdown (ReportLab).
-    *   **AI Sales Forecast Report:** Forward-looking prediction breakdown with Prophet model transparency metrics (WeasyPrint).
-*   **Production-Grade Performance:** 
-    *   **KPI Bypass:** Factual questions (revenue, top branch, etc.) bypass the LLM for sub-second responses.
-    *   **Slim Context Injection:** Dynamically filters business data to reduce token costs and API latency.
-    *   **In-Memory Caching:** Context-aware TTL caching reduces database pressure.
-    *   **SQL Optimization:** Indexed schema for high-speed aggregations across millions of rows.
+*   **Automated ETL Pipeline & Weather Enrichment:**
+    *   **Historical Enrichment:** Automatically fetches weather data from **Open-Meteo** using a daylight-weighted aggregation (07:00 - 19:00). It distinguishes between Fair/Sunny, Cloudy, Raining, and Thunderstorms based on precipitation volume (2.5mm threshold).
+    *   **Data Sanitization:** Handles collisions, normalizes payment methods, and standardizes item naming conventions.
 
-## 🛠️ Technologies Used
+*   **Predictive Analytics (Prophet Engine 2.0):**
+    *   **7-Day Revenue Forecasts:** Tailored with **Branch Personas** (e.g., Putrajaya's office workers vs. Puncak Alam's student demographic).
+    *   **Dynamic Operational Intelligence:** Incorporates Malaysian public holidays (2024–2027), Ramadan seasonality, and custom festive promotion windows (CNY, Raya, Deepavali).
+    *   **Weather-Driven Regressors:** Adjusts sales expectations based on 5-day future weather forecasts via **OpenWeatherMap**.
 
-### Backend & AI
-*   **Framework:** Flask (Python)
-*   **Database:** SQLite (Indexed for production-level query performance)
-*   **Forecasting Model:** Prophet (v1.3.0), scikit-learn
-*   **Generative AI:** Google Gemini (Primary: `gemini-3.1-flash-lite`, Fallback: `gemini-2.5-flash-lite`)
-*   **External APIs:** Open-Meteo (Historical Weather), OpenWeatherMap (Future Weather)
-*   **PDF Generation:** WeasyPrint, ReportLab
+*   **Recipe Registry & Inventory Planning:**
+    *   **Automated Ingredient Demand:** Calculates the exact amount of coffee beans (g), milk (ml), chocolate (g), ice (g), and cups (Hot/Cold) needed for the upcoming 5 days based on forecasted sales volumes.
+    *   **Missing Recipe Detection:** Automatically flags new items from POS uploads that require recipe configuration.
+
+*   **AI Business Advisor (Gemini 3.1):**
+    *   **Context-Aware Chat:** Uses `gemini-3.1-flash-lite` to provide insights on staffing, inventory, and revenue.
+    *   **Performance Optimization:** Features a **Fast KPI Bypass** for factual queries (e.g., "What was yesterday's revenue?") and **Slim Context Injection** with in-memory TTL caching (300s) to minimize latency and token costs.
+
+*   **Specialized Operational Modes:**
+    *   **Ramadhan Mode:** Identifies peak transaction windows (4:30 PM – 12:00 AM) during the fasting month to optimize staffing for *Buka Puasa*.
+    *   **Payday & Promo Intelligence:** Cross-tabulates sales performance during payday windows (25th–28th) and evaluates the ROI of various promotion codes.
+
+## 🛠️ Technology Stack
+
+### Backend
+- **Framework:** Flask (Python) with Threaded SSE support.
+- **Database:** SQLite (Enterprise-indexed schema).
+- **Forecasting:** Facebook Prophet, scikit-learn.
+- **AI:** Google Gemini (Primary: `gemini-3.1-flash-lite`).
+- **Reporting:** WeasyPrint & ReportLab for multi-page PDF generation.
 
 ### Frontend
-*   **Markup / Styling:** HTML5, CSS3, Bootstrap 5
-*   **Animations:** AOS (Animate On Scroll)
-*   **Charts & Visuals:** Plotly.js, Chart.js
+- **Design:** Bootstrap 5, AOS (Animate On Scroll).
+- **Interactivity:** Plotly.js & Chart.js for real-time heatmap and trend visualizations.
 
-## ⚙️ Installation & Prerequisites
+## ⚙️ Setup & Installation
 
 ### Prerequisites
-*   Python 3.9+
-*   API Keys:
-    *   [Google Gemini API Key](https://aistudio.google.com/app/apikey)
-    *   [OpenWeatherMap API Key](https://openweathermap.org/api)
+- Python 3.9+
+- [Google Gemini API Key](https://aistudio.google.com/app/apikey)
+- [OpenWeatherMap API Key](https://openweathermap.org/api)
 
-### Setup Instructions
+### Installation
 
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/yourusername/coffee-forecasting-system.git
-    cd coffee-forecasting-system
-    ```
+1. **Clone & Setup Environment:**
+   ```bash
+   git clone https://github.com/yourusername/coffee-forecasting-system.git
+   cd coffee-forecasting-system
+   python -m venv venv
+   source venv/bin/activate  # Windows: venv\Scripts\activate
+   pip install -r requirements.txt
+   ```
 
-2.  **Create and activate a virtual environment:**
-    ```bash
-    python -m venv venv
-    
-    # On Windows:
-    venv\Scripts\activate
-    
-    # On macOS/Linux:
-    source venv/bin/activate
-    ```
+2. **Configuration:**
+   Create a `.env` file:
+   ```ini
+   FLASK_SECRET_KEY=your_key
+   ADMIN_USERNAME=admin
+   ADMIN_PASSWORD=password
+   OPENWEATHER_API_KEY=your_owm_key
+   GEMINI_API_KEY=your_gemini_key
+   ```
 
-3.  **Install dependencies:**
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-4.  **Configure Environment Variables:**
-    Create a `.env` file in the root directory and add your credentials:
-    ```ini
-    FLASK_SECRET_KEY=your_secure_flask_key
-    ADMIN_USERNAME=admin
-    ADMIN_PASSWORD=password123
-    OPENWEATHER_API_KEY=your_openweathermap_api_key
-    GEMINI_API_KEY=your_gemini_api_key
-    ```
-
-5.  **Initialize the Database:**
-    ```bash
-    python init_db.py
-    ```
-
-6.  **Run the Application:**
-    ```bash
-    python app.py
-    ```
-    The application will be available at `http://127.0.0.1:5000/`.
+3. **Initialize & Run:**
+   ```bash
+   python init_db.py
+   python app.py
+   ```
 
 ## 📂 Project Structure
 
 ```text
 coffee_forecasting_system/
-├── app.py                   # Main Flask application and API routes
-├── analytics.py             # Analytics helper functions
-├── check_weather.py         # Utility to test weather API integration
-├── etl_pipeline.py          # Data ingestion, cleaning, and weather enrichment logic
-├── forecast_engine.py       # Prophet model configuration, holidays, and regressors
-├── gemini_agent.py          # AI integration, prompt engineering, and fallback logic
-├── init_db.py               # SQLite schema initialization
-├── weather_api.py           # OpenWeatherMap fetch utility for 5-day forecasts
-├── requirements.txt         # Python dependencies
-├── .env                     # Environment variables (Create this file)
-├── database/                # SQLite database directory
-│   └── coffee_shop.db
-├── uploads/                 # Temporary storage for uploaded CSVs
-├── templates/               # HTML Views (Jinja2)
-│   ├── base.html            # Main layout wrapper
-│   ├── dashboard.html       # Analytics dashboard
-│   ├── forecast.html        # AI Forecast view
-│   ├── chatbot.html         # Gemini AI chat interface
-│   ├── report.html          # Reporting and PDF export interface
-│   └── upload.html          # CSV ingestion interface
-└── static/                  # Static assets
-    ├── css/
-    │   └── style.css        # Custom styles
-    ├── js/                  # Frontend scripts
-    └── images/              # Assets and logos
+├── app.py               # Flask application with EventStream (SSE) & AI logic
+├── analytics.py         # Core processing, ingredient math, & specialized filters
+├── etl_pipeline.py      # Data ingestion with Open-Meteo weather enrichment
+├── forecast_engine.py   # Prophet model with holiday/persona/promo logic
+├── gemini_agent.py      # AI prompt engineering & streaming engine
+├── weather_api.py       # Future weather fetcher (OpenWeatherMap)
+├── init_db.py           # Database schema & initial recipe registry
+├── database/            # SQLite storage
+├── templates/           # Jinja2 Views (Dashboard, Chatbot, Forecast, Reports)
+└── static/              # CSS/JS assets (Plotly, Chart.js)
 ```
 
-## 📖 Usage Examples
+## 📊 Usage Guide
 
-1.  **Ingest Data:** Navigate to the **Upload** page and upload your POS CSV file. The ETL pipeline will automatically sanitize the data and save it.
-2.  **View Dashboard:** Open the **Dashboard** to see live KPIs, historical sales trends, and peak hour heatmaps. Use the top filters to segment by branch or specific month/year.
-3.  **Generate Forecasts:** Go to the **Forecast** tab and select a branch. The system will run the Prophet engine, integrate upcoming weather, and output a 7-day prediction alongside accuracy metrics (MAPE).
-4.  **Consult the AI:** Open the **Chatbot** and ask a question.
-    *   *Example 1:* "Which branch performed better last month and by how much?"
-    *   *Example 2:* "Give me staffing advice for Putrajaya next week considering the forecast."
-    *   *Example 3:* "Can you show me a chart comparing the top 3 products?"
-5.  **Export Reports:** Navigate to the **Reports** section, select your parameters, and click "Export to PDF" to generate a polished, boardroom-ready document.
-
-## 🤝 Contributions
-
-Contributions are welcome! If you would like to improve this project, please follow these steps:
-
-1. Fork the project.
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`).
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`).
-4. Push to the branch (`git push origin feature/AmazingFeature`).
-5. Open a Pull Request.
-
-Please ensure your code adheres to the existing style and includes appropriate error handling.
+1.  **Ingest:** Upload your POS CSV. The system will enrich it with historical weather and flag missing recipes.
+2.  **Dashboard:** Monitor real-time KPIs, peak hour heatmaps (Regular vs. Ramadhan), and Payday spending shifts.
+3.  **Forecast:** Generate a 5-day sales outlook and download the **Ingredient Shopping Guide** for procurement.
+4.  **AI Advisor:** Ask "How should I staff for next Friday?" or "Why did revenue drop last month?" for instant, data-backed advice.
 
 ## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT License. Created for the Malaysian F&B sector.

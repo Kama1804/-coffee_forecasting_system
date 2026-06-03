@@ -9,18 +9,21 @@
   --purple-kpi: #7C3AED;
   --red-kpi:    #DC2626;
   --green-kpi:  #16A34A;
-  --card-radius: 14px;
+  --card-radius: 16px;
   --filter-gap: .5rem;
+  --coffee-espresso: #4B2C20;
+  --coffee-caramel: #D97706;
+  --bg-coffee-light: #FDFBF7;
 }
 
-/* ── PAGE HEADER ── */
+/* ── PAGE HEADER & CONTROLS ── */
 .page-header {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
+  gap: 1.25rem;
   align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 1.5rem;
+  margin-bottom: 2rem;
 }
 .page-header-controls {
   display: flex;
@@ -28,115 +31,138 @@
   gap: var(--filter-gap);
   align-items: center;
 }
-.page-title   { font-size: 1.55rem; font-weight: 700; color: #1E293B; margin: 0; }
-.page-subtitle { font-size: .82rem; color: #64748B; margin: .2rem 0 0; }
+.page-title { 
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  font-size: 1.75rem; 
+  font-weight: 800; 
+  color: #0F172A; 
+  margin: 0; 
+  letter-spacing: -0.02em;
+}
+.page-subtitle { 
+  font-size: .88rem; 
+  color: #64748B; 
+  margin: .3rem 0 0; 
+}
 
 @media (max-width: 575px) {
-  .page-title   { font-size: 1.25rem; }
-  .page-subtitle { font-size: .75rem; }
+  .page-title   { font-size: 1.35rem; }
+  .page-subtitle { font-size: .8rem; }
   .page-header-controls { width: 100%; }
-  .page-header-controls .form-control-custom { width: 100%; }
+  .page-header-controls .filter-group { width: 100%; justify-content: space-between; }
 }
 
 /* ── FILTER PILLS ── */
 .filter-group {
   display: flex;
   align-items: center;
-  gap: .35rem;
-  background: #F1F5F9;
+  gap: .5rem;
+  background: #FFFFFF;
   border: 1px solid #E2E8F0;
-  border-radius: 10px;
-  padding: .3rem .55rem;
+  border-radius: 12px;
+  padding: .4rem .75rem;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+  transition: border-color 0.15s ease;
+}
+.filter-group:focus-within {
+  border-color: var(--blue-kpi);
 }
 .filter-group label {
-  font-size: .68rem;
-  font-weight: 600;
-  color: #94A3B8;
+  font-size: .72rem;
+  font-weight: 700;
+  color: #64748B;
   text-transform: uppercase;
-  letter-spacing: .05em;
+  letter-spacing: .06em;
   white-space: nowrap;
 }
 
 /* ── KPI CARDS ── */
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(195px, 1fr));
-  gap: .75rem;
-  margin-bottom: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
 }
 .kpi-card {
   position: relative;
   border-radius: var(--card-radius);
-  padding: 1.1rem 1.25rem 1rem;
+  padding: 1.25rem 1.4rem 1.15rem;
   display: flex;
-  gap: .9rem;
+  gap: 1rem;
   align-items: flex-start;
   overflow: hidden;
-  transition: transform .18s, box-shadow .18s;
-  border: 1px solid rgba(0,0,0,.04);
+  transition: transform .2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow .2s ease;
+  border: 1px solid rgba(0,0,0,.03);
 }
-.kpi-card:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(0,0,0,.1); }
+.kpi-card:hover { 
+  transform: translateY(-3px); 
+  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.05); 
+}
 .kpi-card::before {
   content: '';
   position: absolute;
-  top: -20px; right: -20px;
-  width: 75px; height: 75px;
+  top: -24px; right: -24px;
+  width: 90px; height: 90px;
   border-radius: 50%;
-  opacity: .13;
+  opacity: .15;
   background: currentColor;
 }
-.kpi-blue   { background: linear-gradient(135deg,#EFF6FF 0%,#DBEAFE 100%); color: var(--blue-kpi); }
-.kpi-amber  { background: linear-gradient(135deg,#FFFBEB 0%,#FEF3C7 100%); color: var(--amber-kpi); }
-.kpi-teal   { background: linear-gradient(135deg,#ECFDF5 0%,#D1FAE5 100%); color: var(--teal-kpi); }
-.kpi-purple { background: linear-gradient(135deg,#F5F3FF 0%,#EDE9FE 100%); color: var(--purple-kpi); }
+.kpi-blue   { background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%); color: var(--blue-kpi); }
+.kpi-amber  { background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%); color: var(--amber-kpi); }
+.kpi-teal   { background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%); color: var(--teal-kpi); }
+.kpi-purple { background: linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%); color: var(--purple-kpi); }
 .kpi-icon-wrap {
   flex-shrink: 0;
-  width: 40px; height: 40px;
-  border-radius: 11px;
-  background: rgba(255,255,255,.75);
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.85);
   display: flex; align-items: center; justify-content: center;
-  font-size: 1rem;
-  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  font-size: 1.1rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,.04);
 }
 .kpi-body     { min-width: 0; flex: 1; }
-.kpi-label    { font-size: .68rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; opacity: .65; margin-bottom: .2rem; }
-.kpi-value    { font-size: 1.45rem; font-weight: 800; line-height: 1.15; color: #1E293B; }
-.kpi-sub      { font-size: .72rem; margin-top: .3rem; color: #64748B; display: flex; align-items: center; gap: .3rem; }
-.kpi-trend-up   { color: #16A34A; }
-.kpi-trend-down { color: #DC2626; }
+.kpi-label    { font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; opacity: .75; margin-bottom: .25rem; }
+.kpi-value    { font-size: 1.6rem; font-weight: 800; line-height: 1.1; color: #0F172A; }
+.kpi-sub      { font-size: .75rem; margin-top: .4rem; color: #64748B; display: flex; align-items: center; gap: .35rem; }
+.kpi-trend-up   { color: #15803D; font-weight: 600; }
+.kpi-trend-down { color: #B91C1C; font-weight: 600; }
 
 /* ── DASHBOARD CARDS ── */
 .dashboard-card {
-  background: #fff;
+  background: #FFFFFF;
   border-radius: var(--card-radius);
   border: 1px solid #E2E8F0;
-  padding: 1.25rem 1.3rem;
-  box-shadow: 0 1px 5px rgba(0,0,0,.04);
-  transition: box-shadow .18s;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+  transition: box-shadow .2s ease, transform .2s ease;
 }
-.dashboard-card:hover { box-shadow: 0 4px 18px rgba(0,0,0,.07); }
+.dashboard-card:hover { 
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05); 
+}
 
 .card-title {
-  font-size: .84rem;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: .95rem;
   font-weight: 700;
-  color: #1E293B;
+  color: #0F172A;
   margin: 0;
   line-height: 1.3;
 }
 .card-subtitle {
-  font-size: .7rem;
-  color: #94A3B8;
-  margin: .15rem 0 0;
+  font-size: .75rem;
+  color: #64748B;
+  margin: .25rem 0 0;
 }
 
 /* ── SECTION LABEL ── */
 .section-label {
-  font-size: .65rem;
-  font-weight: 700;
+  font-size: .7rem;
+  font-weight: 800;
   letter-spacing: .08em;
   text-transform: uppercase;
   color: #94A3B8;
-  margin-bottom: .6rem;
+  margin-top: 1.5rem;
+  margin-bottom: .8rem;
   display: flex;
   align-items: center;
   gap: .5rem;
@@ -149,114 +175,111 @@
 }
 
 /* ── CHART GRIDS ── */
-.charts-row { display: grid; gap: .75rem; margin-bottom: .75rem; }
+.charts-row { display: grid; gap: 1rem; margin-bottom: 1rem; }
 .charts-row-2-8 { grid-template-columns: 1fr; }
 .charts-row-2   { grid-template-columns: 1fr; }
 .charts-row-5-7 { grid-template-columns: 1fr; }
 @media (min-width: 768px) {
-  .charts-row-2-8 { grid-template-columns: minmax(0,2fr) minmax(0,1fr); }
+  .charts-row-2-8 { grid-template-columns: minmax(0,1.9fr) minmax(0,1.1fr); }
   .charts-row-2   { grid-template-columns: 1fr 1fr; }
-  .charts-row-5-7 { grid-template-columns: minmax(0,5fr) minmax(0,7fr); }
+  .charts-row-5-7 { grid-template-columns: minmax(0,1.1fr) minmax(0,1.9fr); }
 }
 
-/* ── DIAGNOSTICS ── */
-.diagnostics-grid {
-  display: grid;
-  gap: .75rem;
-  grid-template-columns: 1fr;
-}
-@media (min-width: 768px) {
-  .diagnostics-grid { grid-template-columns: 1fr 1fr; }
-}
-.diag-inner {
-  background: #F8FAFC;
-  border-radius: 10px;
-  padding: 1.1rem 1.15rem;
-  border: 1px solid #E2E8F0;
-  height: 100%;
-}
-.diag-icon {
-  width: 34px; height: 34px;
-  border-radius: 9px;
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-}
-.diag-row {
+/* ── PREMIUM LIST COMPONENT (SOLVES TEXT CUT-OFF) ── */
+.menu-performance-list {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: .45rem .5rem;
-  border-bottom: 1px solid #E2E8F0;
-  font-size: .8rem;
-  border-radius: 5px;
+  flex-direction: column;
+  gap: 1.1rem;
+  margin-top: .5rem;
 }
-.diag-row:last-child { border-bottom: none; }
-.diag-row:hover { background: rgba(0,0,0,.02); }
+.menu-item-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  margin-right: 0.5rem;
+}
+.rank-1 { background-color: #FEF3C7; color: #D97706; }
+.rank-2 { background-color: #F1F5F9; color: #475569; }
+.rank-3 { background-color: #FFEDD5; color: #EA580C; }
+.rank-other { background-color: #F8FAFC; color: #94A3B8; }
+
+.menu-item-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1E293B;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: calc(100% - 100px);
+}
+.menu-item-value {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #475569;
+}
+.menu-progress-bg {
+  width: 100%;
+  height: 8px;
+  background-color: #F1F5F9;
+  border-radius: 99px;
+  overflow: hidden;
+}
+.menu-progress-bar {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
 
 /* ── LOADING ── */
 .chart-wrap { position: relative; width: 100%; }
 .chart-loading {
   position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(255,255,255,.8);
-  border-radius: 8px;
+  background: rgba(255,255,255,.85);
+  border-radius: 12px;
   z-index: 5;
 }
 .spinner {
-  width: 26px; height: 26px;
-  border: 3px solid #E2E8F0;
+  width: 28px; height: 28px;
+  border: 3.5px solid #F1F5F9;
   border-top-color: var(--blue-kpi);
   border-radius: 50%;
-  animation: spin .7s linear infinite;
+  animation: spin .7s cubic-bezier(0.5, 0, 0.5, 1) infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── BADGES ── */
 .badge-custom {
-  display: inline-flex; align-items: center; gap: .25rem;
-  font-size: .68rem; font-weight: 600; border-radius: 99px;
-  padding: .22rem .6rem; letter-spacing: .02em;
+  display: inline-flex; align-items: center; gap: .3rem;
+  font-size: .7rem; font-weight: 600; border-radius: 99px;
+  padding: .25rem .75rem; letter-spacing: .02em;
 }
 .badge-blue   { background: #EFF6FF; color: #1D4ED8; }
-.badge-teal   { background: #ECFDF5; color: #065F46; }
-.badge-red    { background: #FEF2F2; color: #991B1B; }
-.badge-amber  { background: #FFFBEB; color: #92400E; }
-.badge-green  { background: #F0FDF4; color: #166534; }
+.badge-teal   { background: #ECFDF5; color: #047857; }
+.badge-red    { background: #FEF2F2; color: #B91C1C; }
+.badge-amber  { background: #FFFBEB; color: #B45309; }
+.badge-purple { background: #F5F3FF; color: #6D28D9; }
+.badge-green  { background: #F0FDF4; color: #15803D; }
 
-.text-muted-sm { font-size: .73rem; color: #64748B; }
+.text-muted-sm { font-size: .75rem; color: #64748B; }
 .fw-700 { font-weight: 700; }
 
-/* ── SECTION CARD WITH ACCENT ── */
-.section-card-accent {
-  border-top: 3px solid var(--teal-kpi);
-}
-.section-card-accent-blue {
-  border-top: 3px solid var(--blue-kpi);
-}
 
-/* ── PROFIT SUMMARY ROW ── */
-.profit-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: .55rem .6rem;
-  border-radius: 8px;
-  border-bottom: 1px solid #F1F5F9;
-  font-size: .82rem;
-}
-.profit-row:last-child { border-bottom: none; }
-.profit-row:hover { background: #F8FAFC; }
-
-/* ── RESPONSIVE CHART HEIGHTS ── */
-@media (max-width: 575px) {
-  .ch-trend  { height: 220px !important; }
-  .ch-donut  { height: 220px !important; }
-  .ch-bar    { height: 200px !important; }
-  .ch-heat   { height: 200px !important; }
-  .ch-pay    { height: 180px !important; }
-  .ch-branch { height: 180px !important; }
-  .ch-disc   { height: 180px !important; }
-  .sparkline-wrap { height: 28px !important; }
+/* ── TABLE RESPONSIVE WRAPPERS ── */
+.table-responsive {
+  border-radius: 10px;
+  border: 1px solid #E2E8F0;
+  overflow: hidden;
 }
 </style>
 
@@ -266,13 +289,13 @@
 <div class="page-header" data-aos="fade-down">
   <div>
     <h1 class="page-title">☕ Sales Overview</h1>
-    <p class="page-subtitle">Live sales summary for your coffee outlets</p>
+    <p class="page-subtitle">Live analytics for your coffee stall & food truck network</p>
   </div>
   <div class="page-header-controls">
     <!-- Time filter -->
     <div class="filter-group">
-      <label><i class="fa-solid fa-calendar-days"></i> Period</label>
-      <select id="timeFilter" class="form-control-custom" style="width:auto;min-width:155px;border:none;background:transparent;padding:.1rem .2rem;" onchange="applyFilters()">
+      <label><i class="fa-solid fa-calendar-days text-primary"></i> Period</label>
+      <select id="timeFilter" class="form-control-custom" style="width:auto;min-width:155px;border:none;background:transparent;padding:.1rem .2rem;font-size:0.85rem;font-weight:600;color:#1E293B;outline:none;" onchange="applyFilters()">
         <option value="all">All Time</option>
         <option value="current_week">Last 7 Days</option>
         <optgroup label="── By Year ──" id="optYears"></optgroup>
@@ -281,8 +304,8 @@
     </div>
     <!-- Branch filter -->
     <div class="filter-group">
-      <label><i class="fa-solid fa-store"></i> Outlet</label>
-      <select id="branchFilter" class="form-control-custom" style="width:auto;min-width:150px;border:none;background:transparent;padding:.1rem .2rem;" onchange="applyFilters()">
+      <label><i class="fa-solid fa-store text-success"></i> Outlet</label>
+      <select id="branchFilter" class="form-control-custom" style="width:auto;min-width:160px;border:none;background:transparent;padding:.1rem .2rem;font-size:0.85rem;font-weight:600;color:#1E293B;outline:none;" onchange="applyFilters()">
         <option value="all">All Outlets</option>
         <option value="Putrajaya">Putrajaya Stall</option>
         <option value="Puncak Alam">Puncak Alam Food Truck</option>
@@ -309,9 +332,9 @@
     <div class="kpi-icon-wrap"><i class="fa-solid fa-mug-hot"></i></div>
     <div class="kpi-body">
       <div class="kpi-label">Cups Sold</div>
-      <div class="kpi-value"><span id="kpiVolume">—</span> <span style="font-size:.82rem;color:#64748B;">cups</span></div>
+      <div class="kpi-value"><span id="kpiVolume">—</span> <span style="font-size:.85rem;font-weight:500;opacity:0.8;">cups</span></div>
       <span class="kpi-sub">
-        <i class="fa-solid fa-boxes-stacked"></i> Total beverages served
+        <i class="fa-solid fa-boxes-stacked"></i> Beverage volume metrics
       </span>
     </div>
   </div>
@@ -320,7 +343,7 @@
     <div class="kpi-body">
       <div class="kpi-label">Total Orders</div>
       <div class="kpi-value"><span id="kpiTransactions">—</span></div>
-      <div class="sparkline-wrap" style="height:30px;margin-top:6px;">
+      <div class="sparkline-wrap" style="height:32px;margin-top:6px;">
         <canvas id="sparklineChart"></canvas>
       </div>
     </div>
@@ -329,7 +352,7 @@
     <div class="kpi-icon-wrap"><i class="fa-solid fa-trophy"></i></div>
     <div class="kpi-body">
       <div class="kpi-label">Best Outlet Last Month</div>
-      <div class="kpi-value" style="font-size:1rem;line-height:1.2;"><span id="kpiBranch">—</span></div>
+      <div class="kpi-value" style="font-size:1.05rem;line-height:1.2;font-weight:700;"><span id="kpiBranch">—</span></div>
       <span class="kpi-sub">
         <i class="fa-solid fa-calendar-check"></i> <span id="kpiPrevMonth">—</span>
       </span>
@@ -346,58 +369,62 @@
     <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
       <div>
         <p class="card-title">Sales Over Time</p>
-        <p class="card-subtitle">How much you earned each day / month</p>
+        <p class="card-subtitle">Performance breakdown by calendar interval</p>
       </div>
       <span class="badge-custom badge-blue" id="trendAxisBadge">Monthly</span>
     </div>
-    <div class="chart-wrap" style="min-height:260px;">
+    <div class="chart-wrap" style="min-height:280px;">
       <div class="chart-loading" id="loadingTrend"><div class="spinner"></div></div>
-      <div id="trendChart" class="ch-trend" style="width:100%;height:260px;"></div>
+      <div id="trendChart" class="ch-trend" style="width:100%;height:280px;"></div>
     </div>
   </div>
   <div class="dashboard-card">
     <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
       <div>
         <p class="card-title">Sales by Product Type</p>
-        <p class="card-subtitle">Which category earns the most</p>
+        <p class="card-subtitle">Coffee category earnings split</p>
       </div>
     </div>
-    <div class="chart-wrap" style="min-height:260px;">
+    <div class="chart-wrap" style="min-height:280px;">
       <div class="chart-loading" id="loadingCategory"><div class="spinner"></div></div>
-      <div id="categoryChart" class="ch-donut" style="width:100%;height:260px;"></div>
+      <div id="categoryChart" class="ch-donut" style="width:100%;height:280px;"></div>
     </div>
   </div>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════
-     ROW 2 — BEST & WORST DRINKS
+     ROW 2 — BEST & WORST DRINKS (PREMIUM HTML IMPLEMENTATION)
 ══════════════════════════════════════════════════════════ -->
 <div class="section-label" data-aos="fade-up">Menu Performance</div>
 <div class="charts-row charts-row-2 mb-3" data-aos="fade-up" data-aos-delay="40">
   <div class="dashboard-card">
-    <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
       <div>
         <p class="card-title">Best-Selling Drinks</p>
-        <p class="card-subtitle">Your top 5 most ordered items</p>
+        <p class="card-subtitle">Your top 5 highly demanded drinks (No cut-off names)</p>
       </div>
       <span class="badge-custom badge-teal"><i class="fa-solid fa-star me-1"></i>Top Items</span>
     </div>
-    <div class="chart-wrap" style="min-height:220px;">
+    <div class="chart-wrap" style="min-height:240px;">
       <div class="chart-loading" id="loadingTop"><div class="spinner"></div></div>
-      <div id="topChart" class="ch-bar" style="width:100%;height:220px;"></div>
+      <div id="topChart" class="menu-performance-list">
+        <!-- Rendered dynamically without Plotly to fit full beverage names safely -->
+      </div>
     </div>
   </div>
   <div class="dashboard-card">
-    <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
       <div>
         <p class="card-title">Drinks That Need a Boost</p>
-        <p class="card-subtitle">Low-order items — consider promotions</p>
+        <p class="card-subtitle">Lowest order volume products — target for promotions</p>
       </div>
-      <span class="badge-custom badge-red"><i class="fa-solid fa-triangle-exclamation me-1"></i>Slow</span>
+      <span class="badge-custom badge-red"><i class="fa-solid fa-triangle-exclamation me-1"></i>Slow Items</span>
     </div>
-    <div class="chart-wrap" style="min-height:220px;">
+    <div class="chart-wrap" style="min-height:240px;">
       <div class="chart-loading" id="loadingWeak"><div class="spinner"></div></div>
-      <div id="weakChart" class="ch-bar" style="width:100%;height:220px;"></div>
+      <div id="weakChart" class="menu-performance-list">
+        <!-- Rendered dynamically without Plotly -->
+      </div>
     </div>
   </div>
 </div>
@@ -410,54 +437,54 @@
   <div class="dashboard-card">
     <div>
       <p class="card-title">How Customers Pay</p>
-      <p class="card-subtitle">Payment method breakdown</p>
+      <p class="card-subtitle">Share of transaction payment options</p>
     </div>
-    <div class="chart-wrap" style="min-height:200px;margin-top:.85rem;">
+    <div class="chart-wrap" style="min-height:220px;margin-top:1rem;">
       <div class="chart-loading" id="loadingPayment"><div class="spinner"></div></div>
-      <div id="paymentChart" class="ch-pay" style="width:100%;height:200px;"></div>
+      <div id="paymentChart" class="ch-pay" style="width:100%;height:220px;"></div>
     </div>
   </div>
   <div class="dashboard-card">
     <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
       <div>
         <p class="card-title">Busiest Hours of the Day</p>
-        <p class="card-subtitle" id="peakSubtitle">Darker = more orders at that time</p>
+        <p class="card-subtitle" id="peakSubtitle">Darker/warmer cells indicate peak ordering activity</p>
       </div>
       <div class="btn-group" role="group" id="peakToggleGroup" style="display: none;">
         <input type="radio" class="btn-check" name="peakMode" id="peakRegular" checked onchange="togglePeakView()">
-        <label class="btn btn-outline-primary btn-sm" for="peakRegular">Regular</label>
+        <label class="btn btn-outline-primary btn-sm" for="peakRegular" style="font-size:0.75rem;">Regular</label>
         <input type="radio" class="btn-check" name="peakMode" id="peakRamadhan" onchange="togglePeakView()">
-        <label class="btn btn-outline-danger btn-sm" for="peakRamadhan">🌙 Ramadhan</label>
+        <label class="btn btn-outline-danger btn-sm" for="peakRamadhan" style="font-size:0.75rem;">🌙 Ramadhan</label>
       </div>
     </div>
-    <div class="chart-wrap" style="min-height:200px;">
+    <div class="chart-wrap" style="min-height:220px;">
       <div class="chart-loading" id="loadingHeatmap"><div class="spinner"></div></div>
-      <div id="heatmapChart" class="ch-heat" style="width:100%;height:200px;"></div>
+      <div id="heatmapChart" class="ch-heat" style="width:100%;height:220px;"></div>
     </div>
   </div>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════
-     ROW 4 — DISCOUNT IMPACT
+     ROW 4 — DISCOUNT IMPACT (WITH VISIBLE GROSS SALES BAR)
 ══════════════════════════════════════════════════════════ -->
 <div id="discountAnalysisSection">
   <div class="section-label" data-aos="fade-up">Revenue Retention Analysis</div>
   <div class="mb-3" data-aos="fade-up" data-aos-delay="60">
-    <div class="dashboard-card section-card-accent-blue">
-      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+     <div class="dashboard-card" style="border-left: 4px solid var(--green-kpi);">
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
         <div>
-          <p class="card-title">Sales vs Discounts Given</p>
-          <p class="card-subtitle">Tracking how much revenue is retained after discounts</p>
+          <p class="card-title">Gross Sales vs. Retained Cash (Net Sales)</p>
+          <p class="card-subtitle">Tracking potential revenue, promotional losses, and overall retention percentage</p>
         </div>
         <span class="badge-custom badge-green"><i class="fa-solid fa-percent me-1"></i>Revenue Retention</span>
       </div>
-      <div class="chart-wrap" style="min-height:260px;margin-top:.85rem;">
+      <div class="chart-wrap" style="min-height:280px;margin-top:1rem;">
         <div class="chart-loading" id="loadingDiscount"><div class="spinner"></div></div>
-        <div id="discountChart" class="ch-disc" style="width:100%;height:260px;"></div>
+        <div id="discountChart" class="ch-disc" style="width:100%;height:280px;"></div>
       </div>
-      <p class="text-muted-sm mt-2 mb-0" style="font-size:.67rem;">
-        <i class="fa-solid fa-circle-info me-1"></i>
-        <b>Gross Sales</b> represents full menu price. <b>Net Sales</b> is the actual cash collected after discounts.
+      <p class="text-muted-sm mt-3 mb-0" style="font-size:.72rem;">
+        <i class="fa-solid fa-circle-info text-primary me-1"></i>
+        <b>Gross Sales</b> represents earnings at full standard price. <b>Net Sales</b> represents the actual cash collected after discounts are subtracted.
       </p>
     </div>
   </div>
@@ -469,11 +496,11 @@
 <div id="outletQualitySection">
   <div class="section-label" data-aos="fade-up">Outlet Quality Analysis</div>
   <div class="mb-3" data-aos="fade-up" data-aos-delay="40">
-    <div class="dashboard-card section-card-accent-blue">
+     <div class="dashboard-card" style="border-left: 4px solid var(--blue-kpi);">
       <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
         <div>
           <p class="card-title">Average Order Value (AOV) by Outlet</p>
-          <p class="card-subtitle">Compare how much a single customer spends at each location on average</p>
+          <p class="card-subtitle">Evaluating transaction size behavior to identify geographic brand performance</p>
         </div>
         <span class="badge-custom badge-blue">Sales Quality</span>
       </div>
@@ -486,16 +513,16 @@
 </div>
 
 <!-- ══════════════════════════════════════════════════════════
-     ROW 5 — PROMOTION INTELLIGENCE (Requirement 2)
+     ROW 6 — PROMOTION INTELLIGENCE
 ══════════════════════════════════════════════════════════ -->
 <div id="promoIntelligenceSection">
   <div class="section-label" data-aos="fade-up">Promotion Intelligence</div>
   <div class="mb-3" data-aos="fade-up" data-aos-delay="60">
-    <div class="dashboard-card" style="border-left: 4px solid var(--purple);">
+     <div class="dashboard-card" style="border-left: 4px solid var(--purple-kpi);">
       <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
         <div>
           <p class="card-title">Promotion Efficiency & ROI</p>
-          <p class="card-subtitle">Analyzing which campaigns drive volume vs value</p>
+          <p class="card-subtitle">Evaluating which campaign dynamics generate sustainable net income versus high volume depletion</p>
         </div>
         <span class="badge-custom badge-purple"><i class="fa-solid fa-chart-line me-1"></i>Promo ROI</span>
       </div>
@@ -504,23 +531,23 @@
         <table class="table table-hover align-middle mb-0" style="font-size: .85rem;">
           <thead class="table-light">
             <tr>
-              <th>Promo Code</th>
+              <th class="ps-3">Promo Code</th>
               <th>Type</th>
               <th class="text-end">Qty Sold</th>
               <th class="text-end">Total Gross</th>
               <th class="text-end">Total Discount</th>
-              <th class="text-center">Discount Ratio</th>
-              <th>Inventory Risk</th>
+              <th class="text-center" style="width:160px;">Discount Ratio</th>
+              <th class="pe-3">Inventory Risk</th>
             </tr>
           </thead>
           <tbody id="promoEfficiencyTable">
-            <tr><td colspan="7" class="text-center py-4 text-muted">Loading promotion data...</td></tr>
+            <tr><td colspan="7" class="text-center py-4 text-muted">Loading promotion database...</td></tr>
           </tbody>
         </table>
       </div>
-      <p class="text-muted-sm mt-3 mb-0" style="font-size:.7rem;">
-        <i class="fa-solid fa-circle-info me-1"></i>
-        <b>Volume (B1F1)</b> promos require 2x more stock (cups/milk) per Ringgit earned.
+      <p class="text-muted-sm mt-3 mb-0" style="font-size:.72rem;">
+        <i class="fa-solid fa-circle-info text-purple me-1"></i>
+        <b>Volume-based (e.g., B1F1)</b> promos require 2x more physical raw material throughput (cups, milk, coffee beans) per Ringgit earned, increasing supply chain vulnerability.
       </p>
     </div>
   </div>
@@ -528,6 +555,7 @@
 
 {% endblock %}
 {% block scripts %}
+<!-- Chart JS & Plotly Core -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 <script>
@@ -554,7 +582,7 @@ function togglePeakView() {
     if (mode === 'peakRamadhan') {
         subtitle.innerHTML = '<span class="text-danger fw-700">🌙 Ramadhan Night Shift (4:30 PM - 12:00 AM)</span>';
     } else {
-        subtitle.textContent = 'Darker = more orders at that time';
+        subtitle.textContent = 'Darker/warmer cells indicate peak ordering activity';
     }
     
     renderPeakChart(data);
@@ -575,17 +603,18 @@ function renderPeakChart(peakData) {
         marker: {
             color: peakData.map(p => p.quantity_sold === maxQty ? COLORS.red : COLORS.blue),
             opacity: 0.8
+            // Rounded corners on bars if supported by version
         },
-        hovertemplate: '<b>%{x}</b><br>Qty Sold: %{y}<extra></extra>'
+        hovertemplate: '<b>Hour: %{x}</b><br>Volume Sold: %{y}<extra></extra>'
     }], {
         ...LAYOUT_BASE,
-        margin: { t:10, r:20, b:40, l:60 },
+        margin: { t:15, r:20, b:40, l:50 },
         xaxis: { type: 'category', gridcolor: 'transparent' },
         yaxis: { gridcolor: '#F1F5F9', title: { text: 'Units Sold', font: { size: 10 } } }
     }, CONFIG);
 }
 
-/* ── REQUIREMENT 2: PROMO EFFICIENCY ── */
+/* ── PROMO EFFICIENCY ── */
 async function loadPromoEfficiency(branch = 'all', time = 'all') {
     try {
         const r = await fetch(`/api/promo-efficiency?branch=${encodeURIComponent(branch)}&time=${encodeURIComponent(time)}`);
@@ -596,46 +625,46 @@ async function loadPromoEfficiency(branch = 'all', time = 'all') {
             tbody.innerHTML = d.data.map(p => {
                 const isVolume = p.promo_type === 'Volume (B1F1)';
                 const riskBadge = isVolume 
-                    ? '<span class="badge bg-danger-subtle text-danger"><i class="fa-solid fa-triangle-exclamation"></i> HIGH RISK</span>'
-                    : '<span class="badge bg-success-subtle text-success">LOW RISK</span>';
+                    ? '<span class="badge bg-danger-subtle text-danger" style="font-weight:600;"><i class="fa-solid fa-triangle-exclamation me-1"></i> HIGH RISK</span>'
+                    : '<span class="badge bg-success-subtle text-success" style="font-weight:600;">LOW RISK</span>';
                 
                 return `
                 <tr>
-                    <td class="fw-700 text-primary">${p.promo_code}</td>
-                    <td><span class="badge ${isVolume ? 'bg-purple' : 'bg-info'} text-white">${p.promo_type}</span></td>
-                    <td class="text-end">${p.total_qty}</td>
-                    <td class="text-end">RM ${p.total_gross.toLocaleString()}</td>
-                    <td class="text-end">RM ${p.total_discount.toLocaleString()}</td>
+                    <td class="fw-700 text-primary ps-3">${p.promo_code}</td>
+                    <td><span class="badge-custom ${isVolume ? 'badge-purple' : 'badge-blue'}">${p.promo_type}</span></td>
+                    <td class="text-end fw-600">${p.total_qty}</td>
+                    <td class="text-end fw-600">RM ${p.total_gross.toLocaleString()}</td>
+                    <td class="text-end fw-600">RM ${p.total_discount.toLocaleString()}</td>
                     <td class="text-center">
-                        <div class="progress" style="height: 6px; width: 100px; margin: 0 auto;">
+                        <div class="progress" style="height: 6px; width: 100px; margin: 0 auto; background-color: #E2E8F0; border-radius: 99px;">
                             <div class="progress-bar ${isVolume ? 'bg-danger' : 'bg-success'}" style="width: ${p.discount_ratio * 100}%"></div>
                         </div>
-                        <small class="d-block mt-1">${(p.discount_ratio * 100).toFixed(1)}%</small>
+                        <small class="d-block mt-1 text-muted fw-700">${(p.discount_ratio * 100).toFixed(1)}%</small>
                     </td>
                     <td>${riskBadge}</td>
                 </tr>`;
             }).join('');
         } else {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">No active promotions found for this period.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">No active promotions found for this selected query.</td></tr>';
         }
     } catch (e) {
-        console.error("Failed to load promos", e);
+        console.error("Failed to load promo databases", e);
     }
 }
 
 const LAYOUT_BASE = {
   paper_bgcolor: 'rgba(0,0,0,0)',
   plot_bgcolor:  'rgba(0,0,0,0)',
-  font:   { family:"'DM Sans',sans-serif", color:'#334155', size:11 },
-  margin: { t:10, r:16, b:40, l:50 },
-  hoverlabel: { bgcolor:'#1E2A3A', font:{ color:'white', size:12 } }
+  font:   { family: "'Plus Jakarta Sans', system-ui, sans-serif", color:'#334155', size:11 },
+  margin: { t:15, r:16, b:40, l:50 },
+  hoverlabel: { bgcolor:'#0F172A', font:{ color:'white', size:12, family: "'Plus Jakarta Sans', sans-serif" } }
 };
 const CONFIG = { responsive:true, displayModeBar:false };
 
 const hideLoader = id => { const el = document.getElementById(id); if(el) el.style.display='none'; };
 const showLoader = id => { const el = document.getElementById(id); if(el) el.style.display='flex'; };
 
-/* ── ANIMATED COUNT ────────────────────────────────────── */
+/* ── ANIMATED COUNT ── */
 function animateCount(id, end, isCurrency=false) {
   const el = document.getElementById(id);
   if(!el || end == null) return;
@@ -652,7 +681,7 @@ function animateCount(id, end, isCurrency=false) {
 
 let sparklineInstance = null;
 
-/* ── FILTER OPTIONS ────────────────────────────────────── */
+/* ── FILTER OPTIONS ── */
 function loadFilterOptions() {
   fetch('/api/dashboard_filters')
     .then(r=>r.json())
@@ -672,27 +701,26 @@ function loadFilterOptions() {
         moGrp.appendChild(o);
       });
     })
-    .catch(e=>console.error('Filter options error:',e));
+    .catch(e=>console.error('Filter configuration read failure:',e));
 }
 
-/* ── MAIN FILTER APPLY ─────────────────────────────────── */
+/* ── MAIN FILTER APPLY ── */
 function applyFilters() {
   const branch = document.getElementById('branchFilter').value;
   const time   = document.getElementById('timeFilter').value;
 
-  // UI Visibility Logic
   const outletSection = document.getElementById('outletQualitySection');
   const promoSection = document.getElementById('promoIntelligenceSection');
 
-  // Promotion Efficiency Requirement: Only display for All Outlets AND (All Time OR By Year)
+  // Promotion ROI Table layout rendering rules
   const isPromoEligible = (branch === 'all') && (time === 'all' || time.startsWith('year_'));
   if (promoSection) promoSection.style.display = isPromoEligible ? 'block' : 'none';
 
-  // Outlet Comparison Requirement: Only display for All Outlets AND NOT Last 7 Days
+  // Branch Comparison rendering criteria
   const isOutletEligible = (branch === 'all') && (time !== 'current_week');
   if (outletSection) outletSection.style.display = isOutletEligible ? 'block' : 'none';
 
-  const qp     = `branch=${encodeURIComponent(branch)}&time=${encodeURIComponent(time)}&temp=all`;
+  const qp = `branch=${encodeURIComponent(branch)}&time=${encodeURIComponent(time)}&temp=all`;
 
   ['loadingTrend','loadingCategory','loadingTop','loadingWeak',
    'loadingPayment','loadingHeatmap','loadingBranch', 'loadingDiscount'].forEach(showLoader);
@@ -712,7 +740,6 @@ function applyFilters() {
       document.getElementById('kpiBranch').textContent    = d.top_branch;
       document.getElementById('kpiPrevMonth').textContent = d.prev_month_label;
 
-      // Trend label with colour
       const trendEl = document.getElementById('kpiRevTrendText');
       const trendSpan = document.getElementById('kpiRevTrend');
       if(trendEl){
@@ -723,7 +750,7 @@ function applyFilters() {
         else trendSpan.className='kpi-sub';
       }
 
-      // Sparkline
+      // Sparkline Canvas Core
       const ctx = document.getElementById('sparklineChart').getContext('2d');
       if(sparklineInstance) sparklineInstance.destroy();
       const sparkData = d.sparkline?.data || [];
@@ -732,15 +759,15 @@ function applyFilters() {
         data:{
           labels: d.sparkline?.labels||[],
           datasets:[{ data:sparkData, borderColor:COLORS.teal, borderWidth:2,
-                      tension:0.45, pointRadius:0, fill:true,
-                      backgroundColor:'rgba(13,148,136,.1)' }]
+                      tension:0.4, pointRadius:0, fill:true,
+                      backgroundColor:'rgba(13,148,136,.06)' }]
         },
         options:{
           responsive:true, maintainAspectRatio:false,
           plugins:{ legend:{display:false}, tooltip:{enabled:false} },
           scales:{
             x:{display:false},
-            y:{display:false, min:sparkData.length?Math.min(...sparkData)*.85:0}
+            y:{display:false, min:sparkData.length?Math.min(...sparkData)*.9:0}
           },
           layout:{padding:0}
         }
@@ -752,102 +779,141 @@ function applyFilters() {
     .then(r=>r.json())
     .then(d=>{
       if(d.status!=='success') {
-          console.error("Charts API returned error:", d.message);
+          console.error("Charts API issue:", d.message);
           ['loadingTrend','loadingCategory','loadingTop','loadingWeak',
            'loadingPayment','loadingHeatmap','loadingBranch'].forEach(hideLoader);
           return;
       }
 
-      /* Trend badge */
+      /* Trend badge logic */
       try {
           const badge = document.getElementById('trendAxisBadge');
-          if(badge) badge.textContent = d.trend.is_monthly ? 'Monthly View' : 'Daily View';
+          if(badge) badge.textContent = d.trend.is_monthly ? 'Monthly Timeline' : 'Daily Timeline';
 
-          /* Sales trend line */
           const trendChartEl = document.getElementById('trendChart');
           const trendData = d.trend.data || [];
           
           if (!d.trend.labels || d.trend.labels.length === 0) {
-            trendChartEl.innerHTML = '<div class="text-muted-sm text-center py-5">No sales data found.</div>';
+            trendChartEl.innerHTML = '<div class="text-muted-sm text-center py-5">No transaction database trends found.</div>';
           } else {
             const avgSales = trendData.length ? (trendData.reduce((a,b)=>a+b,0)/trendData.length) : 0;
             Plotly.newPlot('trendChart', [
               {
-                x: d.trend.labels, y: trendData, name: 'Revenue',
+                x: d.trend.labels, y: trendData, name: 'Revenue Collected',
                 type: 'scatter', mode: 'lines+markers',
                 line: { color: COLORS.blue, width: 3, shape: 'spline' },
                 marker: { size: 6, color: COLORS.blue },
-                fill: 'tozeroy', fillcolor: 'rgba(37,99,235,0.08)',
-                hovertemplate: 'RM %{y:,.2f}<extra></extra>'
+                fill: 'tozeroy', fillcolor: 'rgba(37,99,235,0.06)',
+                hovertemplate: 'Net Collected: RM %{y:,.2f}<extra></extra>'
               },
               {
                 x: d.trend.labels, y: d.trend.labels.map(() => avgSales),
-                name: 'Average', type: 'scatter', mode: 'lines',
+                name: 'Average Target Line', type: 'scatter', mode: 'lines',
                 line: { color: COLORS.amber, width: 2, dash: 'dash' },
-                hovertemplate: 'Avg: RM %{y:,.2f}<extra></extra>'
+                hovertemplate: 'Average: RM %{y:,.2f}<extra></extra>'
               }
             ], {
               ...LAYOUT_BASE, hovermode: 'x unified',
               xaxis: { showgrid: false, automargin: true, tickfont: { size: 10 } },
               yaxis: { tickprefix: 'RM ', gridcolor: '#F1F5F9' },
-              margin: { t: 20, r: 20, b: 40, l: 60 }
+              margin: { t: 15, r: 20, b: 40, l: 60 }
             }, CONFIG);
           }
-      } catch(e) { console.error("Trend chart error", e); }
+      } catch(e) { console.error("Trend Chart failed to render", e); }
       hideLoader('loadingTrend');
 
-      /* Product type donut */
+      /* Product type donut chart */
       try {
           Plotly.newPlot('categoryChart',[{
-            labels:d.category.labels, values:d.category.data,
-            type:'pie', hole:.5, marker:{colors:COLORS.slate},
-            textinfo:'percent', hovertemplate:'<b>%{label}</b><br>RM %{value:,.2f}<extra></extra>'
+            labels: d.category.labels, values: d.category.data,
+            type: 'pie', hole: .55, marker:{colors:COLORS.slate},
+            textinfo: 'percent', hovertemplate:'<b>%{label}</b><br>Sales Total: RM %{value:,.2f}<extra></extra>'
           }],{
-            ...LAYOUT_BASE, showlegend:true, legend:{orientation:'h', y:-0.15},
+            ...LAYOUT_BASE, showlegend:true, legend:{orientation:'h', y:-0.15, font:{size: 10}},
             margin:{t:10,r:10,b:30,l:10}
           }, CONFIG);
-      } catch(e) { console.error("Category chart error", e); }
+      } catch(e) { console.error("Donut Chart failed to render", e); }
       hideLoader('loadingCategory');
 
-      /* Best drinks */
+      /* Render Top Selling Drinks beautifully without text cut-off */
       try {
-          Plotly.newPlot('topChart',[{
-            x:d.products.data, y:d.products.labels,
-            type:'bar', orientation:'h', marker:{color:COLORS.teal},
-            hovertemplate:'%{x} orders<extra></extra>'
-          }],{
-            ...LAYOUT_BASE, margin:{t:10,r:45,b:40,l:140},
-            xaxis:{showgrid:false}, yaxis:{autorange:'reversed'}
-          }, CONFIG);
-      } catch(e) { console.error("Top drinks chart error", e); }
+          const topContainer = document.getElementById('topChart');
+          if (d.products && d.products.labels && d.products.labels.length > 0) {
+              const maxVal = Math.max(...d.products.data);
+              topContainer.innerHTML = d.products.labels.map((lbl, idx) => {
+                  const val = d.products.data[idx];
+                  const percentage = maxVal > 0 ? (val / maxVal * 100) : 0;
+                  const rankClass = idx < 3 ? `rank-${idx+1}` : 'rank-other';
+                  
+                  return `
+                  <div class="menu-item-row" title="${lbl} (${val} orders)">
+                      <div class="d-flex justify-content-between align-items-center">
+                          <span class="menu-item-name">
+                              <span class="rank-badge ${rankClass}">${idx+1}</span>${lbl}
+                          </span>
+                          <span class="menu-item-value">${val.toLocaleString()} <span style="font-size:0.7rem;color:#94A3B8;">cups</span></span>
+                      </div>
+                      <div class="menu-progress-bg">
+                          <div class="menu-progress-bar" style="width: ${percentage}%; background-color: ${COLORS.teal};"></div>
+                      </div>
+                  </div>`;
+              }).join('');
+          } else {
+              topContainer.innerHTML = '<div class="text-muted-sm text-center py-5">No sales volume metrics available.</div>';
+          }
+      } catch(e) { console.error("Failed to render native CSS Top Seller List", e); }
       hideLoader('loadingTop');
 
-      /* Slow drinks */
+      /* Render Slow Selling Drinks beautifully without text cut-off */
       try {
-          Plotly.newPlot('weakChart',[{
-            x:d.weak_products.data, y:d.weak_products.labels,
-            type:'bar', orientation:'h', marker:{color:COLORS.red},
-            hovertemplate:'%{x} orders<extra></extra>'
-          }],{
-            ...LAYOUT_BASE, margin:{t:10,r:45,b:40,l:140},
-            xaxis:{showgrid:false}, yaxis:{autorange:'reversed'}
-          }, CONFIG);
-      } catch(e) { console.error("Weak drinks chart error", e); }
+          const weakContainer = document.getElementById('weakChart');
+          if (d.weak_products && d.weak_products.labels && d.weak_products.labels.length > 0) {
+              const maxVal = Math.max(...d.weak_products.data);
+              weakContainer.innerHTML = d.weak_products.labels.map((lbl, idx) => {
+                  const val = d.weak_products.data[idx];
+                  const percentage = maxVal > 0 ? (val / maxVal * 100) : 0;
+                  const rankClass = idx < 3 ? `rank-${idx+1}` : 'rank-other';
+                  
+                  return `
+                  <div class="menu-item-row" title="${lbl} (${val} orders)">
+                      <div class="d-flex justify-content-between align-items-center">
+                          <span class="menu-item-name">
+                              <span class="rank-badge ${rankClass}">${idx+1}</span>${lbl}
+                          </span>
+                          <span class="menu-item-value">${val.toLocaleString()} <span style="font-size:0.7rem;color:#94A3B8;">cups</span></span>
+                      </div>
+                      <div class="menu-progress-bg">
+                          <div class="menu-progress-bar" style="width: ${percentage}%; background-color: ${COLORS.red};"></div>
+                      </div>
+                  </div>`;
+              }).join('');
+          } else {
+              weakContainer.innerHTML = '<div class="text-muted-sm text-center py-5">All items in menu are selling exceptionally!</div>';
+          }
+      } catch(e) { console.error("Failed to render native CSS Slow Seller List", e); }
       hideLoader('loadingWeak');
 
-      /* Payment methods */
+      /* Payment methods - Transformed to premium Donut Chart */
       try {
-          Plotly.newPlot('paymentChart',[{
-            x:d.payment.labels, y:d.payment.data,
-            type:'bar', marker:{color:COLORS.slate},
-            hovertemplate:'%{y} txns<extra></extra>'
-          }],{
-            ...LAYOUT_BASE, xaxis:{showgrid:false}, yaxis:{gridcolor:'#E2E8F0'}
-          }, CONFIG);
-      } catch(e) { console.error("Payment chart error", e); }
+          const paymentData = d.payment.data || [];
+          const paymentLabels = d.payment.labels || [];
+          if (!paymentLabels.length) {
+              document.getElementById('paymentChart').innerHTML = '<div class="text-muted-sm text-center py-5">No transactional billing channels registered.</div>';
+          } else {
+              Plotly.newPlot('paymentChart',[{
+                labels: paymentLabels, values: paymentData,
+                type: 'pie', hole: .55,
+                marker: { colors: [COLORS.teal, COLORS.blue, COLORS.purple, COLORS.amber, COLORS.red] },
+                textinfo: 'percent', hovertemplate: '<b>%{label}</b><br>Transactions: %{value}<extra></extra>'
+              }],{
+                ...LAYOUT_BASE, showlegend: true, legend:{orientation:'h', y:-0.15, font:{size: 10}},
+                margin:{t:10,r:10,b:30,l:10}
+              }, CONFIG);
+          }
+      } catch(e) { console.error("Donut Billing Representation error", e); }
       hideLoader('loadingPayment');
 
-      /* Heatmap / Peak Hours */
+      /* Heatmap / Busiest Hours of the Day */
       try {
           globalPeakData = d.peak_data;
           if (globalPeakData && (globalPeakData.regular.length > 0 || globalPeakData.ramadhan.length > 0)) {
@@ -865,36 +931,37 @@ function applyFilters() {
               );
               Plotly.newPlot('heatmapChart',[{
                 z, x:hours, y:days, type:'heatmap',
-                colorscale:[[0,'#F8FAFC'],[1,'#1E3A8A']],
+                // Custom Warm Coffee Color Palette mapping
+                colorscale:[[0,'#FFFDF9'], [0.5,'#D97706'], [1,'#78350F']],
                 showscale:true
               }],{
-                ...LAYOUT_BASE, margin:{t:10,r:60,b:50,l:55},
+                ...LAYOUT_BASE, margin:{t:15,r:20,b:40,l:50},
                 xaxis:{tickangle:-45}, yaxis:{automargin:true}
               }, CONFIG);
           }
-      } catch(e) { console.error("Peak/Heatmap chart error", e); }
+      } catch(e) { console.error("Temporal Heatmap compilation error", e); }
       hideLoader('loadingHeatmap');
 
       /* Monthly outlet comparison bar chart */
       try {
           renderBranchChart(d);
-      } catch(e) { console.error("Branch chart error", e); }
+      } catch(e) { console.error("Branch Chart error", e); }
       hideLoader('loadingBranch');
 
-      /* Sales vs Discount Given Chart */
+      /* Sales vs Discount Given Chart (FIXED WITH GROSS SALES AND RETENTION % DUAL AXIS) */
       try {
           renderDiscountChart(d);
-      } catch(e) { console.error("Discount chart error", e); }
+      } catch(e) { console.error("Discount Retained Chart compiler error", e); }
       hideLoader('loadingDiscount');
       })
     .catch(err => {
-      console.error('Charts API error:', err);
+      console.error('Fatal API integration failure:', err);
       ['loadingTrend','loadingCategory','loadingTop','loadingWeak',
-       'loadingPayment','loadingHeatmap','loadingBranch'].forEach(hideLoader);
+       'loadingPayment','loadingHeatmap','loadingBranch', 'loadingDiscount'].forEach(hideLoader);
     });
 }
 
-/* ── REQUIREMENT 2: DISCOUNT IMPACT CHART ──────────────── */
+/* ── DISCOUNT IMPACT CHART (SOLVED: GROUPED COMPARISON SHOWING THE GROSS SALES BAR) ── */
 function renderDiscountChart(d) {
   const trend = d.trend;
   if(!trend || !trend.labels || trend.labels.length === 0){
@@ -902,6 +969,7 @@ function renderDiscountChart(d) {
     return;
   }
 
+  // Calculate actual retention percentage
   const retentionRate = trend.labels.map((_, i) => {
     const gross = trend.gross[i] || 0;
     const net = trend.data[i] || 0;
@@ -911,108 +979,110 @@ function renderDiscountChart(d) {
   Plotly.newPlot('discountChart',[
     {
       x: trend.labels,
-      y: trend.data, // Net Sales
-      name: 'Net Sales (Retained)',
+      y: trend.gross, // Background: Total Potential
+      name: 'Gross Sales (Potential)',
       type: 'bar',
-      marker: { color: COLORS.teal, opacity: 0.9 },
-      hovertemplate: 'Net Sales: RM %{y:,.2f}<extra></extra>',
+      width: 0.8,
+      marker: { color: '#B45309', opacity: 0.75 }, // Rich Caramel Shell
+      hovertemplate: 'Gross potential: RM %{y:,.2f}<extra></extra>',
     },
     {
       x: trend.labels,
-      y: trend.discount, // Discount
-      name: 'Discounts (Lost)',
+      y: trend.data, // Foreground: Actual Collected
+      name: 'Retained Cash (Actual)',
       type: 'bar',
-      marker: { color: '#FDA4AF', opacity: 0.7 }, // Light red
-      hovertemplate: 'Discount: RM %{y:,.2f}<extra></extra>',
+      width: 0.45,
+      marker: { color: '#F5EBE0', opacity: 1 }, // Latte Core
+      hovertemplate: 'Net collected: RM %{y:,.2f}<extra></extra>',
     },
     {
       x: trend.labels,
       y: retentionRate,
       name: 'Retention %',
       type: 'scatter',
-      mode: 'lines+markers',
-      line: { color: COLORS.blue, width: 2 },
-      marker: { size: 6, color: COLORS.blue },
+      mode: 'lines',
+      line: { color: COLORS.blue, width: 2, shape: 'spline' },
       yaxis: 'y2',
       hovertemplate: 'Retained: %{y:.1f}%<extra></extra>',
     }
   ],{
     ...LAYOUT_BASE,
-    barmode: 'stack',
-    margin: { t:30, r:60, b:60, l:70 },
-    legend: { orientation:'h', y:-0.3, font:{size:10} },
+    barmode: 'overlay', // Option 1: Nested Comparison
+    margin: { t:25, r:60, b:60, l:75 },
+    legend: { orientation:'h', y:-0.28, font:{size:10} },
     xaxis: { tickangle:-30, showgrid:false, tickfont:{size:9} },
     yaxis: { 
       tickprefix:'RM ', 
       gridcolor:'#F1F5F9',
-      title: { text: 'Total Revenue (Gross)', font: { size: 10 } }
+      title: { text: 'Revenue Comparison', font: { size: 10, weight: 600 } }
     },
     yaxis2: {
       overlaying:'y', side:'right',
-      range: [0, 110],
+      range: [0, 115],
       ticksuffix: '%',
       showgrid: false,
       tickfont: { size: 9, color: COLORS.blue },
-      title: { text: 'Retention Rate', font: { size: 10, color: COLORS.blue } }
+      title: { text: 'Retention %', font: { size: 10, color: COLORS.blue, weight: 600 } }
     }
   }, CONFIG);
   hideLoader('loadingDiscount');
 }
 
-/* ── BRANCH COMPARISON CHART (AOV Focus) ──────────────── */
+/* ── BRANCH COMPARISON CHART (AOV Focus) ── */
 function renderBranchChart(d) {
   const monthly = d.monthly;
   if(!monthly || !monthly.labels || monthly.labels.length === 0){
     hideLoader('loadingBranch');
     document.getElementById('branchChart').innerHTML=
-      '<div class="text-muted-sm text-center py-4">Not enough data to compare outlets.</div>';
+      '<div class="text-muted-sm text-center py-4">Insufficient comparative timeline criteria to plot branches.</div>';
     return;
   }
 
-  // Use aov_by_branch if available, fallback to total revenue (by_branch)
   const isAOV = !!monthly.aov_by_branch;
   const dataSrc = isAOV ? monthly.aov_by_branch : monthly.by_branch;
-  const valLabel = isAOV ? 'Avg Spend/Customer' : 'Monthly Sales';
+  const valLabel = isAOV ? 'AOV Per Bill' : 'Monthly Accumulations';
 
-  const traces = monthly.branches.map((branch, i)=>({
-    x: monthly.labels,
-    y: dataSrc[branch] || [],
-    name: branch,
-    type: 'bar',
-    marker: { color: i===0 ? COLORS.blue : COLORS.teal, opacity:.9 },
-    hovertemplate: `<b>${branch}</b><br>%{x}<br>${valLabel}: RM %{y:,.2f}<extra></extra>`,
-  }));
+  const traces = monthly.branches.map((branch, i)=>{
+    const branchColor = branch === 'Putrajaya' ? '#4B2C20' : '#A85A32';
+    return {
+      x: monthly.labels,
+      y: dataSrc[branch] || [],
+      name: branch === 'Putrajaya' ? 'Putrajaya Stall' : 'Puncak Alam Truck',
+      type: 'bar',
+      marker: { color: branchColor, opacity: 0.9 },
+      hovertemplate: `<b>${branch}</b><br>%{x}<br>${valLabel}: RM %{y:,.2f}<extra></extra>`,
+    };
+  });
 
   Plotly.newPlot('branchChart', traces, {
     ...LAYOUT_BASE,
     barmode: 'group',
-    margin: { t:10, r:16, b:55, l:60 },
+    margin: { t:15, r:16, b:55, l:60 },
     legend: { orientation:'h', y:-0.22, font:{size:10} },
     xaxis: { tickangle:-30, showgrid:false, tickfont:{size:9} },
     yaxis: { 
       tickprefix:'RM ', 
       gridcolor:'#E2E8F0', 
       gridwidth:1,
-      title: { text: isAOV ? 'Average Spend (RM)' : 'Sales (RM)', font: { size: 10 } }
+      title: { text: isAOV ? 'Average Bill Size' : 'Revenue Volumes', font: { size: 10 } }
     }
   }, CONFIG);
   hideLoader('loadingBranch');
 }
 
-/* ── RESPONSIVE RESIZE ─────────────────────────────────── */
+/* ── RESPONSIVE RESIZE EVENT BOUNDS ── */
 let resizeTimer;
 window.addEventListener('resize', ()=>{
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(()=>{
-    ['trendChart','categoryChart','topChart','weakChart',
-     'paymentChart','heatmapChart','branchChart','discountChart'].forEach(id=>{
+    ['trendChart','categoryChart','paymentChart','heatmapChart','branchChart','discountChart'].forEach(id=>{
       const el=document.getElementById(id);
       if(el&&el.data) Plotly.relayout(id,{autosize:true});
     });
   }, 200);
 });
 
-/* ── INIT ──────────────────────────────────────────────── */
+/* ── CONTEXT BOOTSTRAPPER ── */
 document.addEventListener('DOMContentLoaded', ()=>{
   loadFilterOptions();
   applyFilters();
