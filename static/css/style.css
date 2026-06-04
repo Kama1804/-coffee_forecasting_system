@@ -1447,6 +1447,28 @@ body.login-bg::before {
 }
 
 /* ============================================================
+   27. SWEETALERT2 CUSTOMIZATIONS
+   ============================================================ */
+.swal2-toast-custom {
+    box-shadow: var(--shadow-lg) !important;
+    border: 1px solid var(--grey-border) !important;
+}
+
+.swal2-toast-custom .swal2-title {
+    font-size: 0.95rem !important;
+    line-height: 1.4 !important;
+    font-weight: 500 !important;
+    color: var(--text-main) !important;
+}
+
+@media (max-width: 576px) {
+    .swal2-toast-custom {
+        width: 90vw !important;
+        margin-right: 5vw !important;
+    }
+}
+
+/* ============================================================
    25. RESPONSIVE
    ============================================================ */
 @media (max-width: 1024px) {

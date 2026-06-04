@@ -589,27 +589,31 @@
 </head>
 <body class="login-bg">
     <div class="login-flash">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <script>
-                    document.addEventListener('DOMContentLoaded', function() {
-                        const Toast = Swal.mixin({
-                            toast: true,
-                            position: 'top-end',
-                            showConfirmButton: false,
-                            timer: 5000,
-                            timerProgressBar: true
-                        });
+        {% with messages = get_flashed_messages(with_categories=True) %}
+        <script>
+            // Wrapping it in quotes and passing it to JSON.parse makes it valid JS to your IDE
+            // while Jinja safely populates it at runtime.
+            const flashMessages = JSON.parse('{{ messages | tojson | safe }}' || '[]');
 
-                        {% for category, message in messages %}
-                            Toast.fire({
-                                icon: "{{ 'error' if category == 'error' else 'success' }}",
-                                title: "{{ message }}"
-                            });
-                        {% endfor %}
+            document.addEventListener('DOMContentLoaded', () => {
+
+                const Toast = Swal.mixin({
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 5000,
+                    timerProgressBar: true
+                });
+
+                flashMessages.forEach(([category, message]) => {
+                    Toast.fire({
+                        icon: category === 'error' ? 'error' : 'success',
+                        title: message
                     });
-                </script>
-            {% endif %}
+                });
+
+            });
+        </script>
         {% endwith %}
     </div>
 

@@ -711,6 +711,7 @@ function applyFilters() {
 
   const outletSection = document.getElementById('outletQualitySection');
   const promoSection = document.getElementById('promoIntelligenceSection');
+  const discountSection = document.getElementById('discountAnalysisSection');
 
   // Promotion ROI Table layout rendering rules
   const isPromoEligible = (branch === 'all') && (time === 'all' || time.startsWith('year_'));
@@ -719,6 +720,10 @@ function applyFilters() {
   // Branch Comparison rendering criteria
   const isOutletEligible = (branch === 'all') && (time !== 'current_week');
   if (outletSection) outletSection.style.display = isOutletEligible ? 'block' : 'none';
+
+  // Discount Impact rendering criteria: All outlets, but only All Time or Yearly
+  const isDiscountEligible = (time === 'all' || time.startsWith('year_'));
+  if (discountSection) discountSection.style.display = isDiscountEligible ? 'block' : 'none';
 
   const qp = `branch=${encodeURIComponent(branch)}&time=${encodeURIComponent(time)}&temp=all`;
 

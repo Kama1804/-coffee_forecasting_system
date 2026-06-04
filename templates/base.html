@@ -140,7 +140,7 @@
         </header>
 
         <!-- ── Flash Messages ───────────────────────── -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
+{% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 <script>
                     document.addEventListener('DOMContentLoaded', function() {
@@ -150,18 +150,26 @@
                             showConfirmButton: false,
                             timer: 4500,
                             timerProgressBar: true,
+                            width: '28rem',
+                            padding: '1rem',
+                            customClass: {
+                                popup: 'swal2-toast-custom'
+                            },
                             didOpen: (toast) => {
                                 toast.addEventListener('mouseenter', Swal.stopTimer)
                                 toast.addEventListener('mouseleave', Swal.resumeTimer)
                             }
                         });
 
-                        {% for category, message in messages %}
+                        // Safely parse the entire list as a standard JS Array object string
+                        const serverMessages = JSON.parse('{{ messages | tojson | safe }}' || '[]');
+                        
+                        serverMessages.forEach(([category, message]) => {
                             Toast.fire({
-                                icon: "{{ 'error' if category == 'error' else 'success' }}",
-                                title: "{{ message }}"
+                                icon: category === 'error' ? 'error' : 'success',
+                                title: message
                             });
-                        {% endfor %}
+                        });
                     });
                 </script>
             {% endif %}
