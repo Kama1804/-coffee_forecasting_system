@@ -497,18 +497,20 @@ class ForecastEngine:
                 elif is_sunday:
                     promo_list = []   # Sunday closed label shown via UI flag
                 else:
-                    promo_list = []
+                    promo_set = set()
                     # Use the RESOLVED promo map (already skipped closed days)
                     resolved_label = resolved_promo_map.get(date_str)
                     if resolved_label:
                         from analytics import shorten_promo_code
-                        promo_list.append(shorten_promo_code(resolved_label))
-                    
+                        promo_set.add(shorten_promo_code(resolved_label))
+
                     # Requirement 2: Dynamic Promo Detection from patterns
                     pattern_promo = promo_patterns.get(dow_str)
                     if pattern_promo:
                         from analytics import shorten_promo_code
-                        promo_list.append(f"Recurring Promo: {shorten_promo_code(pattern_promo)}")
+                        promo_set.add(shorten_promo_code(pattern_promo))
+
+                    promo_list = list(promo_set)
 
                 # ── Weather: blank out for closed days ────────────────────
                 if is_closed:

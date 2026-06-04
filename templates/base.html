@@ -11,6 +11,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <!-- AOS Animations -->
     <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <!-- Design System -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 
@@ -140,17 +142,28 @@
         <!-- ── Flash Messages ───────────────────────── -->
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-                <div class="flash-stack" id="flashStack" style="padding: 0 var(--space-2xl);">
-                    {% for category, message in messages %}
-                        <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }}
-                                    alert-dismissible fade show" role="alert">
-                            <i class="fa-solid {{ 'fa-circle-exclamation' if category == 'error' else 'fa-circle-check' }}"></i>
-                            <span>{{ message }}</span>
-                            <button type="button" class="btn-close ms-auto"
-                                    data-bs-dismiss="alert" aria-label="Close"></button>
-                        </div>
-                    {% endfor %}
-                </div>
+                <script>
+                    document.addEventListener('DOMContentLoaded', function() {
+                        const Toast = Swal.mixin({
+                            toast: true,
+                            position: 'top-end',
+                            showConfirmButton: false,
+                            timer: 4500,
+                            timerProgressBar: true,
+                            didOpen: (toast) => {
+                                toast.addEventListener('mouseenter', Swal.stopTimer)
+                                toast.addEventListener('mouseleave', Swal.resumeTimer)
+                            }
+                        });
+
+                        {% for category, message in messages %}
+                            Toast.fire({
+                                icon: "{{ 'error' if category == 'error' else 'success' }}",
+                                title: "{{ message }}"
+                            });
+                        {% endfor %}
+                    });
+                </script>
             {% endif %}
         {% endwith %}
 
@@ -182,11 +195,6 @@ toggle.addEventListener('click', () =>
     sidebar.classList.contains('open') ? closeSidebar() : openSidebar()
 );
 overlay.addEventListener('click', closeSidebar);
-
-/* ── Auto-dismiss alerts ─────────────────────────────── */
-document.querySelectorAll('.alert').forEach(el => {
-    setTimeout(() => bootstrap.Alert.getOrCreateInstance(el)?.close(), 4500);
-});
 
 /* ── Topbar: clock, date, greeting ──────────────────── */
 (function initTopbar() {

@@ -603,7 +603,15 @@ function varColor(v) { return (parseFloat(v) || 0) >= 0 ? '#059669' : '#DC2626';
 function downloadReportPDF() {
     const branch = document.getElementById('reportBranch').value;
     const month  = document.getElementById('reportMonth').value;
-    if (!month) { alert('Please select a reporting month first.'); return; }
+    if (!month) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Month Required',
+            text: 'Please select a reporting month first.',
+            confirmButtonColor: 'var(--slate-accent)'
+        });
+        return;
+    }
     const from    = `${month}-01`;
     const parts   = month.split('-');
     const lastDay = new Date(parseInt(parts[0]), parseInt(parts[1]), 0).getDate();
@@ -626,7 +634,14 @@ function downloadReportPDF() {
             document.body.appendChild(a); a.click();
             document.body.removeChild(a); URL.revokeObjectURL(a.href);
         })
-        .catch(err => alert('PDF export failed: ' + err.message))
+        .catch(err => {
+            Swal.fire({
+                icon: 'error',
+                title: 'Export Failed',
+                text: 'PDF export failed: ' + err.message,
+                confirmButtonColor: 'var(--slate-accent)'
+            });
+        })
         .finally(() => {
             pdfBtn.disabled = false;
             pdfBtn.innerHTML = `<span class="pdf-icon-btn">
@@ -643,7 +658,15 @@ function downloadReportPDF() {
 function generateReportPreview() {
     const branch = document.getElementById('reportBranch').value;
     const month  = document.getElementById('reportMonth').value;
-    if (!month) { alert('Please select a reporting month first.'); return; }
+    if (!month) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Month Required',
+            text: 'Please select a reporting month first.',
+            confirmButtonColor: 'var(--slate-accent)'
+        });
+        return;
+    }
     const from    = `${month}-01`;
     const parts   = month.split('-');
     const lastDay = new Date(parseInt(parts[0]), parseInt(parts[1]), 0).getDate();
@@ -664,7 +687,15 @@ function generateReportPreview() {
             previewBtn.disabled = false;
             previewBtn.innerHTML = '<i class="fa-solid fa-file-invoice"></i> Generate Preview';
             pdfBtn.disabled = false;
-            if (data.status !== 'success') { alert('Error: ' + data.message); return; }
+            if (data.status !== 'success') {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Report Error',
+                    text: 'Error: ' + data.message,
+                    confirmButtonColor: 'var(--slate-accent)'
+                });
+                return;
+            }
             currentReportData = data;
             wrap.classList.add('loaded');
 
@@ -687,7 +718,12 @@ function generateReportPreview() {
         .catch(err => {
             previewBtn.disabled = false;
             previewBtn.innerHTML = '<i class="fa-solid fa-file-invoice"></i> Generate Preview';
-            alert('Error fetching report data: ' + err.message);
+            Swal.fire({
+                icon: 'error',
+                title: 'Fetch Failed',
+                text: 'Error fetching report data: ' + err.message,
+                confirmButtonColor: 'var(--slate-accent)'
+            });
         });
 }
 

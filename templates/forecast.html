@@ -584,7 +584,7 @@
     </div>
 </div>
 
-<!-- ── REQUIREMENT 1: Missing Recipe Alert Banner ── -->
+<!-- ── Missing Recipe Alert Banner ── -->
 <div id="recipeAlertBanner" style="display:none;" class="mb-4" data-aos="fade-down">
     <div class="dashboard-card" style="border-left: 4px solid var(--red); background: #FFF5F5;">
         <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
@@ -889,9 +889,8 @@
                 <!-- Active promotions -->
                 <div class="mb-3">
                     <div class="driver-section-title"><span style="font-size:1rem;">🎁</span> Active promotions</div>
-                    <div style="font-size:.82rem;line-height:2;">
-                        <div><span class="promo-badge">Every Friday</span> 20% off all Latte drinks</div>
-                        <div class="mt-1"><span class="promo-badge">School Holidays / Festive</span> Higher foot traffic expected</div>
+                    <div id="activePromosContainer" style="font-size:.82rem;line-height:2;">
+                        <div class="text-muted-sm" style="font-style:italic;">No unique promotions identified for this period.</div>
                     </div>
                 </div>
 
@@ -1131,13 +1130,28 @@ async function saveRecipe() {
             } else {
                 bootstrap.Modal.getInstance(document.getElementById('recipeModal')).hide();
                 document.getElementById('recipeAlertBanner').style.display = 'none';
-                alert("All recipes saved! You can now generate a fresh forecast.");
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Recipes Updated',
+                    text: 'All recipes saved! You can now generate a fresh forecast.',
+                    confirmButtonColor: 'var(--slate-accent)'
+                });
             }
         } else {
-            alert("Error: " + d.message);
+            Swal.fire({
+                icon: 'error',
+                title: 'Save Failed',
+                text: 'Error: ' + d.message,
+                confirmButtonColor: 'var(--slate-accent)'
+            });
         }
     } catch (e) {
-        alert("Connection error while saving recipe.");
+        Swal.fire({
+            icon: 'error',
+            title: 'Connection Error',
+            text: 'Could not connect to the server to save your recipe. Please try again.',
+            confirmButtonColor: 'var(--slate-accent)'
+        });
     } finally {
         btn.disabled = false;
         btn.innerHTML = missingRecipesQueue.length > 0 ? 'Save & Next <i class="fa-solid fa-arrow-right ms-2"></i>' : 'Save Recipe';
@@ -1214,7 +1228,6 @@ function generateForecast() {
     btn.disabled  = true;
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
 
-    setStep(1);
     const titles = [
         'Loading your sales history…',
         'Adding Malaysian public holidays & school breaks…',
@@ -1230,39 +1243,76 @@ function generateForecast() {
         'Calculating predicted revenue with confidence ranges.'
     ];
 
-    let si = 0;
-    const timer = setInterval(() => {
-        si++;
-        if (si <= 4) {
-            setStep(si + 1);
-            document.getElementById('statusTitle').textContent = titles[si];
-            document.getElementById('statusText').textContent  = texts[si];
+    let currentStep = 1;
+    let apiFinished = false;
+    let apiData = null;
+
+    // Start sequential animation (1.4s per step x 5 = 7s)
+    setStep(1);
+    document.getElementById('statusTitle').textContent = titles[0];
+    document.getElementById('statusText').textContent  = texts[0];
+
+    const stepInterval = setInterval(() => {
+        if (currentStep < 5) {
+            currentStep++;
+            setStep(currentStep);
+            document.getElementById('statusTitle').textContent = titles[currentStep - 1];
+            document.getElementById('statusText').textContent  = texts[currentStep - 1];
+        } else {
+            clearInterval(stepInterval);
+            // All steps green! Wait 1 more second for impact
+            setTimeout(() => {
+                if (apiFinished) {
+                    finalizeForecast(apiData, branchName, btn);
+                }
+                // If API not finished yet, it will call finalizeForecast when done
+            }, 1000);
         }
-    }, 1500);
+    }, 1400);
 
     fetch(`/api/forecast?branch_id=${branchId}&branch_name=${encodeURIComponent(branchName)}`)
         .then(r => r.json())
         .then(data => {
-            clearInterval(timer);
-            btn.disabled  = false;
-            btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Generate Forecast';
-            document.getElementById('statusBanner').style.display = 'none';
-            if (data.status !== 'success') {
-                alert('Could not generate forecast: ' + (data.message || 'Please check your data.'));
-                document.getElementById('emptyState').style.display = 'block';
-                return;
+            apiData = data;
+            apiFinished = true;
+            // If animation already finished all 5 steps, finalize now
+            if (currentStep === 5) {
+                // The setTimeout above will handle it if we are in the 1s pause
+                // But just in case, we check if interval is cleared
             }
-            lastForecastData = data;
-            renderAll(data, branchName);
         })
         .catch(err => {
-            clearInterval(timer);
+            clearInterval(stepInterval);
             btn.disabled  = false;
             btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Generate Forecast';
             document.getElementById('statusBanner').style.display = 'none';
             document.getElementById('emptyState').style.display   = 'block';
-            alert('Connection error: ' + err.message);
+            Swal.fire({
+                icon: 'error',
+                title: 'Connection Error',
+                text: 'Connection error: ' + err.message,
+                confirmButtonColor: 'var(--slate-accent)'
+            });
         });
+}
+
+function finalizeForecast(data, branchName, btn) {
+    btn.disabled  = false;
+    btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Generate Forecast';
+    document.getElementById('statusBanner').style.display = 'none';
+    
+    if (data.status !== 'success') {
+        Swal.fire({
+            icon: 'error',
+            title: 'Forecast Failed',
+            text: 'Could not generate forecast: ' + (data.message || 'Please check your data.'),
+            confirmButtonColor: 'var(--slate-accent)'
+        });
+        document.getElementById('emptyState').style.display = 'block';
+        return;
+    }
+    lastForecastData = data;
+    renderAll(data, branchName);
 }
 
 /* ============================================================
@@ -1277,6 +1327,25 @@ function renderAll(data, branchName) {
 
     document.getElementById('personaName').textContent = branchName;
     document.getElementById('personaDesc').textContent = data.persona;
+
+    // --- Active Promotions Alignment ---
+    const promoContainer = document.getElementById('activePromosContainer');
+    if (promoContainer && data.forecast) {
+        const allPromos = new Set();
+        data.forecast.forEach(row => {
+            if (row.promotions) {
+                row.promotions.forEach(p => allPromos.add(p));
+            }
+        });
+
+        if (allPromos.size > 0) {
+            promoContainer.innerHTML = Array.from(allPromos).map(p => `
+                <div class="mb-1"><span class="promo-badge">${p.toLowerCase().includes('friday') ? '🎉' : '🎁'} ${p}</span></div>
+            `).join('');
+        } else {
+            promoContainer.innerHTML = '<div class="text-muted-sm" style="font-style:italic;">No unique promotions identified for this period.</div>';
+        }
+    }
 
     document.getElementById('metricMape').textContent     = data.mape;
     document.getElementById('metricRmse').textContent     = fmt(data.rmse);
@@ -1724,7 +1793,14 @@ function downloadForecastPDF() {
         a.download = `MCS_Forecast_${branchName.replace(' ','_')}_${new Date().toISOString().slice(0,10)}.pdf`;
         a.click();
     })
-    .catch(err => alert('Could not download PDF: ' + err.message))
+    .catch(err => {
+        Swal.fire({
+            icon: 'error',
+            title: 'Download Failed',
+            text: 'Could not download PDF: ' + err.message,
+            confirmButtonColor: 'var(--slate-accent)'
+        });
+    })
     .finally(() => {
         btn.disabled  = false;
         btn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> Download PDF';

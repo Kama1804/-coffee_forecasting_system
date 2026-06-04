@@ -99,37 +99,22 @@ def process_sales_dataframe(df):
 
 def shorten_promo_code(code):
     """
-    Requirement 2: Smart Alias Engine
-    Compresses long promo codes into clean, professional labels using the 'First & Last' rule.
+    Refactored Label Engine:
+    - Direct database-to-UI mapping
+    - Replaces underscores/hyphens with spaces
+    - Maintains B1F1 abbreviation
     """
     if not code or code == 'NONE':
         return 'None'
+
+    # 1. B1F1 Mappings
+    temp = code.upper().replace('BOGOF', 'B1F1').replace('BUY1FREE1', 'B1F1').replace('BUY-1-FREE-1', 'B1F1')
     
-    # 1. Shrink keywords
-    replacements = {
-        'PROMOTION': 'Prm',
-        'PROMO': 'Prm',
-        'DISCOUNT': 'Disc',
-        'CAMPAIGN': 'Cmp',
-        'BOGOF': 'B1F1',
-        'BUY1FREE1': 'B1F1',
-        'BUY-1-FREE-1': 'B1F1'
-    }
-    
-    temp_code = code.upper().replace('_', ' ').replace('-', ' ')
-    for long, short in replacements.items():
-        temp_code = temp_code.replace(long, short)
-    
-    words = temp_code.split()
-    
-    # 2. First & Last Rule
-    if len(words) > 2:
-        shortened = f"{words[0]} {words[-1]}"
-    else:
-        shortened = " ".join(words)
-        
-    # 3. Final Beauty Wash
-    return shortened.title().replace('B1F1', 'B1F1').replace('Prm', 'Prm')
+    # 2. Database formatting: Underscore/Hyphen to Space
+    temp = temp.replace('_', ' ').replace('-', ' ').strip()
+
+    # 3. Final Clean formatting
+    return temp.title().replace('B1f1', 'B1F1')
 
 def promo_efficiency_analyzer(where_clause="", params=None):
     """
