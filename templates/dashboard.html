@@ -1005,8 +1005,9 @@ function renderDiscountChart(d) {
       y: retentionRate,
       name: 'Retention %',
       type: 'scatter',
-      mode: 'lines',
-      line: { color: COLORS.blue, width: 2, shape: 'spline' },
+      mode: 'lines+markers',
+      line: { color: COLORS.blue, width: 2 },
+      marker: { size: 6, color: COLORS.blue },
       yaxis: 'y2',
       hovertemplate: 'Retained: %{y:.1f}%<extra></extra>',
     }

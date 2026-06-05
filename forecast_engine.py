@@ -422,12 +422,12 @@ class ForecastEngine:
 
         # Requirement 2: Detect most likely promo codes for specific DOWs
         cursor.execute("""
-            SELECT strftime('%w', transaction_date) as dow, promo_code, COUNT(*) as cnt
+            SELECT strftime('%w', transaction_date) as dow, promo_code, COUNT(DISTINCT transaction_date) as days_active
             FROM sales_transaction
             WHERE branch_id = ? AND promo_code != 'NONE'
             GROUP BY dow, promo_code
-            HAVING cnt > 2
-            ORDER BY cnt DESC
+            HAVING days_active >= 4
+            ORDER BY days_active DESC
         """, (branch_id,))
         promo_patterns = {}
         for dow, p_code, _ in cursor.fetchall():

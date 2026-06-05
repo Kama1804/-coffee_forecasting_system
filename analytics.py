@@ -345,6 +345,106 @@ def calculate_ingredient_demand(forecasted_sales_list):
 
     return inventory_demand
 
+def format_to_ops_units(demand_dict):
+    """
+    Converts raw ml and g into L and kg for operational clarity.
+    """
+    formatted = {}
+    for k, v in demand_dict.items():
+        if k == 'custom':
+            formatted['custom'] = v
+            continue
+        
+        # Convert ml to L
+        if 'ml' in k:
+            new_key = k.replace('_ml', '_L')
+            formatted[new_key] = round(v / 1000, 2)
+        # Convert g to kg
+        elif '_g' in k:
+            new_key = k.replace('_g', '_kg')
+            formatted[new_key] = round(v / 1000, 2)
+        else:
+            formatted[k] = v
+    return formatted
+
+def get_promo_roi_report(promo_code_fuzzy):
+    """
+    Requirement 2: Advanced Promotion ROI
+    Analyzes a specific campaign across all years it appeared.
+    """
+    conn = get_db_connection()
+    query = f"""
+        SELECT 
+            strftime('%Y', transaction_date) as yr,
+            promo_code,
+            SUM(transaction_qty) as total_qty,
+            SUM(gross_sales_MYR) as total_gross,
+            SUM(discount_amount_MYR) as total_discount,
+            SUM(Total_Bill_MYR) as total_net
+        FROM sales_transaction
+        WHERE promo_code LIKE ?
+        GROUP BY yr, promo_code
+        ORDER BY yr DESC
+    """
+    df = pd.read_sql_query(query, conn, params=(f"%{promo_code_fuzzy.upper()}%",))
+    conn.close()
+    
+    if df.empty:
+        return []
+        
+    # Calculate Multiplier: Net Revenue generated for every RM 1 of discount given
+    df['roi_multiplier'] = (df['total_net'] / df['total_discount']).replace([float('inf'), -float('inf')], 0).fillna(0).round(2)
+    # Worth It Logic: Multiplier > 8x is Excellent, > 5x is Good, < 3x is Poor
+    def evaluate_roi(val):
+        if val >= 8: return "EXCELLENT (Highly Worth It)"
+        if val >= 5: return "GOOD (Sustainable)"
+        return "LOW (High Burn / Low ROI)"
+        
+    df['worth_it_score'] = df['roi_multiplier'].apply(evaluate_roi)
+    return df.to_dict('records')
+
+def get_seasonal_comparison_report(season_name, years):
+    """
+    Requirement 3: Seasonal Year-over-Year Comparison
+    Uses predefined windows (like Ramadhan) to compare performance.
+    """
+    windows = {
+        'ramadhan': [
+            ('2024', '2024-03-12', '2024-04-09'),
+            ('2025', '2025-03-02', '2025-03-30'),
+            ('2026', '2026-02-19', '2026-03-20'),
+            ('2027', '2027-02-08', '2027-03-09')
+        ]
+        # Add other seasons if needed
+    }
+    
+    target_windows = windows.get(season_name.lower())
+    if not target_windows:
+        return []
+        
+    results = []
+    conn = get_db_connection()
+    for yr, start, end in target_windows:
+        if yr not in [str(y) for y in years]:
+            continue
+            
+        query = """
+            SELECT 
+                SUM(Total_Bill_MYR) as revenue,
+                COUNT(transaction_id) as transactions,
+                COUNT(DISTINCT transaction_date) as days
+            FROM sales_transaction
+            WHERE transaction_date BETWEEN ? AND ?
+        """
+        df = pd.read_sql_query(query, conn, params=(start, end))
+        if not df.empty and df['revenue'].iloc[0]:
+            row = df.iloc[0].to_dict()
+            row['year'] = yr
+            row['daily_avg'] = round(row['revenue'] / max(row['days'], 1), 2)
+            results.append(row)
+    conn.close()
+    return results
+
 def revenue_decline_and_product_mix_profiler(branch_id=None, reference_date=None):
     conn = get_db_connection()
     query = "SELECT transaction_date, product_category, product_id, transaction_qty, Total_Bill_MYR FROM sales_transaction"

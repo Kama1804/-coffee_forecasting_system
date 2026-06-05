@@ -4,6 +4,7 @@ import os
 import time
 import json
 import re
+import random
 from dotenv import load_dotenv
 from pathlib import Path
 import sqlite3
@@ -37,7 +38,7 @@ INTENT_PROFILES = {
         "depth": "deep",
     },
     "inventory": {
-        "keywords": ["ingredient", "stock", "inventory", "milk", "cup", "beans", "ice", "order", "supply", "demand", "restock"],
+        "keywords": ["ingredient", "stock", "inventory", "milk", "cup", "beans", "ice", "order", "supply", "demand", "restock", "stok"],
         "style": "operational",
         "depth": "medium",
     },
@@ -114,25 +115,29 @@ STYLE_PERSONAS = {
     "analytical_narrative": """
 You are a sharp Malaysian F&B business analyst — think McKinsey meets hawker stall owner.
 When analyzing trends, tell a STORY: what changed, why it likely changed, and what to do about it.
-Lead with the most surprising or important finding. Use comparative framing ("X% higher than", "best since", "reversal of").
-Avoid listing raw numbers without interpretation. Every number must earn its place.
+For seasonal comparisons: highlight growth/decline across years and interpret what this means for the business's maturity.
+Lead with the most surprising or important finding. Use comparative framing ("X% higher than", "best since").
 """,
     "warning_driven": """
 You are a vigilant ops manager who catches problems before they hurt the business.
-For promo analysis: ALWAYS distinguish Value promos (%) from Volume promos (B1F1, Qty-based).
+For promo analysis: ALWAYS check the 'Worth It' score. If ROI is < 5x, issue a ⚠️ warning about high burn.
 Volume promos → immediately warn that ingredient consumption (cups, milk, ice) will spike disproportionately vs revenue.
-Be direct. Use ⚠️ for critical warnings. Don't soften the message.
+Be direct. Don't soften the message.
 """,
     "forward_looking": """
-You are a forecasting advisor who bridges data predictions with on-the-ground realities.
-When presenting forecasts: highlight anomalies (unusually high/low days), explain likely causes (weather, promos, day-of-week).
-Always connect forecast to a concrete action: "Because Tuesday looks slow, consider reducing perishable orders by X."
-Closed days (Sunday) = acknowledge briefly, move on — don't dwell on RM 0.00.
+You are a forecasting advisor. Follow this internal logic (Chain-of-Thought):
+1. Identify the specific date the user is asking about.
+2. Verify the exact revenue forecast and weather for that date.
+3. Reason how the weather and day-of-week (e.g., weekend rush vs weekday slump) affect volume.
+4. Recommend a concrete action tied to that specific day.
+Closed days (Sunday) = acknowledge briefly, move on.
 """,
     "operational": """
-You are a hands-on operations coach. Your job is to turn data into tomorrow's to-do list.
-Be specific: not "stock up on milk" but "Based on predicted 340 cups across both branches, order at least 25L extra."
-Use urgency flags: 🔴 Critical (act today), 🟡 Watch (act this week), 🟢 Stable.
+You are a hands-on operations coach. Follow this internal logic (Chain-of-Thought):
+1. Look at the [INVENTORY TRUTH] hard numbers provided in the context.
+2. Convert those numbers into actionable items (e.g., "Order 2 cartons of milk" instead of "30,000ml").
+3. Use urgency flags based on the predicted volume: 🔴 Critical (act today), 🟡 Watch (act this week), 🟢 Stable.
+NEVER estimate or guess numbers — use the exact L and kg from the context.
 """,
     "direct_answer": """
 You are a fast-response data terminal. Answer the specific question in 1-2 sentences.
@@ -157,6 +162,9 @@ ABSOLUTE_RULES = """
 - NEVER start your response with "Sure!", "Great question!", "Certainly!", or any filler opener.
 - NEVER use the same response structure twice in a row — vary your format.
 - If data is unavailable, say so honestly in one sentence and pivot to what IS available.
+- If the user says "thank you", "terima kasih", or "bye", just say a polite, friendly closing in 1 sentence.
+- For ROI analysis: If multiplier > 8x, say "WORTH IT". If < 5x, say "NOT WORTH IT (High Burn)".
+- LANGUAGE MIRRORING: Always respond in the SAME language used by the user. If they ask in Malay, answer in Malay. If in English, answer in English. Maintain a professional Malaysian business tone.
 - Ramadhan context: {ramadhan_note}
 """
 
@@ -165,6 +173,10 @@ RESPONSE_LENGTH_GUIDE = {
     "medium": "80–150 words. Key insight + 2-3 supporting points.",
     "deep": "150–280 words. Full analysis with narrative, data points, and at least one actionable recommendation.",
 }
+
+def is_closing_statement(text: str) -> bool:
+    msg = text.lower().strip()
+    return any(k in msg for k in ["thank you", "terima kasih", "bye", "goodbye", "that's all", "nothing else"])
 
 def build_dynamic_system_prompt(intent: dict) -> str:
     style = intent.get("style", "conversational")
@@ -179,7 +191,7 @@ def build_dynamic_system_prompt(intent: dict) -> str:
     supplemental = ""
     multi = intent.get("multi", [])
     if "promo_intelligence" in multi:
-        supplemental += "\nSECONDARY LENS — Promo: flag any Volume-based promotion impacts within your response."
+        supplemental += "\nSECONDARY LENS — Promo: flag any Volume-based promotion impacts and check the 'Worth It' ROI status."
     if "forecast" in multi:
         supplemental += "\nSECONDARY LENS — Forecast: briefly tie current trend to what's coming next."
     if "inventory" in multi:
@@ -233,6 +245,14 @@ def fast_kpi_bypass(user_message: str, db_data: dict):
     Returns a varied, natural-language response (not a template string).
     Responses rotate phrasing to avoid feeling robotic.
     """
+    if is_closing_statement(user_message):
+        return random.choice([
+            "Sama-sama, Boss. Semoga jualan esok lebat!",
+            "Terima kasih kembali. Saya sentiasa di sini kalau ada soalan data.",
+            "All the best for the next shift! Jumpa lagi.",
+            "No problem. Let's hit those targets!"
+        ])
+
     msg = user_message.lower().strip()
     has_temporal = any(k in msg for k in ['last', 'this', 'month', 'compare', 'trend', '202'])
 
@@ -463,13 +483,24 @@ def build_slim_context(db_data: dict, user_message: str) -> str:
     Builds a data-rich context payload for the AI, shaped by detected intent.
     Only injects data sections that are relevant to the user's actual question.
     """
-    from analytics import multi_month_chart_pre_packager, promo_efficiency_analyzer
+    from analytics import (
+        multi_month_chart_pre_packager, promo_efficiency_analyzer, 
+        calculate_ingredient_demand, format_to_ops_units,
+        get_promo_roi_report, get_seasonal_comparison_report
+    )
     from forecast_engine import ForecastEngine
 
     intent = classify_intent(user_message)
     msg = user_message.lower()
 
-    # Base context — minimal; intent-specific sections fill in the rest
+    # ── SEMANTIC DAY FILTERING (Upgrade 1) ──────────────────
+    target_date_str = None
+    if "esok" in msg or "tomorrow" in msg:
+        target_date_str = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+    elif "today" in msg or "hari ini" in msg:
+        target_date_str = datetime.now().strftime("%Y-%m-%d")
+
+    # Base context
     base = f"""DATA SNAPSHOT (as of query time):
     - Period: {db_data.get('date_range', 'N/A')}
     - All-time revenue: RM {db_data.get('total_rev', 0):,.2f}
@@ -479,6 +510,82 @@ def build_slim_context(db_data: dict, user_message: str) -> str:
     - Top branch: {db_data.get('top_branch', 'N/A')}"""
 
     sections = [base]
+
+    # ── MULTI-YEAR SEASONAL COMPARISON (NEW) ────────────────
+    if "ramadhan" in msg or "puasa" in msg:
+        years_found = re.findall(r'\b(20\d{2})\b', msg)
+        if not years_found: years_found = ["2025", "2026"] # Default comparison
+        
+        seasonal_data = get_seasonal_comparison_report('ramadhan', years_found)
+        if seasonal_data:
+            lines = [f"=== RAMADHAN YEAR-OVER-YEAR ({', '.join(years_found)}) ==="]
+            for r in seasonal_data:
+                lines.append(f"  Year {r['year']}: RM {r['revenue']:,.2f} total | Avg RM {r['daily_avg']:,.2f}/day | {r['transactions']:,} orders")
+            sections.append("\n".join(lines))
+
+    # ── MULTI-YEAR CAMPAIGN ROI (NEW) ───────────────────────
+    if "promo" in msg or "campaign" in msg or "discount" in msg:
+        # Detect if user is asking for a specific campaign like "Post Raya"
+        campaign_match = re.search(r'campaign ([\w\s]+) last', msg) or re.search(r'discount for ([\w\s]+) last', msg)
+        fuzzy_name = campaign_match.group(1) if campaign_match else None
+        
+        if fuzzy_name:
+            roi_data = get_promo_roi_report(fuzzy_name)
+            if roi_data:
+                lines = [f"=== MULTI-YEAR ROI: {fuzzy_name.upper()} ==="]
+                for r in roi_data:
+                    lines.append(
+                        f"  [{r['yr']}] {r['promo_code']}: RM {r['total_net']:,.2f} Net | "
+                        f"Multiplier: {r['roi_multiplier']}x | {r['worth_it_score']}"
+                    )
+                sections.append("\n".join(lines))
+
+    # ── FORECAST + PRECISION INVENTORY (Upgrade 2) ──────────
+    if intent["primary"] in ("forecast", "inventory", "operational") or any(k in msg for k in ["forecast", "predict", "week", "ramalan", "weather", "stok", "stock"]):
+        try:
+            engine = ForecastEngine()
+            success_pj, pj_fc = engine.generate_5_day_forecast("STB-PJ1", "Putrajaya")
+            success_pa, pa_fc = engine.generate_5_day_forecast("FT-PA1", "Puncak Alam")
+
+            if success_pj and success_pa:
+                pj_list = pj_fc.get('forecast', [])
+                pa_list = pa_fc.get('forecast', [])
+                
+                # Filter by date if applicable
+                if target_date_str:
+                    pj_list = [d for d in pj_list if d['ds'] == target_date_str]
+                    pa_list = [d for d in pa_list if d['ds'] == target_date_str]
+                    sections.append(f"TARGET DATE DETECTED: {target_date_str}")
+
+                def _fmt_days(fc_list):
+                    lines = []
+                    for d in fc_list:
+                        dt = datetime.strptime(d['ds'], '%Y-%m-%d')
+                        if d.get('is_closed'):
+                            lines.append(f"  {d['ds']} ({dt:%A}): CLOSED")
+                        else:
+                            w = d.get('weather') or {}
+                            promos = ", ".join(d.get('promotions', [])) or "none"
+                            lines.append(
+                                f"  {d['ds']} ({dt:%A}): RM {d['yhat']:,.2f} | "
+                                f"{w.get('temp', 28)}°C {w.get('label','Cloudy')} | Promos: {promos}"
+                            )
+                    return "\n".join(lines)
+
+                sections.append(f"=== FORECAST DATA ===\nPutrajaya:\n{_fmt_days(pj_list)}\n\nPuncak Alam:\n{_fmt_days(pa_list)}")
+
+                # ── INVENTORY TRUTH (Upgrade 2) ──
+                combined_items = []
+                for d in pj_list: combined_items.extend(d.get('predicted_items', []))
+                for d in pa_list: combined_items.extend(d.get('predicted_items', []))
+                
+                if combined_items:
+                    raw_demand = calculate_ingredient_demand(combined_items)
+                    ops_demand = format_to_ops_units(raw_demand)
+                    sections.append(f"=== [INVENTORY TRUTH] CALCULATED DEMAND ===\n{json.dumps(ops_demand, indent=2)}")
+
+        except Exception as e:
+            sections.append(f"=== FORECAST ===\nError: {e}")
 
     # ── PROMO INTELLIGENCE ──────────────────────────────────
     if intent["primary"] == "promo_intelligence" or "promo_intelligence" in intent["multi"]:
@@ -499,58 +606,63 @@ def build_slim_context(db_data: dict, user_message: str) -> str:
     if month_match:
         target_month = month_match.group(1)
         try:
+            # ── Speed Opt: Define date range for Index usage ──
+            start_date = f"{target_month}-01"
+            # Calculate end of month
+            y, m = map(int, target_month.split('-'))
+            import calendar
+            last_day = calendar.monthrange(y, m)[1]
+            end_date = f"{target_month}-{last_day}"
+
             conn = sqlite3.connect(os.path.join('database', 'coffee_shop.db'))
             cursor = conn.cursor()
 
+            # 1. Total Metrics (Range Query)
             cursor.execute("""
-                SELECT COALESCE(SUM(Total_Bill_MYR),0), COUNT(DISTINCT transaction_id), COUNT(DISTINCT transaction_date)
-                FROM sales_transaction WHERE strftime('%Y-%m', transaction_date) = ?
-            """, (target_month,))
+                SELECT COALESCE(SUM(Total_Bill_MYR),0), COUNT(transaction_id), COUNT(DISTINCT transaction_date)
+                FROM sales_transaction WHERE transaction_date BETWEEN ? AND ?
+            """, (start_date, end_date))
             m_rev, m_txns, m_days = cursor.fetchone()
             m_days = m_days or 1
 
+            # 2. Branch performance
             cursor.execute("""
                 SELECT store_location, COALESCE(SUM(Total_Bill_MYR),0), COUNT(transaction_id)
-                FROM sales_transaction WHERE strftime('%Y-%m', transaction_date) = ?
+                FROM sales_transaction WHERE transaction_date BETWEEN ? AND ?
                 GROUP BY store_location
-            """, (target_month,))
-            branches = []
-            for r in cursor.fetchall():
-                atv = r[1] / r[2] if r[2] > 0 else 0
-                branches.append(f"  {r[0]}: RM {r[1]:,.2f} | {r[2]:,} txns | ATV RM {atv:.2f}")
+            """, (start_date, end_date))
+            branches = [f"  {r[0]}: RM {r[1]:,.2f} | {r[2]:,} txns | ATV RM {r[1]/r[2] if r[2]>0 else 0:.2f}" for r in cursor.fetchall()]
 
+            # 3. Top Items
             cursor.execute("""
                 SELECT item_name, SUM(transaction_qty) as q FROM sales_transaction
-                WHERE strftime('%Y-%m', transaction_date) = ?
+                WHERE transaction_date BETWEEN ? AND ?
                 GROUP BY item_name ORDER BY q DESC LIMIT 5
-            """, (target_month,))
+            """, (start_date, end_date))
             top_items = [f"  {r[0]}: {r[1]:,} units" for r in cursor.fetchall()]
 
+            # 4. Peaks (Consolidated)
             cursor.execute("""
-                SELECT Hour, COUNT(*) FROM sales_transaction
-                WHERE strftime('%Y-%m', transaction_date) = ?
-                GROUP BY Hour ORDER BY COUNT(*) DESC LIMIT 1
-            """, (target_month,))
-            hour_row = cursor.fetchone()
-            peak_hr = f"{hour_row[0]}:00" if hour_row else "N/A"
+                SELECT Hour, "Day Name" FROM sales_transaction
+                WHERE transaction_date BETWEEN ? AND ?
+            """, (start_date, end_date))
+            # We fetch raw then use python for peak finding to avoid more DB roundtrips if data is small,
+            # but for 17k rows, 2 specific sub-queries are better.
+            cursor.execute("""SELECT Hour FROM sales_transaction WHERE transaction_date BETWEEN ? AND ? GROUP BY Hour ORDER BY COUNT(*) DESC LIMIT 1""", (start_date, end_date))
+            peak_hr = f"{cursor.fetchone()[0]}:00" if cursor.rowcount != 0 else "N/A"
+            cursor.execute("""SELECT "Day Name" FROM sales_transaction WHERE transaction_date BETWEEN ? AND ? GROUP BY "Day Name" ORDER BY COUNT(*) DESC LIMIT 1""", (start_date, end_date))
+            busy_day = cursor.fetchone()[0] if cursor.rowcount != 0 else "N/A"
 
-            cursor.execute("""
-                SELECT "Day Name", COUNT(*) FROM sales_transaction
-                WHERE strftime('%Y-%m', transaction_date) = ?
-                GROUP BY "Day Name" ORDER BY COUNT(*) DESC LIMIT 1
-            """, (target_month,))
-            day_row = cursor.fetchone()
-            busy_day = day_row[0] if day_row else "N/A"
-
-            # Month-over-month delta
-            prev_month = (datetime.strptime(target_month + "-01", "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m")
-            cursor.execute("""
-                SELECT COALESCE(SUM(Total_Bill_MYR),0) FROM sales_transaction
-                WHERE strftime('%Y-%m', transaction_date) = ?
-            """, (prev_month,))
+            # 5. Growth vs Previous Month (Range Query)
+            prev_dt = datetime.strptime(start_date, "%Y-%m-%d") - timedelta(days=1)
+            p_y, p_m = prev_dt.year, prev_dt.month
+            p_start = f"{p_y:04d}-{p_m:02d}-01"
+            p_end = prev_dt.strftime("%Y-%m-%d")
+            
+            cursor.execute("SELECT COALESCE(SUM(Total_Bill_MYR),0) FROM sales_transaction WHERE transaction_date BETWEEN ? AND ?", (p_start, p_end))
             prev_rev = cursor.fetchone()[0]
             delta = ((m_rev - prev_rev) / prev_rev * 100) if prev_rev > 0 else None
-            delta_str = f"{delta:+.1f}% vs {prev_month}" if delta is not None else "no prior month data"
+            delta_str = f"{delta:+.1f}% vs {p_y:04d}-{p_m:02d}" if delta is not None else "no prior month data"
 
             conn.close()
             sections.append(f"""=== {target_month} MONTHLY BREAKDOWN ===
@@ -562,51 +674,6 @@ def build_slim_context(db_data: dict, user_message: str) -> str:
             {chr(10).join(top_items)}""")
         except Exception as e:
             sections.append(f"=== {target_month} BREAKDOWN ===\nError: {e}")
-
-    # ── FORECAST + WEATHER ──────────────────────────────────
-    if intent["primary"] in ("forecast", "inventory") or any(k in msg for k in ["forecast", "predict", "week", "ramalan", "weather"]):
-        try:
-            engine = ForecastEngine()
-            success_pj, pj_fc = engine.generate_5_day_forecast("STB-PJ1", "Putrajaya")
-            success_pa, pa_fc = engine.generate_5_day_forecast("FT-PA1", "Puncak Alam")
-
-            if success_pj and success_pa:
-                def _fmt_days(fc_list):
-                    lines = []
-                    for d in fc_list:
-                        dt = datetime.strptime(d['ds'], '%Y-%m-%d')
-                        if d.get('is_closed'):
-                            lines.append(f"  {d['ds']} ({dt:%A}): CLOSED")
-                        else:
-                            w = d.get('weather') or {}
-                            promos = ", ".join(d.get('promotions', [])) or "none"
-                            lines.append(
-                                f"  {d['ds']} ({dt:%A}): RM {d['yhat']:,.2f} | "
-                                f"{w.get('temp', 28)}°C {w.get('label','Cloudy')} | Promos: {promos}"
-                            )
-                    return "\n".join(lines)
-
-                pj_lines = _fmt_days(pj_fc.get('forecast', []))
-                pa_lines = _fmt_days(pa_fc.get('forecast', []))
-                combined_demand = {
-                    k: round(pj_fc.get('ingredient_demand', {}).get(k, 0) + pa_fc.get('ingredient_demand', {}).get(k, 0), 2)
-                    for k in pj_fc.get('ingredient_demand', {})
-                    if k != 'custom'
-                }
-
-                sections.append(f"""=== 5-DAY PROPHET FORECAST ===
-                Note: Sundays are closed (RM 0.00).
-
-                Putrajaya (STB-PJ1):
-                {pj_lines}
-
-                Puncak Alam (FT-PA1):
-                {pa_lines}
-
-        Combined 5-day ingredient drawdown:
-        {json.dumps(combined_demand, indent=2)}""")
-        except Exception as e:
-            sections.append(f"=== FORECAST ===\nError: {e}")
 
     # ── STAFFING PEAKS ──────────────────────────────────────
     if intent["primary"] == "staffing" or "staffing" in intent["multi"]:
@@ -696,6 +763,14 @@ def process_chat_message(user_message: str, db_data: dict) -> tuple[bool, str]:
     2. Try fast bypass for simple KPI lookups
     3. Build context + call Gemini with dynamic prompt
     """
+    if is_closing_statement(user_message):
+        return True, random.choice([
+            "Sama-sama, Boss. Semoga jualan esok lebat!",
+            "Terima kasih kembali. Saya sentiasa di sini kalau ada soalan data.",
+            "All the best for the next shift! Jumpa lagi.",
+            "No problem. Let's hit those targets!"
+        ])
+
     intent = classify_intent(user_message)
 
     # Fast path: single-metric lookups bypass the LLM entirely
@@ -712,6 +787,17 @@ def process_chat_message(user_message: str, db_data: dict) -> tuple[bool, str]:
 
 def stream_chat_message(user_message: str, db_data: dict):
     """Streaming version of process_chat_message."""
+    if is_closing_statement(user_message):
+        bye = random.choice([
+            "Sama-sama, Boss. Semoga jualan esok lebat!",
+            "Terima kasih kembali. Saya sentiasa di sini kalau ada soalan data.",
+            "All the best for the next shift! Jumpa lagi.",
+            "No problem. Let's hit those targets!"
+        ])
+        yield f"data: {json.dumps({'chunk': bye})}\n\n"
+        yield f"data: {json.dumps({'done': True})}\n\n"
+        return
+
     intent = classify_intent(user_message)
 
     # Fast bypass doesn't stream — yield it as a single chunk
