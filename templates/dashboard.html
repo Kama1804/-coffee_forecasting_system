@@ -4,7 +4,7 @@
 <style>
 :root {
   --blue-kpi:   #2563EB;
-  --amber-kpi:  #D97706;
+  --amber-kpi:  var(--amber-rich);
   --teal-kpi:   #0D9488;
   --purple-kpi: #7C3AED;
   --red-kpi:    #DC2626;
@@ -14,6 +14,13 @@
   --coffee-espresso: #4B2C20;
   --coffee-caramel: #D97706;
   --bg-coffee-light: #FDFBF7;
+  --gap-chart: 1.25rem;
+}
+
+@media (max-width: 768px) {
+  :root {
+    --gap-chart: 0.75rem;
+  }
 }
 
 /* ── PAGE HEADER & CONTROLS ── */
@@ -50,6 +57,7 @@
   .page-subtitle { font-size: .8rem; }
   .page-header-controls { width: 100%; }
   .page-header-controls .filter-group { width: 100%; justify-content: space-between; }
+  .filter-group select { width: 100% !important; min-width: 0 !important; }
 }
 
 /* ── FILTER PILLS ── */
@@ -75,13 +83,43 @@
   letter-spacing: .06em;
   white-space: nowrap;
 }
+.filter-group select {
+  width: auto;
+  min-width: 155px;
+  border: none !important;
+  background-color: transparent !important;
+  padding: .1rem 1.25rem .1rem .2rem !important;
+  font-size: 0.85rem !important;
+  font-weight: 600 !important;
+  color: #1E293B !important;
+  outline: none !important;
+  box-shadow: none !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 0px center !important;
+  background-size: 10px !important;
+  cursor: pointer;
+}
 
 /* ── KPI CARDS ── */
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 1rem;
+  grid-template-columns: 1fr;
+  gap: var(--gap-chart, 1rem);
   margin-bottom: 2rem;
+}
+@media (min-width: 480px) {
+  .kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (min-width: 900px) {
+  .kpi-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
 }
 .kpi-card {
   position: relative;
@@ -93,10 +131,6 @@
   overflow: hidden;
   transition: transform .2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow .2s ease;
   border: 1px solid rgba(0,0,0,.03);
-}
-.kpi-card:hover { 
-  transform: translateY(-3px); 
-  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.05); 
 }
 .kpi-card::before {
   content: '';
@@ -121,7 +155,7 @@
   box-shadow: 0 2px 8px rgba(0,0,0,.04);
 }
 .kpi-body     { min-width: 0; flex: 1; }
-.kpi-label    { font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; opacity: .75; margin-bottom: .25rem; }
+.kpi-label    { font-size: max(0.7rem, 11px); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; opacity: .75; margin-bottom: .25rem; }
 .kpi-value    { font-size: 1.6rem; font-weight: 800; line-height: 1.1; color: #0F172A; }
 .kpi-sub      { font-size: .75rem; margin-top: .4rem; color: #64748B; display: flex; align-items: center; gap: .35rem; }
 .kpi-trend-up   { color: #15803D; font-weight: 600; }
@@ -136,8 +170,14 @@
   box-shadow: 0 1px 3px rgba(0,0,0,0.02);
   transition: box-shadow .2s ease, transform .2s ease;
 }
-.dashboard-card:hover { 
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05); 
+@media (hover: hover) and (pointer: fine) {
+  .kpi-card:hover { 
+    transform: translateY(-3px); 
+    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.05); 
+  }
+  .dashboard-card:hover { 
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05); 
+  }
 }
 
 .card-title {
@@ -167,6 +207,18 @@
   align-items: center;
   gap: .5rem;
 }
+.section-label {
+  font-size: max(0.7rem, 11px);
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #94A3B8;
+  margin-top: 1.5rem;
+  margin-bottom: .8rem;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
 .section-label::after {
   content: '';
   flex: 1;
@@ -174,8 +226,16 @@
   background: #E2E8F0;
 }
 
-/* ── CHART GRIDS ── */
-.charts-row { display: grid; gap: 1rem; margin-bottom: 1rem; }
+.badge-custom {
+  font-size: max(0.68rem, 10px) !important;
+}
+
+/* ── CHART GRIDS & GAPS ── */
+.charts-row {
+  display: grid;
+  gap: var(--gap-chart, 1rem);
+  margin-bottom: 1rem;
+}
 .charts-row-2-8 { grid-template-columns: 1fr; }
 .charts-row-2   { grid-template-columns: 1fr; }
 .charts-row-5-7 { grid-template-columns: 1fr; }
@@ -183,6 +243,63 @@
   .charts-row-2-8 { grid-template-columns: minmax(0,1.9fr) minmax(0,1.1fr); }
   .charts-row-2   { grid-template-columns: 1fr 1fr; }
   .charts-row-5-7 { grid-template-columns: minmax(0,1.1fr) minmax(0,1.9fr); }
+}
+
+/* ── FLUID CHART & TABLE RESPONSIVENESS ── */
+/* Laptop & Desktop view (>1024px): completely static, no scrolling */
+@media (min-width: 1025px) {
+  .chart-scroll-wrapper,
+  .table-responsive {
+    overflow: visible !important;
+  }
+  .chart-scroll-inner {
+    min-width: 100% !important;
+    width: 100% !important;
+  }
+}
+
+/* Mobile & Tablet view (<=1024px): scrollable to prevent crowding */
+@media (max-width: 1024px) {
+  .chart-scroll-wrapper,
+  .table-responsive {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .chart-min-width-700 { min-width: 700px; }
+  .chart-min-width-600 { min-width: 600px; }
+  .chart-min-width-400 { min-width: 450px; }
+}
+
+/* Prevent cell content wrapping in responsive tables on mobile/tablet only */
+@media (max-width: 1024px) {
+  .table-responsive table th,
+  .table-responsive table td {
+    white-space: nowrap;
+  }
+}
+
+/* Max-width clamp on desktop/ultra-wide screen */
+.main-content-inner {
+  max-width: 1440px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Mobile-only tight page padding */
+@media (max-width: 576px) {
+  .main-content-inner {
+    padding: var(--space-md) var(--space-sm) !important;
+  }
+}
+
+/* prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  [data-aos] {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
 }
 
 /* ── PREMIUM LIST COMPONENT (SOLVES TEXT CUT-OFF) ── */
@@ -300,7 +417,7 @@
     <!-- Time filter -->
     <div class="filter-group">
       <label><i class="fa-solid fa-calendar-days text-primary"></i> Period</label>
-      <select id="timeFilter" class="form-control-custom" style="width:auto;min-width:155px;border:none;background:transparent;padding:.1rem .2rem;font-size:0.85rem;font-weight:600;color:#1E293B;outline:none;" onchange="applyFilters()">
+      <select id="timeFilter" class="form-control-custom" style="border:none;background:transparent;padding:.1rem .2rem;font-size:0.85rem;font-weight:600;color:#1E293B;outline:none;" onchange="applyFilters()">
         <option value="all">All Time</option>
         <option value="current_week">Last 7 Days</option>
         <optgroup label="── By Year ──" id="optYears"></optgroup>
@@ -310,7 +427,7 @@
     <!-- Branch filter -->
     <div class="filter-group">
       <label><i class="fa-solid fa-store text-success"></i> Outlet</label>
-      <select id="branchFilter" class="form-control-custom" style="width:auto;min-width:160px;border:none;background:transparent;padding:.1rem .2rem;font-size:0.85rem;font-weight:600;color:#1E293B;outline:none;" onchange="applyFilters()">
+      <select id="branchFilter" class="form-control-custom" style="border:none;background:transparent;padding:.1rem .2rem;font-size:0.85rem;font-weight:600;color:#1E293B;outline:none;" onchange="applyFilters()">
         <option value="all">All Outlets</option>
         {% for branch in branches %}
         <option value="{{ branch }}">{{ branch }}</option>
@@ -380,7 +497,7 @@
       <span class="badge-custom badge-blue" id="trendAxisBadge">Monthly</span>
     </div>
     <div class="chart-scroll-wrapper">
-      <div class="chart-scroll-inner" id="trendChartInner" style="min-width: 700px;">
+      <div class="chart-scroll-inner chart-min-width-700" id="trendChartInner">
         <div class="chart-wrap" style="min-height:280px;">
           <div class="chart-loading" id="loadingTrend"><div class="spinner"></div></div>
           <div id="trendChart" class="ch-trend" style="width:100%;height:280px;"></div>
@@ -396,7 +513,7 @@
       </div>
     </div>
     <div class="chart-scroll-wrapper">
-      <div class="chart-scroll-inner" id="categoryChartInner" style="min-width: 400px;">
+      <div class="chart-scroll-inner chart-min-width-400" id="categoryChartInner">
         <div class="chart-wrap" style="min-height:280px;">
           <div class="chart-loading" id="loadingCategory"><div class="spinner"></div></div>
           <div id="categoryChart" class="ch-donut" style="width:100%;height:280px;"></div>
@@ -454,10 +571,10 @@
       <p class="card-subtitle">Share of transaction payment options</p>
     </div>
     <div class="chart-scroll-wrapper">
-      <div class="chart-scroll-inner" id="paymentChartInner" style="min-width: 400px;">
-        <div class="chart-wrap" style="min-height:220px;margin-top:1rem;">
+      <div class="chart-scroll-inner chart-min-width-400" id="paymentChartInner">
+        <div class="chart-wrap" style="min-height:230px;margin-top:1rem;">
           <div class="chart-loading" id="loadingPayment"><div class="spinner"></div></div>
-          <div id="paymentChart" class="ch-pay" style="width:100%;height:220px;"></div>
+          <div id="paymentChart" class="ch-pay" style="width:100%;height:230px;"></div>
         </div>
       </div>
     </div>
@@ -476,10 +593,10 @@
       </div>
     </div>
     <div class="chart-scroll-wrapper">
-      <div class="chart-scroll-inner" id="heatmapChartInner" style="min-width: 600px;">
-        <div class="chart-wrap" style="min-height:220px;">
+      <div class="chart-scroll-inner chart-min-width-600" id="heatmapChartInner">
+        <div class="chart-wrap" style="min-height:230px;">
           <div class="chart-loading" id="loadingHeatmap"><div class="spinner"></div></div>
-          <div id="heatmapChart" class="ch-heat" style="width:100%;height:220px;"></div>
+          <div id="heatmapChart" class="ch-heat" style="width:100%;height:230px;"></div>
         </div>
       </div>
     </div>
@@ -501,7 +618,7 @@
         <span class="badge-custom badge-green"><i class="fa-solid fa-percent me-1"></i>Revenue Retention</span>
       </div>
       <div class="chart-scroll-wrapper">
-        <div class="chart-scroll-inner" id="discountChartInner" style="min-width: 600px;">
+        <div class="chart-scroll-inner chart-min-width-600" id="discountChartInner">
           <div class="chart-wrap" style="min-height:280px;margin-top:1rem;">
             <div class="chart-loading" id="loadingDiscount"><div class="spinner"></div></div>
             <div id="discountChart" class="ch-disc" style="width:100%;height:280px;"></div>
@@ -531,7 +648,7 @@
         <span class="badge-custom badge-blue">Sales Quality</span>
       </div>
     <div class="chart-scroll-wrapper">
-      <div class="chart-scroll-inner" id="branchChartInner" style="min-width: 400px;">
+      <div class="chart-scroll-inner chart-min-width-400" id="branchChartInner">
         <div class="chart-wrap" style="min-height:260px;margin-top:.85rem;">
           <div class="chart-loading" id="loadingBranch"><div class="spinner"></div></div>
           <div id="branchChart" class="ch-branch" style="width:100%;height:260px;"></div>
@@ -602,6 +719,26 @@ const COLORS = {
 };
 
 let globalPeakData = null;
+let lastChartData = null;
+
+/* Interpolation helper for color gradients (Item 8) */
+function getGradientColor(val, maxVal) {
+    if (maxVal <= 0) return '#2563EB';
+    const ratio = Math.max(0, Math.min(1, val / maxVal));
+    let r, g, b;
+    if (ratio < 0.5) {
+        const localRatio = ratio / 0.5;
+        r = Math.round(219 + (37 - 219) * localRatio);
+        g = Math.round(234 + (99 - 234) * localRatio);
+        b = Math.round(254 + (235 - 254) * localRatio);
+    } else {
+        const localRatio = (ratio - 0.5) / 0.5;
+        r = Math.round(37 + (220 - 37) * localRatio);
+        g = Math.round(99 + (38 - 99) * localRatio);
+        b = Math.round(235 + (38 - 235) * localRatio);
+    }
+    return `rgb(${r}, ${g}, ${b})`;
+}
 
 function togglePeakView() {
     if (!globalPeakData) return;
@@ -631,17 +768,14 @@ function renderPeakChart(peakData) {
         y: peakData.map(p => p.quantity_sold),
         type: 'bar',
         marker: {
-            color: peakData.map(p => p.quantity_sold === maxQty ? COLORS.red : COLORS.blue),
-            opacity: 0.8
-            // Rounded corners on bars if supported by version
+            color: peakData.map(p => getGradientColor(p.quantity_sold, maxQty)),
+            opacity: 0.85
         },
         hovertemplate: '<b>Hour: %{x}</b><br>Volume Sold: %{y}<extra></extra>'
-    }], {
-        ...LAYOUT_BASE,
-        margin: { t:15, r:20, b:40, l:50 },
+    }], getPlotlyLayout(230, {
         xaxis: { type: 'category', gridcolor: 'transparent' },
         yaxis: { gridcolor: '#F1F5F9', title: { text: 'Units Sold', font: { size: 10 } } }
-    }, CONFIG);
+    }), CONFIG);
 }
 
 /* ── PROMO EFFICIENCY ── */
@@ -689,6 +823,52 @@ const LAYOUT_BASE = {
   margin: { t:15, r:16, b:40, l:50 },
   hoverlabel: { bgcolor:'#0F172A', font:{ color:'white', size:12, family: "'Plus Jakarta Sans', sans-serif" } }
 };
+
+function getPlotlyLayout(baseHeightOrOverrides = {}, overrides = {}) {
+  let baseHeight = 340;
+  let finalOverrides = overrides;
+  if (typeof baseHeightOrOverrides === 'number') {
+    baseHeight = baseHeightOrOverrides;
+  } else if (typeof baseHeightOrOverrides === 'object' && baseHeightOrOverrides !== null) {
+    finalOverrides = baseHeightOrOverrides;
+  }
+
+  const w = window.innerWidth;
+  const isMobile = w < 768;
+  const fontSize = w < 480 ? 9 : isMobile ? 10 : 11;
+  
+  // Calculate scaled height proportionally based on baseHeight
+  let height = baseHeight;
+  if (w < 480) {
+    height = Math.round(baseHeight * 0.75);
+  } else if (isMobile) {
+    height = Math.round(baseHeight * 0.85);
+  } else if (w < 1024) {
+    height = Math.round(baseHeight * 0.95);
+  }
+  
+  // Enforce a sensible minimum height
+  height = Math.max(160, height);
+  
+  const layout = {
+    height: height,
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor:  'rgba(0,0,0,0)',
+    font: { family: "'Plus Jakarta Sans', system-ui, sans-serif", color: '#334155', size: fontSize },
+    margin: isMobile ? { t: 10, r: 10, b: 35, l: 42 } : { t: 15, r: 16, b: 40, l: 50 },
+    hoverlabel: { bgcolor: '#0F172A', font: { color: 'white', size: 12, family: "'Plus Jakarta Sans', sans-serif" } }
+  };
+  
+  // Apply tickformat to yaxis on mobile to prevent label clipping
+  if (isMobile) {
+    if (!layout.xaxis) layout.xaxis = {};
+    layout.xaxis.tickfont = { size: 9 };
+    layout.yaxis = Object.assign({ tickformat: '.0s' }, layout.yaxis);
+  }
+  
+  return Object.assign({}, layout, finalOverrides);
+}
+
 const CONFIG = { responsive:true, displayModeBar:false };
 
 const hideLoader = id => { const el = document.getElementById(id); if(el) el.style.display='none'; };
@@ -816,59 +996,22 @@ function applyFilters() {
       if(d.status!=='success') {
           console.error("Charts API issue:", d.message);
           ['loadingTrend','loadingCategory','loadingTop','loadingWeak',
-           'loadingPayment','loadingHeatmap','loadingBranch'].forEach(hideLoader);
+           'loadingPayment','loadingHeatmap','loadingBranch','loadingDiscount'].forEach(hideLoader);
           return;
       }
 
       /* Trend badge logic */
       try {
           const badge = document.getElementById('trendAxisBadge');
-          if(badge) badge.textContent = d.trend.is_monthly ? 'Monthly Timeline' : 'Daily Timeline';
-
-          const trendChartEl = document.getElementById('trendChart');
-          const trendData = d.trend.data || [];
-          
-          if (!d.trend.labels || d.trend.labels.length === 0) {
-            trendChartEl.innerHTML = '<div class="text-muted-sm text-center py-5">No transaction database trends found.</div>';
-          } else {
-            const avgSales = trendData.length ? (trendData.reduce((a,b)=>a+b,0)/trendData.length) : 0;
-            Plotly.newPlot('trendChart', [
-              {
-                x: d.trend.labels, y: trendData, name: 'Revenue Collected',
-                type: 'scatter', mode: 'lines+markers',
-                line: { color: COLORS.blue, width: 3, shape: 'spline' },
-                marker: { size: 6, color: COLORS.blue },
-                fill: 'tozeroy', fillcolor: 'rgba(37,99,235,0.06)',
-                hovertemplate: 'Net Collected: RM %{y:,.2f}<extra></extra>'
-              },
-              {
-                x: d.trend.labels, y: d.trend.labels.map(() => avgSales),
-                name: 'Average Target Line', type: 'scatter', mode: 'lines',
-                line: { color: COLORS.amber, width: 2, dash: 'dash' },
-                hovertemplate: 'Average: RM %{y:,.2f}<extra></extra>'
+          if(badge) {
+              if (d.trend.is_yearly) {
+                  badge.style.display = 'none';
+              } else {
+                  badge.style.display = 'inline-block';
+                  badge.textContent = d.trend.is_monthly ? 'Monthly Timeline' : 'Daily Timeline';
               }
-            ], {
-              ...LAYOUT_BASE, hovermode: 'x unified',
-              xaxis: { showgrid: false, automargin: true, tickfont: { size: 10 } },
-              yaxis: { tickprefix: 'RM ', gridcolor: '#F1F5F9' },
-              margin: { t: 15, r: 20, b: 40, l: 60 }
-            }, CONFIG);
           }
-      } catch(e) { console.error("Trend Chart failed to render", e); }
-      hideLoader('loadingTrend');
-
-      /* Product type donut chart */
-      try {
-          Plotly.newPlot('categoryChart',[{
-            labels: d.category.labels, values: d.category.data,
-            type: 'pie', hole: .55, marker:{colors:COLORS.slate},
-            textinfo: 'percent', hovertemplate:'<b>%{label}</b><br>Sales Total: RM %{value:,.2f}<extra></extra>'
-          }],{
-            ...LAYOUT_BASE, showlegend:true, legend:{orientation:'h', y:-0.15, font:{size: 10}},
-            margin:{t:10,r:10,b:30,l:10}
-          }, CONFIG);
-      } catch(e) { console.error("Donut Chart failed to render", e); }
-      hideLoader('loadingCategory');
+      } catch(e) {}
 
       /* Render Top Selling Drinks beautifully without text cut-off */
       try {
@@ -928,67 +1071,10 @@ function applyFilters() {
       } catch(e) { console.error("Failed to render native CSS Slow Seller List", e); }
       hideLoader('loadingWeak');
 
-      /* Payment methods - Transformed to premium Donut Chart */
-      try {
-          const paymentData = d.payment.data || [];
-          const paymentLabels = d.payment.labels || [];
-          if (!paymentLabels.length) {
-              document.getElementById('paymentChart').innerHTML = '<div class="text-muted-sm text-center py-5">No transactional billing channels registered.</div>';
-          } else {
-              Plotly.newPlot('paymentChart',[{
-                labels: paymentLabels, values: paymentData,
-                type: 'pie', hole: .55,
-                marker: { colors: [COLORS.teal, COLORS.blue, COLORS.purple, COLORS.amber, COLORS.red] },
-                textinfo: 'percent', hovertemplate: '<b>%{label}</b><br>Transactions: %{value}<extra></extra>'
-              }],{
-                ...LAYOUT_BASE, showlegend: true, legend:{orientation:'h', y:-0.15, font:{size: 10}},
-                margin:{t:10,r:10,b:30,l:10}
-              }, CONFIG);
-          }
-      } catch(e) { console.error("Donut Billing Representation error", e); }
-      hideLoader('loadingPayment');
-
-      /* Heatmap / Busiest Hours of the Day */
-      try {
-          globalPeakData = d.peak_data;
-          if (globalPeakData && (globalPeakData.regular.length > 0 || globalPeakData.ramadhan.length > 0)) {
-              document.getElementById('peakToggleGroup').style.display = 'flex';
-              togglePeakView();
-          } else {
-              document.getElementById('peakToggleGroup').style.display = 'none';
-              const days  = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-              const hours = Array.from({length:14},(_,i)=>`${String(i+8).padStart(2,'0')}:00`);
-              const z = days.map(day =>
-                hours.map((_,h)=>{
-                  const match=d.heatmap.find(r=>r.day===day && r.hour===h+8);
-                  return match ? match.value : 0;
-                })
-              );
-              Plotly.newPlot('heatmapChart',[{
-                z, x:hours, y:days, type:'heatmap',
-                // Custom Warm Coffee Color Palette mapping
-                colorscale:[[0,'#FFFDF9'], [0.5,'#D97706'], [1,'#78350F']],
-                showscale:true
-              }],{
-                ...LAYOUT_BASE, margin:{t:15,r:20,b:40,l:50},
-                xaxis:{tickangle:-45}, yaxis:{automargin:true}
-              }, CONFIG);
-          }
-      } catch(e) { console.error("Temporal Heatmap compilation error", e); }
-      hideLoader('loadingHeatmap');
-
-      /* Monthly outlet comparison bar chart */
-      try {
-          renderBranchChart(d);
-      } catch(e) { console.error("Branch Chart error", e); }
-      hideLoader('loadingBranch');
-
-      /* Sales vs Discount Given Chart (FIXED WITH GROSS SALES AND RETENTION % DUAL AXIS) */
-      try {
-          renderDiscountChart(d);
-      } catch(e) { console.error("Discount Retained Chart compiler error", e); }
-      hideLoader('loadingDiscount');
-      })
+      // Store the chart data globally and render
+      lastChartData = d;
+      renderDashboardCharts(d);
+    })
     .catch(err => {
       console.error('Fatal API integration failure:', err);
       ['loadingTrend','loadingCategory','loadingTop','loadingWeak',
@@ -996,7 +1082,120 @@ function applyFilters() {
     });
 }
 
-/* ── DISCOUNT IMPACT CHART (SOLVED: GROUPED COMPARISON SHOWING THE GROSS SALES BAR) ── */
+/* ── RENDER DASHBOARD CHARTS (REDRAW SYSTEM FOR FULL RESPONSIVENESS) ── */
+function renderDashboardCharts(d) {
+  if (!d) return;
+  const isMobile = window.innerWidth < 768;
+
+  // 1. Trend Chart
+  try {
+      const trendChartEl = document.getElementById('trendChart');
+      const trendData = d.trend.data || [];
+      if (!d.trend.labels || d.trend.labels.length === 0) {
+          trendChartEl.innerHTML = '<div class="text-muted-sm text-center py-5">No transaction database trends found.</div>';
+      } else {
+          const avgSales = trendData.length ? (trendData.reduce((a,b)=>a+b,0)/trendData.length) : 0;
+          Plotly.newPlot('trendChart', [
+            {
+              x: d.trend.labels, y: trendData, name: 'Revenue Collected',
+              type: 'scatter', mode: 'lines+markers',
+              line: { color: COLORS.blue, width: 3, shape: 'spline' },
+              marker: { size: 6, color: COLORS.blue },
+              fill: 'tozeroy', fillcolor: 'rgba(37,99,235,0.06)',
+              hovertemplate: 'Net Collected: RM %{y:,.2f}<extra></extra>'
+            },
+            {
+              x: d.trend.labels, y: d.trend.labels.map(() => avgSales),
+              name: 'Average Target Line', type: 'scatter', mode: 'lines',
+              line: { color: COLORS.amber, width: 3, dash: 'dot' },
+              hovertemplate: 'Average: RM %{y:,.2f}<extra></extra>'
+            }
+          ], getPlotlyLayout(280, {
+            hovermode: 'x unified',
+            xaxis: { type: 'category', showgrid: false, automargin: true },
+            yaxis: { tickprefix: 'RM ', gridcolor: '#F1F5F9', tickformat: isMobile ? '.0s' : undefined }
+          }), CONFIG);
+      }
+  } catch(e) { console.error("Trend Chart failed to render", e); }
+  hideLoader('loadingTrend');
+
+  // 2. Product Type Donut Chart
+  try {
+      Plotly.newPlot('categoryChart',[{
+        labels: d.category.labels, values: d.category.data,
+        type: 'pie', hole: isMobile ? 0.45 : 0.55, marker:{colors:COLORS.slate},
+        textinfo: 'percent', hovertemplate:'<b>%{label}</b><br>Sales Total: RM %{value:,.2f}<extra></extra>'
+      }], getPlotlyLayout(280, {
+        showlegend: !isMobile,
+        legend: { orientation: 'h', y: -0.15, font: { size: 10 } },
+        margin: { t: 10, r: 10, b: isMobile ? 10 : 30, l: 10 }
+      }), CONFIG);
+  } catch(e) { console.error("Donut Chart failed to render", e); }
+  hideLoader('loadingCategory');
+
+  // 3. Payment Channels Donut Chart
+  try {
+      const paymentData = d.payment.data || [];
+      const paymentLabels = d.payment.labels || [];
+      if (!paymentLabels.length) {
+          document.getElementById('paymentChart').innerHTML = '<div class="text-muted-sm text-center py-5">No transactional billing channels registered.</div>';
+      } else {
+          Plotly.newPlot('paymentChart',[{
+            labels: paymentLabels, values: paymentData,
+            type: 'pie', hole: isMobile ? 0.45 : 0.55,
+            marker: { colors: [COLORS.teal, COLORS.blue, COLORS.purple, COLORS.amber, COLORS.red] },
+            textinfo: 'percent', hovertemplate: '<b>%{label}</b><br>Transactions: %{value}<extra></extra>'
+          }], getPlotlyLayout(230, {
+            showlegend: !isMobile,
+            legend: { orientation: 'h', y: -0.15, font: { size: 10 } },
+            margin: { t: 10, r: 10, b: isMobile ? 10 : 30, l: 10 }
+          }), CONFIG);
+      }
+  } catch(e) { console.error("Donut Billing Representation error", e); }
+  hideLoader('loadingPayment');
+
+  // 4. Heatmap / Busiest Hours Chart
+  try {
+      globalPeakData = d.peak_data;
+      if (globalPeakData && (globalPeakData.regular.length > 0 || globalPeakData.ramadhan.length > 0)) {
+          document.getElementById('peakToggleGroup').style.display = 'flex';
+          togglePeakView();
+      } else {
+          document.getElementById('peakToggleGroup').style.display = 'none';
+          const days  = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+          const hours = Array.from({length:14},(_,i)=>`${String(i+8).padStart(2,'0')}:00`);
+          const z = days.map(day =>
+            hours.map((_,h)=>{
+              const match=d.heatmap.find(r=>r.day===day && r.hour===h+8);
+              return match ? match.value : 0;
+            })
+          );
+          Plotly.newPlot('heatmapChart',[{
+            z, x:hours, y:days, type:'heatmap',
+            colorscale:[[0,'#FFFDF9'], [0.5,'#D97706'], [1,'#78350F']],
+            showscale:true
+          }], getPlotlyLayout(230, {
+            xaxis: { tickangle: -45 },
+            yaxis: { automargin: true }
+          }), CONFIG);
+      }
+  } catch(e) { console.error("Temporal Heatmap compilation error", e); }
+  hideLoader('loadingHeatmap');
+
+  // 5. Monthly Outlet Comparison Chart
+  try {
+      renderBranchChart(d);
+  } catch(e) { console.error("Branch Chart error", e); }
+  hideLoader('loadingBranch');
+
+  // 6. Revenue Retention (Discount) Chart
+  try {
+      renderDiscountChart(d);
+  } catch(e) { console.error("Discount Retained Chart compiler error", e); }
+  hideLoader('loadingDiscount');
+}
+
+/* ── DISCOUNT IMPACT CHART (REFACTORED WITH CONTRAST & ACCESSIBLE LEGENDS) ── */
 function renderDiscountChart(d) {
   const trend = d.trend;
   if(!trend || !trend.labels || trend.labels.length === 0){
@@ -1004,12 +1203,13 @@ function renderDiscountChart(d) {
     return;
   }
 
-  // Calculate actual retention percentage
   const retentionRate = trend.labels.map((_, i) => {
     const gross = trend.gross[i] || 0;
     const net = trend.data[i] || 0;
     return gross > 0 ? (net / gross * 100) : 100;
   });
+
+  const isMobile = window.innerWidth < 768;
 
   Plotly.newPlot('discountChart',[
     {
@@ -1018,7 +1218,7 @@ function renderDiscountChart(d) {
       name: 'Gross Sales (Potential)',
       type: 'bar',
       width: 0.8,
-      marker: { color: '#B45309', opacity: 0.75 }, // Rich Caramel Shell
+      marker: { color: '#94A3B8', opacity: 0.75 }, // Medium Slate
       hovertemplate: 'Gross potential: RM %{y:,.2f}<extra></extra>',
     },
     {
@@ -1027,7 +1227,7 @@ function renderDiscountChart(d) {
       name: 'Retained Cash (Actual)',
       type: 'bar',
       width: 0.45,
-      marker: { color: '#F5EBE0', opacity: 1 }, // Latte Core
+      marker: { color: '#3B82F6', opacity: 1 }, // Slate Accent (High Contrast)
       hovertemplate: 'Net collected: RM %{y:,.2f}<extra></extra>',
     },
     {
@@ -1041,30 +1241,32 @@ function renderDiscountChart(d) {
       yaxis: 'y2',
       hovertemplate: 'Retained: %{y:.1f}%<extra></extra>',
     }
-  ],{
-    ...LAYOUT_BASE,
+  ], getPlotlyLayout(280, {
     barmode: 'overlay', // Option 1: Nested Comparison
-    margin: { t:25, r:60, b:60, l:75 },
-    legend: { orientation:'h', y:-0.28, font:{size:10} },
-    xaxis: { tickangle:-30, showgrid:false, tickfont:{size:9} },
+    margin: isMobile ? { t: 35, r: 42, b: 35, l: 42 } : { t: 25, r: 60, b: 60, l: 75 },
+    legend: isMobile 
+      ? { orientation: 'h', x: 0, y: 1.15, xanchor: 'left', font: { size: 9 } } 
+      : { orientation: 'h', y: -0.35, font: { size: 10 } },
+    xaxis: { type: 'category', tickangle:-30, showgrid:false, tickfont:{size:9} },
     yaxis: { 
       tickprefix:'RM ', 
       gridcolor:'#F1F5F9',
+      tickformat: isMobile ? '.0s' : undefined,
       title: { text: 'Revenue Comparison', font: { size: 10, weight: 600 } }
     },
     yaxis2: {
-      overlaying:'y', side:'right',
+      overlaying: 'y', side: 'right',
       range: [0, 115],
       ticksuffix: '%',
       showgrid: false,
       tickfont: { size: 9, color: COLORS.blue },
       title: { text: 'Retention %', font: { size: 10, color: COLORS.blue, weight: 600 } }
     }
-  }, CONFIG);
+  }), CONFIG);
   hideLoader('loadingDiscount');
 }
 
-/* ── BRANCH COMPARISON CHART (AOV Focus) ── */
+/* ── BRANCH COMPARISON CHART (REFACTORED WITH ACCESSIBLE DATA LABELS) ── */
 function renderBranchChart(d) {
   const monthly = d.monthly;
   if(!monthly || !monthly.labels || monthly.labels.length === 0){
@@ -1077,32 +1279,38 @@ function renderBranchChart(d) {
   const isAOV = !!monthly.aov_by_branch;
   const dataSrc = isAOV ? monthly.aov_by_branch : monthly.by_branch;
   const valLabel = isAOV ? 'AOV Per Bill' : 'Monthly Accumulations';
+  const isMobile = window.innerWidth < 768;
+  const timeFilterVal = document.getElementById('timeFilter').value;
+  const hideText = (timeFilterVal === 'all');
 
   const traces = monthly.branches.map((branch, i)=>{
     const branchColor = COLORS.slate[i % COLORS.slate.length];
+    const yValues = dataSrc[branch] || [];
     return {
       x: monthly.labels,
-      y: dataSrc[branch] || [],
+      y: yValues,
       name: branch,
       type: 'bar',
       marker: { color: branchColor, opacity: 0.9 },
+      text: hideText ? undefined : yValues.map(v => 'RM ' + v.toFixed(0)),
+      textposition: hideText ? undefined : 'outside',
+      textfont: { size: 9 },
       hovertemplate: `<b>${branch}</b><br>%{x}<br>${valLabel}: RM %{y:,.2f}<extra></extra>`,
     };
   });
 
-  Plotly.newPlot('branchChart', traces, {
-    ...LAYOUT_BASE,
+  Plotly.newPlot('branchChart', traces, getPlotlyLayout(260, {
     barmode: 'group',
-    margin: { t:15, r:16, b:55, l:60 },
-    legend: { orientation:'h', y:-0.22, font:{size:10} },
-    xaxis: { tickangle:-30, showgrid:false, tickfont:{size:9} },
+    margin: isMobile ? { t: 25, r: 10, b: 35, l: 42 } : { t: 20, r: 16, b: 40, l: 60 },
+    xaxis: { type: 'category', showgrid: false },
     yaxis: { 
       tickprefix:'RM ', 
       gridcolor:'#E2E8F0', 
       gridwidth:1,
+      tickformat: isMobile ? '.0s' : undefined,
       title: { text: isAOV ? 'Average Bill Size' : 'Revenue Volumes', font: { size: 10 } }
     }
-  }, CONFIG);
+  }), CONFIG);
   hideLoader('loadingBranch');
 }
 
@@ -1111,10 +1319,9 @@ let resizeTimer;
 window.addEventListener('resize', ()=>{
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(()=>{
-    ['trendChart','categoryChart','paymentChart','heatmapChart','branchChart','discountChart'].forEach(id=>{
-      const el=document.getElementById(id);
-      if(el&&el.data) Plotly.relayout(id,{autosize:true});
-    });
+    if (lastChartData) {
+      renderDashboardCharts(lastChartData);
+    }
   }, 200);
 });
 

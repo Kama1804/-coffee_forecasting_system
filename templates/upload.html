@@ -7,12 +7,33 @@
     .page-header { margin-bottom: 20px; }
     .page-title { font-size: 1.4rem; }
     .dashboard-card { padding: 16px; margin-bottom: 16px; }
-    
-    /* Warehouse profile stacking */
-    .row.g-3 > .col-6 { width: 100%; margin-bottom: 8px; }
-    
-    /* Compact ETL steps */
-    .row.g-2 > .col-6 { width: 100%; }
+}
+
+.drop-zone-icon i {
+    color: var(--teal-success);
+    font-size: 2.8rem;
+    transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), color 0.2s ease;
+}
+.drop-zone:hover .drop-zone-icon i {
+    transform: translateY(-5px) scale(1.1);
+    color: #059669;
+}
+.btn-outline-danger-custom {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    border: 1.5px solid #EF4444;
+    color: #EF4444;
+    background: transparent;
+    border-radius: 50px;
+    padding: 0.6rem 1.5rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+.btn-outline-danger-custom:hover {
+    background: #EF4444;
+    color: white;
 }
 </style>
 <div class="page-header" data-aos="fade-down">
@@ -26,14 +47,23 @@
     <div class="col-12 col-xl-7" data-aos="fade-up">
         <div class="dashboard-card">
             <p class="card-title">Upload Sales CSV File</p>
-            <div class="alert alert-info d-flex gap-2 align-items-start mb-4" style="font-size:.85rem;">
-                <i class="fa-solid fa-circle-info mt-1"></i>
-                <div>
-                    <strong>Required 17-Column Enterprise Schema Layout:</strong><br>
-                    <code style="font-size:.78rem;color:#1E40AF;word-break:break-all;">
-                        Transaction_ID, Timestamp, Register_ID, Cashier_Name, Store_ID, Item_Name, Item_Category, Quantity_Sold, Modifiers, Order_Type, Gross_Sales, Discount_Amount, Promo_Code, Discount_Reason, Tax_Amount, Net_Sales, Payment_Type
-                    </code>
-                    <div style="font-size:.72rem; margin-top:6px; color:var(--text-secondary);">
+            <div class="alert alert-info d-flex gap-2 align-items-start mb-4" style="font-size:.85rem; border-radius: 12px; background-color: #F0F9FF; border-color: #B9E6FE;">
+                <i class="fa-solid fa-circle-info mt-1 text-primary"></i>
+                <div class="w-100">
+                    <div class="mb-2">
+                        <strong style="color: #0369A1;">Required 17-Column Schema Layout:</strong>
+                    </div>
+                    <div class="d-flex flex-wrap gap-1 mb-2">
+                        {% for col in [
+                            'Transaction_ID', 'Timestamp', 'Register_ID', 'Cashier_Name', 'Store_ID',
+                            'Item_Name', 'Item_Category', 'Quantity_Sold', 'Modifiers', 'Order_Type',
+                            'Gross_Sales', 'Discount_Amount', 'Promo_Code', 'Discount_Reason',
+                            'Tax_Amount', 'Net_Sales', 'Payment_Type'
+                        ] %}
+                        <span class="badge-custom" style="font-family:monospace; font-size:0.7rem; background:#E0F2FE; color:#0369A1; padding:2px 8px; border-radius:4px; border:1px solid #BAE6FD; display:inline-block;">{{ col }}</span>
+                        {% endfor %}
+                    </div>
+                    <div style="font-size:.72rem; color:#0369A1; font-weight: 500;">
                         * Ensure <strong>Store_ID</strong> contains valid branch mapping tokens (<code>{{ active_codes|join(', ') }}</code>).
                     </div>
                 </div>
@@ -41,7 +71,7 @@
             <form action="{{ url_for('upload_file') }}" method="POST" enctype="multipart/form-data" id="uploadForm">
                 <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
                     <div class="drop-zone-icon">
-                        <i class="fa-solid fa-file-csv" style="color:var(--teal-success); font-size:2.5rem;"></i>
+                        <i class="fa-solid fa-file-csv"></i>
                     </div>
                     <div class="drop-zone-text" id="dropText">
                         <strong>Click to browse</strong> or drag &amp; drop your CSV here
@@ -62,10 +92,8 @@
                     <button type="submit" class="btn-primary-custom w-100" id="uploadBtn" style="justify-content:center;" disabled>
                         <i class="fa-solid fa-cloud-arrow-up"></i> Upload &amp; Process Ingestion
                     </button>
-                    <button type="button" id="cancelBtn" 
-                            style="display:none; align-items:center; gap:8px; background:#EF4444; color:white; border:none; border-radius:50px; padding:0.6rem 1.5rem; font-weight:600; transition:0.2s; flex-shrink:0;" 
-                            onclick="cancelSelection()">
-                        <i class="fa-solid fa-trash-can"></i> Cancel
+                    <button type="button" id="cancelBtn" class="btn-outline-danger-custom" onclick="cancelSelection()">
+                        <i class="fa-solid fa-xmark"></i> Cancel
                     </button>
                 </div>
             </form>
@@ -96,7 +124,7 @@
             {% if profile and profile.total_records > 0 %}
             <div class="row g-3 mb-4">
                 <div class="col-6">
-                    <div style="background:#EFF6FF;border-radius:12px;padding:15px;text-align:center;border:1px solid #DBEAFE;">
+                    <div style="background:#EFF6FF;border-radius:12px;padding:15px;text-align:center;border:1px solid #DBEAFE;height:100%;">
                         <div style="font-size:1.5rem;font-weight:700;font-family:monospace;color:#1E3A8A;">
                             {{ "{:,}".format(profile.total_records) }}
                         </div>
@@ -106,7 +134,7 @@
                     </div>
                 </div>
                 <div class="col-6">
-                    <div style="background:#ECFDF5;border-radius:12px;padding:15px;text-align:center;border:1px solid #D1FAE5;">
+                    <div style="background:#ECFDF5;border-radius:12px;padding:15px;text-align:center;border:1px solid #D1FAE5;height:100%;">
                         <div style="font-size:1.5rem;font-weight:700;font-family:monospace;color:#065F46;">
                             {{ profile.categories }}
                         </div>

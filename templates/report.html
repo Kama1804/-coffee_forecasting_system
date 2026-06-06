@@ -17,6 +17,8 @@
 /* ── A4 Canvas wrapper ─────────────────────────────────── */
 .a4-preview-wrap {
     display: flex;
+    flex-direction: column;
+    align-items: center;
     justify-content: center;
     padding: 24px 12px;
     background: #374151;
@@ -26,7 +28,10 @@
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
 }
-.a4-preview-wrap.loaded { background: #6B7280; }
+.a4-preview-wrap.loaded {
+    justify-content: flex-start;
+    background: #6B7280;
+}
 
 /* ── Scale container ──────────────────────────────────── */
 .a4-scale-container {
@@ -45,14 +50,26 @@
     letter-spacing: 1.5px;
 }
 
-/* ── Mobile Overrides ── */
-@media (max-width: 768px) {
+/* ── Mobile & Tablet Overrides ── */
+@media (max-width: 992px) {
     .page-header { flex-direction: column; align-items: flex-start !important; gap: 12px; }
     .page-title { font-size: 1.4rem; }
     .report-config-card { padding: 16px; }
-    .report-config-card .row > div { width: 100%; margin-bottom: 12px; }
+    .report-config-card .row > div { width: 100% !important; margin-bottom: 12px; }
     .report-config-card .row > div:last-child { margin-bottom: 0; }
-    .report-config-card select, .report-config-card button { width: 100% !important; }
+    .report-config-card select { width: 100% !important; }
+    .report-config-card .d-flex.gap-2 { flex-direction: column !important; gap: 8px !important; }
+    .report-config-card button {
+        width: 100% !important;
+        margin-left: 0 !important;
+        font-size: 0.8rem !important;
+        padding: 0.55rem 1rem !important;
+    }
+    .a4-preview-wrap {
+        overflow-x: hidden !important;
+        padding: 12px 6px;
+        min-height: 350px !important;
+    }
 }
 
 /* ============================================================
@@ -442,6 +459,32 @@
     display: inline-flex; align-items: center; gap: 6px;
     white-space: nowrap;
 }
+.btn-reset-custom {
+    background: #F3F4F6;
+    color: #4B5563;
+    border: 1.5px solid #D1D5DB;
+    border-radius: var(--radius-md);
+    padding: .62rem 1.3rem;
+    font-size: .875rem;
+    font-weight: 600;
+    font-family: var(--font-main);
+    cursor: pointer;
+    transition: var(--transition-base);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-sm);
+    justify-content: center;
+}
+.btn-reset-custom:hover {
+    background: #E5E7EB;
+    color: #1F2937;
+    border-color: #9CA3AF;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,.08);
+}
+.btn-reset-custom:active {
+    transform: translateY(0);
+}
 
 /* ============================================================
    PRINT STYLES
@@ -484,13 +527,13 @@
                 {% endfor %}
             </select>
         </div>
-        <div class="col-12 col-md-4">
+        <div class="col-12 col-md-3">
             <label class="form-label-custom">Reporting Month</label>
             <select id="reportMonth" class="form-control-custom">
                 <option value="">Loading available months…</option>
             </select>
         </div>
-        <div class="col-12 col-md-5 d-flex gap-2">
+        <div class="col-12 col-md-6 d-flex gap-2">
             <button class="btn-primary-custom w-100" id="previewBtn" onclick="generateReportPreview()">
                 <i class="fa-solid fa-file-invoice"></i> Generate Preview
             </button>
@@ -508,6 +551,9 @@
                     Export PDF
                 </span>
             </button>
+            <button class="btn-reset-custom" id="resetBtn" onclick="resetReportPreview()" title="Reset Preview">
+                <i class="fa-solid fa-rotate-left"></i> Reset
+            </button>
         </div>
     </div>
 </div>
@@ -515,12 +561,10 @@
 <div class="a4-preview-wrap no-print" id="canvasWrapper" data-aos="fade-up" data-aos-delay="100">
     <div class="a4-scale-container" id="scaleContainer">
         <div id="reportCanvas">
-            <div class="a4-page" style="display:flex;align-items:center;justify-content:center;min-height:500px;">
-                <div class="empty-state" style="text-align:center;">
-                    <div class="empty-state-icon"><i class="fa-solid fa-print"></i></div>
-                    <div class="empty-state-title">Report Preview</div>
-                    <p class="empty-state-text">Select a branch and month, then click <strong>Generate Preview</strong>.</p>
-                </div>
+            <div class="empty-state text-center py-4" style="width: 100%;">
+                <div class="empty-state-icon mb-3" style="font-size: 2.2rem; color: #E5E7EB; opacity: 0.85;"><i class="fa-solid fa-print"></i></div>
+                <div class="empty-state-title h5 fw-bold mb-2 text-white">Report Preview</div>
+                <p class="empty-state-text text-muted-light small px-4 mb-0" style="color: #D1D5DB;">Select a branch and month, then click <strong>Generate Preview</strong>.</p>
             </div>
         </div>
     </div>
@@ -537,17 +581,58 @@ function scaleA4Pages() {
     const availW = wrap.clientWidth - 24;
     const pageW  = 794;
     const scale  = Math.min(1, availW / pageW);
-    container.style.transform       = `scale(${scale})`;
-    container.style.transformOrigin = 'top center';
     const pages = container.querySelectorAll('.a4-page');
     if (pages.length) {
+        container.style.transform       = `scale(${scale})`;
+        container.style.transformOrigin = 'top center';
         let totalH = 0;
         pages.forEach(p => { totalH += p.offsetHeight + 24; });
         wrap.style.minHeight = (totalH * scale + 48) + 'px';
+    } else {
+        container.style.transform       = 'none';
+        wrap.style.minHeight = '';
     }
 }
 window.addEventListener('resize', scaleA4Pages);
 window.addEventListener('load',   scaleA4Pages);
+
+/* ── Reset Preview ────────────────────────────────────────── */
+function resetReportPreview() {
+    document.getElementById('reportBranch').value = 'all';
+    const monthSel = document.getElementById('reportMonth');
+    if (monthSel && monthSel.options.length > 0) {
+        monthSel.selectedIndex = 0;
+    }
+    
+    document.getElementById('pdfBtn').disabled = true;
+    
+    document.getElementById('reportCanvas').innerHTML = `
+        <div class="empty-state text-center py-4" style="width: 100%;">
+            <div class="empty-state-icon mb-3" style="font-size: 2.2rem; color: #E5E7EB; opacity: 0.85;"><i class="fa-solid fa-print"></i></div>
+            <div class="empty-state-title h5 fw-bold mb-2 text-white">Report Preview</div>
+            <p class="empty-state-text text-muted-light small px-4 mb-0" style="color: #D1D5DB;">Select a branch and month, then click <strong>Generate Preview</strong>.</p>
+        </div>
+    `;
+    
+    document.getElementById('canvasWrapper').classList.remove('loaded');
+    scaleA4Pages();
+    
+    const Toast = Swal.mixin({
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 2000,
+        timerProgressBar: true,
+        didOpen: (toast) => {
+            toast.addEventListener('mouseenter', Swal.stopTimer);
+            toast.addEventListener('mouseleave', Swal.resumeTimer);
+        }
+    });
+    Toast.fire({
+        icon: 'success',
+        title: 'Report preview reset successfully'
+    });
+}
 
 let availableMonths   = [];
 let currentReportData = null;

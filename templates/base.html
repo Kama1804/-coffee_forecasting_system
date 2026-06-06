@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Dashboard{% endblock %} | MCS Analytics</title>
 
     <!-- PWA / Mobile Meta -->
@@ -163,7 +163,7 @@
                 <!-- Avatar Dropdown -->
                 <div class="dropdown">
                     <div class="topbar-avatar dropdown-toggle" id="adminDropdown" data-bs-toggle="dropdown" aria-expanded="false" style="cursor: pointer;" title="Admin Settings">
-                        <i class="fa-solid fa-gears"></i>
+                        <i class="fa-solid fa-briefcase"></i>
                     </div>
                     <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0" aria-labelledby="adminDropdown" style="margin-top: 10px;">
                         <li><h6 class="dropdown-header">System Management</h6></li>
@@ -243,10 +243,22 @@ const toggle  = document.getElementById('mobileMenuToggle');
 function openSidebar()  { sidebar.classList.add('open');    overlay.classList.add('active'); }
 function closeSidebar() { sidebar.classList.remove('open'); overlay.classList.remove('active'); }
 
-toggle.addEventListener('click', () =>
-    sidebar.classList.contains('open') ? closeSidebar() : openSidebar()
-);
-overlay.addEventListener('click', closeSidebar);
+toggle.addEventListener('click', () => {
+    if (sidebar.classList.contains('open')) {
+        closeSidebar();
+    } else {
+        openSidebar();
+    }
+    setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+    }, 360);
+});
+overlay.addEventListener('click', () => {
+    closeSidebar();
+    setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+    }, 360);
+});
 
 /* ── Topbar: clock, date, greeting ──────────────────── */
 (function initTopbar() {

@@ -5,6 +5,13 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
+html, body {
+  overflow-x: hidden !important;
+}
+.wrapper, .main-canvas, .dss-wrap {
+  overflow-x: hidden !important;
+}
+
 :root {
   --navy: #0F172A;
   --navy-mid: #1E293B;
@@ -59,14 +66,16 @@
   }
   .hist-panel, .side-panel { display: none; } /* Hide side panels for focus on mobile */
   .main-panel { height: 100%; border-radius: 0; border: none; }
+  .bubble { text-align: left; }
 }
 
 @media (max-width: 768px) {
   .dss-wrap { height: calc(100vh - 100px); }
-  .msg-content { max-width: 88%; }
+  .msg-content { max-width: 92%; }
   .bubble { font-size: 0.82rem; padding: 10px 12px; }
   .chat-hdr { padding: 10px 14px; }
   .ai-av { width: 36px; height: 36px; }
+  .inp-hint { display: none; }
 }
 
 @media (max-width: 480px) {
@@ -374,31 +383,72 @@
   flex-shrink: 0;
 }
 .inp-row { display: flex; gap: 8px; align-items: flex-end; }
-.inp-wrap { flex: 1; position: relative; }
-.chat-inp {
-  width: 100%; padding: .75rem 3.2rem .75rem 1rem;
-  border: 1.5px solid var(--border2); border-radius: var(--radius);
-  font-family: var(--font); font-size: .85rem; color: var(--text1);
-  background: var(--surface3); resize: none; outline: none;
+.inp-wrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  background: var(--surface3);
+  border: 1.5px solid var(--border2);
+  border-radius: 24px;
+  padding: 4px 6px 4px 14px;
   transition: border-color .2s, box-shadow .2s, background .2s;
-  line-height: 1.55; max-height: 110px; overflow-y: auto;
+}
+.inp-wrap:focus-within {
+  border-color: var(--blue);
+  background: var(--surface2);
+  box-shadow: 0 0 0 3px var(--blue-glow);
+}
+.chat-inp {
+  flex: 1;
+  width: 100%;
+  padding: 8px 0;
+  border: none;
+  font-family: var(--font);
+  font-size: .85rem;
+  color: var(--text1);
+  background: transparent;
+  resize: none;
+  outline: none;
+  line-height: 1.55;
+  max-height: 110px;
+  overflow-y: auto;
 }
 .chat-inp::placeholder { color: var(--text3); }
 .chat-inp:focus {
-  border-color: var(--blue); background: var(--surface2);
-  box-shadow: 0 0 0 3px var(--blue-glow);
+  border: none;
+  background: transparent;
+  box-shadow: none;
 }
-.inp-hint { position: absolute; right: 10px; bottom: 10px; font-size: .6rem; color: var(--text3); pointer-events: none; font-family: var(--mono); }
+.inp-hint {
+  position: absolute;
+  right: 50px;
+  bottom: 12px;
+  font-size: .6rem;
+  color: var(--text3);
+  pointer-events: none;
+  font-family: var(--mono);
+}
 
 .btn-send {
-  width: 42px; height: 42px; flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
   background: linear-gradient(135deg, #3B82F6, #1D4ED8);
-  border: none; border-radius: var(--radius); color: #fff;
-  display: flex; align-items: center; justify-content: center;
-  font-size: .9rem; cursor: pointer;
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .8rem;
+  cursor: pointer;
   transition: all .2s ease;
-  box-shadow: 0 2px 10px rgba(59,130,246,.35);
-  position: relative; overflow: hidden;
+  box-shadow: 0 2px 8px rgba(59,130,246,.25);
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 2px;
+  margin-left: 8px;
 }
 .btn-send::before {
   content: ''; position: absolute; inset: 0;
@@ -406,9 +456,106 @@
   opacity: 0; transition: opacity .2s;
 }
 .btn-send:hover::before { opacity: 1; }
-.btn-send:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(59,130,246,.45); }
-.btn-send:active { transform: translateY(0); box-shadow: 0 2px 8px rgba(59,130,246,.25); }
+.btn-send:hover { transform: scale(1.05); box-shadow: 0 4px 12px rgba(59,130,246,.35); }
+.btn-send:active { transform: scale(0.98); box-shadow: 0 2px 6px rgba(59,130,246,.2); }
 .btn-send:disabled { opacity: .4; cursor: not-allowed; transform: none; box-shadow: none; }
+
+/* ── WELCOME CONTAINER & STARTER PROMPTS ─────────── */
+.welcome-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 24px 20px;
+  max-width: 680px;
+  margin: auto auto;
+  width: 100%;
+  animation: fadein .4s ease;
+}
+.welcome-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+.welcome-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  background: linear-gradient(135deg,#2563EB,#7C3AED);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  margin: 0 auto 14px;
+  box-shadow: 0 4px 12px rgba(37,99,235,.2);
+}
+.welcome-header h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 8px;
+}
+.welcome-sub {
+  font-size: .8rem;
+  color: var(--text2);
+  line-height: 1.5;
+  max-width: 480px;
+  margin: 0 auto;
+}
+.welcome-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  width: 100%;
+}
+.welcome-card {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: all .2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  text-align: left;
+}
+.welcome-card:hover {
+  border-color: var(--blue-bright);
+  background: var(--surface2);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(59,130,246,.08);
+}
+.welcome-card .card-icon {
+  font-size: 1.05rem;
+  margin-bottom: 1px;
+}
+.welcome-card .card-title {
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--navy);
+}
+.welcome-card .card-desc {
+  font-size: .68rem;
+  color: var(--text3);
+  line-height: 1.4;
+}
+
+@media (max-width: 580px) {
+  .welcome-grid {
+    grid-template-columns: 1fr;
+  }
+  .welcome-header {
+    margin-bottom: 18px;
+  }
+  .welcome-header h2 {
+    font-size: 1.15rem;
+  }
+  .welcome-container {
+    padding: 16px 12px;
+  }
+}
 
 .ftr-meta {
   margin-top: 8px; display: flex; gap: 12px;
@@ -503,9 +650,125 @@
 .bubble .md-table td { padding: 5px 9px; border: 1px solid var(--border); color: var(--text2); }
 .bubble .md-table tr:hover td { background: rgba(255,255,255,.02); }
 
+/* Overlay backdrop */
+.chat-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(4px);
+  z-index: 1040;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+.chat-overlay.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Close drawer button */
+.drawer-close-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text2);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: absolute;
+  top: 14px;
+  right: 12px;
+  z-index: 10;
+}
+.drawer-close-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--red);
+}
+
+.hist-top .drawer-close-btn {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+}
+.hist-top .drawer-close-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #FFFFFF;
+}
+
 /* ── RESPONSIVE ──────────────────────────────────── */
-@media (max-width:1180px) { .dss-wrap { grid-template-columns: 210px 1fr; } .side-panel { display: none; } }
-@media (max-width:860px) { .dss-wrap { grid-template-columns: 1fr; height: auto; } .hist-panel { display: none; } .main-panel { height: calc(100vh - 200px); min-height: 480px; } }
+@media (max-width: 1180px) {
+  .dss-wrap {
+    grid-template-columns: 240px 1fr;
+  }
+  .side-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 290px;
+    z-index: 1050;
+    background: var(--surface) !important;
+    border-left: 1px solid var(--border2);
+    transform: translateX(100%);
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.3s ease;
+    display: flex !important;
+    flex-direction: column;
+    gap: 12px;
+    padding: 1.25rem 1rem;
+    overflow-y: auto;
+    visibility: hidden;
+  }
+  .side-panel.show {
+    transform: translateX(0);
+    visibility: visible;
+    box-shadow: -10px 0 30px rgba(15, 23, 42, 0.15);
+  }
+  .side-panel .drawer-close-btn {
+    display: flex;
+  }
+  .hdr-actions .mobile-toggle-btn.side-toggle-btn {
+    display: flex !important;
+  }
+}
+
+@media (max-width: 860px) {
+  .dss-wrap {
+    grid-template-columns: 1fr;
+    height: calc(100vh - 160px);
+    min-height: 500px;
+  }
+  .hist-panel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 270px;
+    z-index: 1050;
+    background: var(--surface) !important;
+    border-right: 1px solid var(--border2);
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.3s ease;
+    display: flex !important;
+    visibility: hidden;
+  }
+  .hist-panel.show {
+    transform: translateX(0);
+    visibility: visible;
+    box-shadow: 10px 0 30px rgba(15, 23, 42, 0.15);
+  }
+  .hist-panel .drawer-close-btn {
+    display: flex;
+  }
+  .chat-hdr-l .mobile-toggle-btn.hist-toggle-btn {
+    display: flex !important;
+  }
+  .main-panel {
+    height: 100%;
+  }
+}
 </style>
 {% endblock %}
 
@@ -523,6 +786,7 @@
   <!-- HISTORY -->
   <div class="hist-panel">
     <div class="hist-top">
+      <button class="drawer-close-btn" onclick="toggleHistory()" title="Close History"><i class="fa-solid fa-xmark"></i></button>
       <div class="lbl"><i class="fa-solid fa-clock-rotate-left"></i>&nbsp;Chat History</div>
       <button class="btn-newchat" onclick="startNew()">
         <i class="fa-solid fa-plus"></i> New Conversation
@@ -540,6 +804,9 @@
   <div class="main-panel">
     <div class="chat-hdr">
       <div class="chat-hdr-l">
+        <button class="hdr-btn mobile-toggle-btn hist-toggle-btn me-2" onclick="toggleHistory()" title="Show History" style="display: none;">
+          <i class="fa-solid fa-clock-rotate-left"></i>
+        </button>
         <div class="ai-av"><i class="fa-solid fa-robot"></i></div>
         <div class="ai-info">
           <h3>AI Advisor</h3>
@@ -548,6 +815,9 @@
         </div>
       </div>
       <div class="hdr-actions">
+        <button class="hdr-btn mobile-toggle-btn side-toggle-btn me-1" onclick="toggleSidebar()" title="Show Context &amp; Prompts" style="display: none;">
+          <i class="fa-solid fa-sliders"></i>
+        </button>
         <button class="hdr-btn" onclick="startNew()" title="New chat"><i class="fa-solid fa-plus"></i></button>
         <button class="hdr-btn" onclick="exportChat()" title="Export chat"><i class="fa-solid fa-download"></i></button>
       </div>
@@ -561,10 +831,10 @@
           <textarea id="inp" class="chat-inp" rows="1"
             placeholder="Ask about revenue, forecasts, staffing, inventory…"></textarea>
           <span class="inp-hint">↵ send</span>
+          <button id="sendBtn" class="btn-send" title="Send">
+            <i class="fa-solid fa-paper-plane"></i>
+          </button>
         </div>
-        <button id="sendBtn" class="btn-send" title="Send">
-          <i class="fa-solid fa-paper-plane"></i>
-        </button>
       </div>
       <div class="ftr-meta">
         <span class="ftr-badge"><i class="fa-solid fa-shield-halved" style="color:var(--teal);"></i> Private</span>
@@ -576,6 +846,7 @@
 
   <!-- RIGHT PANEL -->
   <div class="side-panel">
+    <button class="drawer-close-btn" onclick="toggleSidebar()" title="Close Context"><i class="fa-solid fa-xmark"></i></button>
     <div class="side-card">
       <div class="side-ttl"><i class="fa-solid fa-bolt" style="color:var(--amber);"></i>Quick Prompts</div>
       <button class="chip" onclick="send(this.dataset.q)" data-q="Analyze my revenue trend and best month"><i class="fa-solid fa-chart-line" style="color:var(--blue);"></i>Analyze my revenue trend and best month</button>
@@ -605,12 +876,55 @@
       <div class="sstat"><i class="fa-solid fa-brain"></i><span>AI Advisor · Sora</span></div>
     </div>
   </div>
+  <!-- OVERLAY FOR MOBILE DRAWERS -->
+  <div class="chat-overlay" id="chatOverlay" onclick="closeAllDrawers()"></div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+/* ============================================================
+   RESPONSIVE DRAWER CONTROLS
+============================================================ */
+function toggleHistory() {
+  const panel = document.querySelector('.hist-panel');
+  const overlay = document.getElementById('chatOverlay');
+  const show = !panel.classList.contains('show');
+  
+  document.querySelector('.side-panel').classList.remove('show');
+  
+  if (show) {
+    panel.classList.add('show');
+    overlay.classList.add('show');
+  } else {
+    panel.classList.remove('show');
+    overlay.classList.remove('show');
+  }
+}
+
+function toggleSidebar() {
+  const panel = document.querySelector('.side-panel');
+  const overlay = document.getElementById('chatOverlay');
+  const show = !panel.classList.contains('show');
+  
+  document.querySelector('.hist-panel').classList.remove('show');
+  
+  if (show) {
+    panel.classList.add('show');
+    overlay.classList.add('show');
+  } else {
+    panel.classList.remove('show');
+    overlay.classList.remove('show');
+  }
+}
+
+function closeAllDrawers() {
+  document.querySelector('.hist-panel').classList.remove('show');
+  document.querySelector('.side-panel').classList.remove('show');
+  document.getElementById('chatOverlay').classList.remove('show');
+}
+
 /* ============================================================
    STATE
 ============================================================ */
@@ -777,6 +1091,7 @@ function saveRename(id) {
 }
 
 function loadSess(id) {
+  closeAllDrawers();
   autoTitle(); saveNow();
   const all  = load();
   const sess = all.find(s=>s.id===id);
@@ -807,8 +1122,57 @@ function delSess(e, id) {
   showDeleteModal(id);
 }
 
+function getWelcomeHTML() {
+  return `
+<div class="welcome-container">
+  <div class="welcome-header">
+    <div class="welcome-avatar"><i class="fa-solid fa-robot"></i></div>
+    <h2>AI Operations Advisor</h2>
+    <p class="welcome-sub">Hello! I'm your AI Operations Advisor for Mini Coffee Shop. I have live access to your sales database. Click a quick prompt card below or type a custom question to get started.</p>
+  </div>
+  <div class="welcome-grid">
+    <div class="welcome-card" onclick="send(&quot;Analyze my revenue trend and best month&quot;)">
+      <div class="card-icon" style="color: var(--blue);"><i class="fa-solid fa-chart-line"></i></div>
+      <div class="card-title">Analyze Trend</div>
+      <div class="card-desc">Review revenue trends & identify best performing months</div>
+    </div>
+    <div class="welcome-card" onclick="send(&quot;What staffing do I need during peak hours?&quot;)">
+      <div class="card-icon" style="color: var(--teal);"><i class="fa-solid fa-users"></i></div>
+      <div class="card-title">Staffing Levels</div>
+      <div class="card-desc">Find optimal staffing recommendations for peak sales periods</div>
+    </div>
+    <div class="welcome-card" onclick="send(&quot;Which products should I stock more of?&quot;)">
+      <div class="card-icon" style="color: var(--amber);"><i class="fa-solid fa-box-open"></i></div>
+      <div class="card-title">Inventory Advice</div>
+      <div class="card-desc">Determine high-demand products to stock and restock</div>
+    </div>
+    <div class="welcome-card" onclick="send(&quot;Compare my active business branches&quot;)">
+      <div class="card-icon" style="color: var(--purple);"><i class="fa-solid fa-store"></i></div>
+      <div class="card-title">Branch Performance</div>
+      <div class="card-desc">Compare operational and revenue metrics across branches</div>
+    </div>
+    <div class="welcome-card" onclick="send(&quot;How does weather affect my sales?&quot;)">
+      <div class="card-icon" style="color: var(--blue-bright);"><i class="fa-solid fa-cloud-rain"></i></div>
+      <div class="card-title">Weather Impact</div>
+      <div class="card-desc">Understand how weather conditions influence daily transactions</div>
+    </div>
+    <div class="welcome-card" onclick="send(&quot;Give me this week's executive business summary&quot;)">
+      <div class="card-icon" style="color: var(--green);"><i class="fa-solid fa-file-lines"></i></div>
+      <div class="card-title">Executive Summary</div>
+      <div class="card-desc">Get a quick operational summary of the past 7 days</div>
+    </div>
+  </div>
+</div>`;
+}
+
 function rebuildCanvas(sess){
   const cv = document.getElementById('canvas');
+  if (!sess.messages || sess.messages.length === 0) {
+    cv.innerHTML = getWelcomeHTML();
+    msgCount = 0;
+    document.getElementById('sMsgs').textContent = '0 messages sent';
+    return;
+  }
   cv.innerHTML = `<div class="date-sep">${new Date(sess.created).toLocaleDateString('en-MY',{weekday:'long',month:'short',day:'numeric'})}</div>`;
   sess.messages.forEach(m=>{
     if (m.r==='u') appendUserDOM(m.t, m.ts, false, false);
@@ -823,6 +1187,7 @@ function rebuildCanvas(sess){
    NEW CHAT
 ============================================================ */
 function startNew(){
+  closeAllDrawers();
   if (current) {
     autoTitle();
     saveNow();
@@ -834,13 +1199,7 @@ function startNew(){
   pendingMsgId = null;
   pendingMsgText = null;
   isStreaming = false;
-  const cv  = document.getElementById('canvas');
-  cv.innerHTML = `<div class="date-sep">Today</div>`;
-  appendBotDOM(
-    '👋 Hello! I\'m your **AI Operations Advisor** for Mini Coffee Shop.\n\nI have live access to your sales database. I can help with:\n- Revenue analysis & trend identification\n- Staffing recommendations based on peak hours\n- Inventory planning from product mix data\n- Performance comparison across your business branches\n- Month-by-month performance breakdown\n\nTry a quick prompt on the right, click a month chip, or type your question below.',
-    fmtTime(new Date()), false, false
-  );
-  document.getElementById('sMsgs').textContent='0 messages sent';
+  rebuildCanvas(current);
   document.getElementById('sessTtl').textContent='New conversation';
   updateTimer();
   renderHist();
@@ -1085,6 +1444,7 @@ function copyBubble(btn){
    SEND — streaming
 ============================================================ */
 async function send(text, isRetry=false) {
+  closeAllDrawers();
   text = (text || '').trim();
   if (!text) return;
   if (isStreaming) { toast('Please wait…', 'warn'); return; }
@@ -1105,6 +1465,10 @@ async function send(text, isRetry=false) {
   // Append user msg (skip if retry — message is already in DOM)
   let userRowId = null;
   if (!isRetry) {
+    const cv = document.getElementById('canvas');
+    if (!current.messages || current.messages.length === 0) {
+      cv.innerHTML = `<div class="date-sep">Today</div>`;
+    }
     userRowId = appendUserDOM(text, ts, true, false);
     current.messages.push({ r:'u', t:text, ts });
     current.updated = Date.now();
@@ -1283,7 +1647,7 @@ function loadKPIs(){
       if(d.status!=='success') return;
       const lbl=d.monthly?.labels||[];
       if(lbl.length) document.getElementById('kRng').textContent=lbl[0]+' → '+lbl[lbl.length-1];
-      const raw=d.monthly?.raw||[];
+      const raw=d.available_months||[];
       const mc=document.getElementById('monthChips');
       if(!raw.length){ mc.innerHTML='<span style="font-size:.72rem;color:var(--text3)">No data</span>'; return; }
       const uniq=[...new Set(raw)].reverse().slice(0,12);

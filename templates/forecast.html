@@ -48,7 +48,6 @@
     .page-header select, .page-header button { width: 100% !important; margin: 0 !important; }
     
     .kpi-card { margin-bottom: 12px; padding: 16px !important; }
-    .kpi-value { font-size: 1.4rem !important; }
     
     .dashboard-card { padding: 16px; margin-bottom: 16px; }
     
@@ -57,6 +56,59 @@
     
     /* Strategic factors stacking */
     .row.g-4 > div { margin-bottom: 0; }
+}
+
+/* ── KPI Grid arrangement matching dashboard ── */
+.kpi-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+@media (min-width: 480px) {
+    .kpi-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+@media (min-width: 900px) {
+    .kpi-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+/* Laptop/Desktop specific KPI font override */
+@media (min-width: 1025px) {
+    .kpi-value {
+        font-size: 1.65rem !important;
+        line-height: 1 !important;
+        font-weight: 700 !important;
+    }
+}
+
+/* ── FLUID CHART & TABLE RESPONSIVENESS ── */
+/* Laptop & Desktop view (>1024px): completely static, no scrolling */
+@media (min-width: 1025px) {
+  .chart-scroll-wrapper,
+  .table-responsive {
+    overflow: visible !important;
+  }
+  .chart-scroll-inner {
+    min-width: 100% !important;
+    width: 100% !important;
+  }
+}
+
+/* Mobile & Tablet view (<=1024px): scrollable to prevent crowding */
+@media (max-width: 1024px) {
+  .chart-scroll-wrapper,
+  .table-responsive {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .chart-min-width-700 { min-width: 700px; }
+  .chart-min-width-600 { min-width: 600px; }
+  .chart-min-width-400 { min-width: 450px; }
 }
 
 /* ── Base overrides ── */
@@ -678,51 +730,43 @@
     </div>
 
     <!-- KPI cards -->
-    <div class="row g-3 mb-4">
-        <div class="col-6 col-md-3" data-aos="fade-up" data-aos-delay="0">
-            <div class="kpi-card kpi-blue">
-                <div class="kpi-icon-wrap"><i class="fa-solid fa-bullseye"></i></div>
-                <div class="kpi-body">
-                    <div class="kpi-label">Forecast Error Rate</div>
-                    <div class="kpi-value"><span id="metricMape">—</span><span style="font-size:1rem;">%</span></div>
-                    <span class="kpi-trend neutral"><i class="fa-solid fa-info-circle"></i> Lower is better</span>
-                </div>
+    <div class="kpi-grid">
+        <div class="kpi-card kpi-blue" data-aos="fade-up" data-aos-delay="0">
+            <div class="kpi-icon-wrap"><i class="fa-solid fa-bullseye"></i></div>
+            <div class="kpi-body">
+                <div class="kpi-label">Forecast Error Rate</div>
+                <div class="kpi-value" style="font-size:1.15rem;line-height:1.2;font-weight:700;"><span id="metricMape">—</span><span style="font-size:1rem;">%</span></div>
+                <span class="kpi-trend neutral"><i class="fa-solid fa-info-circle"></i> Lower is better</span>
             </div>
         </div>
-        <div class="col-6 col-md-3" data-aos="fade-up" data-aos-delay="60">
-            <div class="kpi-card kpi-amber">
-                <div class="kpi-icon-wrap"><i class="fa-solid fa-ruler"></i></div>
-                <div class="kpi-body">
-                    <div class="kpi-label">Average Daily Error</div>
-                    <div class="kpi-value">RM <span id="metricRmse">—</span></div>
-                    <span class="kpi-trend neutral"><i class="fa-solid fa-info-circle"></i> Typical off-by amount</span>
-                </div>
+        <div class="kpi-card kpi-amber" data-aos="fade-up" data-aos-delay="60">
+            <div class="kpi-icon-wrap"><i class="fa-solid fa-ruler"></i></div>
+            <div class="kpi-body">
+                <div class="kpi-label">Average Daily Error</div>
+                <div class="kpi-value" style="font-size:1.15rem;line-height:1.2;font-weight:700;">RM <span id="metricRmse">—</span></div>
+                <span class="kpi-trend neutral"><i class="fa-solid fa-info-circle"></i> Typical off-by amount</span>
             </div>
         </div>
-        <div class="col-6 col-md-3" data-aos="fade-up" data-aos-delay="120">
-            <div class="kpi-card kpi-teal">
-                <div class="kpi-icon-wrap">
-                    <div class="accuracy-ring-wrap">
-                        <div class="accuracy-ring" id="accuracyRing" style="--pct:0deg;">
-                            <span class="accuracy-ring-val" id="accuracyVal">—%</span>
-                        </div>
+        <div class="kpi-card kpi-teal" data-aos="fade-up" data-aos-delay="120">
+            <div class="kpi-icon-wrap">
+                <div class="accuracy-ring-wrap">
+                    <div class="accuracy-ring" id="accuracyRing" style="--pct:0deg;">
+                        <span class="accuracy-ring-val" id="accuracyVal">—%</span>
                     </div>
                 </div>
-                <div class="kpi-body">
-                    <div class="kpi-label">Forecast Accuracy</div>
-                    <div class="kpi-value"><span id="metricAccuracy">—</span><span style="font-size:.9rem;">%</span></div>
-                    <span class="kpi-trend up"><i class="fa-solid fa-circle-check"></i> Higher = better</span>
-                </div>
+            </div>
+            <div class="kpi-body">
+                <div class="kpi-label">Forecast Accuracy</div>
+                <div class="kpi-value" style="font-size:1.15rem;line-height:1.2;font-weight:700;"><span id="metricAccuracy">—</span><span style="font-size:1rem;">%</span></div>
+                <span class="kpi-trend up"><i class="fa-solid fa-circle-check"></i> Higher = better</span>
             </div>
         </div>
-        <div class="col-6 col-md-3" data-aos="fade-up" data-aos-delay="180">
-            <div class="kpi-card kpi-purple">
-                <div class="kpi-icon-wrap"><i class="fa-solid fa-calendar-week"></i></div>
-                <div class="kpi-body">
-                    <div class="kpi-label">Expected 5-Day Revenue</div>
-                    <div class="kpi-value">RM <span id="metric5Day">—</span></div>
-                    <span class="kpi-trend up"><i class="fa-solid fa-arrow-trend-up"></i> Predicted total sales</span>
-                </div>
+        <div class="kpi-card kpi-purple" data-aos="fade-up" data-aos-delay="180">
+            <div class="kpi-icon-wrap"><i class="fa-solid fa-calendar-week"></i></div>
+            <div class="kpi-body">
+                <div class="kpi-label">Expected 5-Day Revenue</div>
+                <div class="kpi-value" style="font-size:1.15rem;line-height:1.2;font-weight:700;">RM <span id="metric5Day">—</span></div>
+                <span class="kpi-trend up"><i class="fa-solid fa-arrow-trend-up"></i> Predicted total sales</span>
             </div>
         </div>
     </div>
@@ -782,7 +826,7 @@
                     </div>
                 </div>
                 <div class="chart-scroll-wrapper">
-                    <div class="chart-scroll-inner" id="forecastChartInner" style="min-width: 700px;">
+                    <div class="chart-scroll-inner chart-min-width-700" id="forecastChartInner">
                         <div class="chart-container" style="min-height:360px;">
                             <div class="chart-loading" id="loadingForecast"><div class="spinner"></div></div>
                             <div id="forecastChart" style="width:100%;height:360px;"></div>
@@ -814,7 +858,7 @@
                     </div>
                 </div>
                 <div class="chart-scroll-wrapper">
-                    <div class="chart-scroll-inner" id="fvaChartInner" style="min-width: 600px;">
+                    <div class="chart-scroll-inner chart-min-width-600" id="fvaChartInner">
                         <div class="chart-container" style="min-height:300px;">
                             <div class="chart-loading" id="loadingFVA"><div class="spinner"></div></div>
                             <div id="fvaChart" style="width:100%;height:300px;"></div>
@@ -831,7 +875,7 @@
             <div class="dashboard-card h-100">
                 <p class="card-title">Best and Slowest Hours of the Day</p>
                 <div class="chart-scroll-wrapper">
-                    <div class="chart-scroll-inner" id="hourlyChartInner" style="min-width: 400px;">
+                    <div class="chart-scroll-inner chart-min-width-400" id="hourlyChartInner">
                         <div class="chart-container" style="min-height:260px;">
                             <div class="chart-loading" id="loadingHourly"><div class="spinner"></div></div>
                             <div id="hourlyChart" style="width:100%;height:260px;"></div>
@@ -844,7 +888,7 @@
             <div class="dashboard-card h-100">
                 <p class="card-title">How Weather Affects Sales — Morning, Afternoon & Evening</p>
                 <div class="chart-scroll-wrapper">
-                    <div class="chart-scroll-inner" id="wbtChartInner" style="min-width: 400px;">
+                    <div class="chart-scroll-inner chart-min-width-400" id="wbtChartInner">
                         <div class="chart-container" style="min-height:260px;">
                             <div class="chart-loading" id="loadingWBT"><div class="spinner"></div></div>
                             <div id="wbtChart" style="width:100%;height:260px;"></div>
@@ -1028,6 +1072,24 @@
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 
 <script>
+function formatShortDate(ds) {
+    if (!ds) return '';
+    const parts = String(ds).split(' ')[0].split('-');
+    if (parts.length === 3) {
+        const year = parts[0].slice(-2);
+        const monthNum = parseInt(parts[1], 10);
+        const day = parseInt(parts[2], 10);
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const monthStr = months[monthNum - 1] || '';
+        return `${day}${monthStr}${year}`;
+    }
+    const d = new Date(ds);
+    if (isNaN(d.getTime())) return ds;
+    const day = d.getDate();
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${day}${months[d.getMonth()]}${String(d.getFullYear()).slice(-2)}`;
+}
+
 /* ============================================================
    GLOBALS & CONSTANTS
    ============================================================ */
@@ -1049,6 +1111,51 @@ const LAYOUT_BASE = {
     font:          { family:"'DM Sans',sans-serif", color:'#64748B', size:12 },
     hoverlabel:    { bgcolor:'#1E293B', bordercolor:'#1E293B', font:{ color:'white', size:12 }, namelength:-1 }
 };
+
+function getPlotlyLayout(baseHeightOrOverrides = {}, overrides = {}) {
+    let baseHeight = 340;
+    let finalOverrides = overrides;
+    if (typeof baseHeightOrOverrides === 'number') {
+        baseHeight = baseHeightOrOverrides;
+    } else if (typeof baseHeightOrOverrides === 'object' && baseHeightOrOverrides !== null) {
+        finalOverrides = baseHeightOrOverrides;
+    }
+
+    const w = window.innerWidth;
+    const isMobile = w < 768;
+    const fontSize = w < 480 ? 9 : isMobile ? 10 : 11;
+    
+    // Scale height proportionally based on baseHeight
+    let height = baseHeight;
+    if (w < 480) {
+        height = Math.round(baseHeight * 0.75);
+    } else if (isMobile) {
+        height = Math.round(baseHeight * 0.85);
+    } else if (w < 1024) {
+        height = Math.round(baseHeight * 0.95);
+    }
+    
+    // Enforce a sensible minimum height
+    height = Math.max(160, height);
+    
+    const layout = {
+        height: height,
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor:  'rgba(0,0,0,0)',
+        font: { family: "'DM Sans', sans-serif", color: '#64748B', size: fontSize },
+        margin: isMobile ? { t:15, r:10, b:35, l:42 } : { t:15, r:16, b:40, l:50 },
+        hoverlabel: { bgcolor:'#1E293B', bordercolor:'#1E293B', font:{ color:'white', size:12 }, namelength:-1 }
+    };
+    
+    // Apply tickfont and tickformat tweaks on mobile to prevent label clipping
+    if (isMobile) {
+        if (!layout.xaxis) layout.xaxis = {};
+        layout.xaxis.tickfont = { size: 9 };
+    }
+    
+    return Object.assign({}, layout, finalOverrides);
+}
+
 const CONFIG = { responsive:true, displayModeBar:false };
 
 let globalFVA        = [];
@@ -1570,52 +1677,58 @@ function renderAll(data, branchName) {
 /* ============================================================
    CHARTS — shared axis/hover styling
    ============================================================ */
-const XAXIS_STYLE = { gridcolor:'rgba(0,0,0,0)', linecolor:'rgba(0,0,0,.08)', tickformat:'%d %b', tickangle:-30, tickfont:{ size:11 } };
-const YAXIS_STYLE = { gridcolor:'rgba(0,0,0,.05)', tickprefix:'RM ', tickfont:{ size:11 }, rangemode:'tozero', zeroline:false };
+const XAXIS_STYLE = { gridcolor:'rgba(0,0,0,0)', linecolor:'rgba(0,0,0,.08)', tickangle:-30 };
+const YAXIS_STYLE = { gridcolor:'rgba(0,0,0,.05)', tickprefix:'RM ', rangemode:'tozero', zeroline:false };
 
 function renderForecastChart(data) {
-    const hist = data.historical || [];
+    const sortedHist = [...(data.historical || [])].sort((a, b) => a.ds.localeCompare(b.ds));
+    const hist = sortedHist.slice(-30);
     const fore = data.forecast   || [];
+    const isMobile = window.innerWidth < 768;
+    const histX = hist.map(r => formatShortDate(r.ds));
+    const foreX = fore.map(r => formatShortDate(r.ds));
+
     Plotly.newPlot('forecastChart', [
         {
-            x: hist.map(r=>r.ds), y: hist.map(r=>r.y),
+            x: histX, y: hist.map(r=>r.y),
             name:'Actual Sales', type:'scatter', mode:'lines+markers',
             line:{ color:'#2563EB', width:2.5, shape:'spline' },
             marker:{ size:5, color:'#2563EB', symbol:'circle' },
-            hovertemplate:'<b>%{x|%d %b}</b><br>Actual: RM %{y:,.2f}<extra></extra>'
+            hovertemplate:'<b>%{x}</b><br>Actual: RM %{y:,.2f}<extra></extra>'
         },
         {
-            x: fore.map(r=>r.ds), y: fore.map(r=>r.yhat_upper),
+            x: foreX, y: fore.map(r=>r.yhat_upper),
             name:'High Estimate', type:'scatter', mode:'lines',
             line:{ width:0 }, showlegend:false, hoverinfo:'skip'
         },
         {
-            x: fore.map(r=>r.ds), y: fore.map(r=>r.yhat_lower),
+            x: foreX, y: fore.map(r=>r.yhat_lower),
             name:'Expected Range', type:'scatter', mode:'lines',
             fill:'tonexty', fillcolor:'rgba(217,119,6,.10)',
             line:{ width:0 },
             hovertemplate:'Range: RM %{y:,.2f}<extra></extra>'
         },
         {
-            x: fore.map(r=>r.ds), y: fore.map(r=>r.yhat),
+            x: foreX, y: fore.map(r=>r.yhat),
             name:'Predicted Sales', type:'scatter', mode:'lines+markers',
             line:{ color:'#D97706', width:2.5, dash:'dash', shape:'spline' },
             marker:{ size:7, color:'#D97706', symbol:'diamond', line:{ color:'#fff', width:1.5 } },
-            hovertemplate:'<b>%{x|%d %b}</b><br>Predicted: RM %{y:,.2f}<extra></extra>'
+            hovertemplate:'<b>%{x}</b><br>Predicted: RM %{y:,.2f}<extra></extra>'
         }
-    ], {
-        ...LAYOUT_BASE,
-        margin:    { t:20, r:20, b:55, l:75 },
-        legend:    { orientation:'h', y:-0.18, font:{ size:11 }, bgcolor:'rgba(0,0,0,0)' },
-        xaxis:     { ...XAXIS_STYLE, tickformat:'%d %b' },
+    ], getPlotlyLayout(360, {
+        margin:    isMobile ? { t:20, r:10, b:50, l:45 } : { t:20, r:20, b:55, l:75 },
+        legend:    isMobile
+            ? { orientation:'h', x:0, y:1.15, xanchor:'left', font:{ size:9 } }
+            : { orientation:'h', y:-0.18, font:{ size:11 }, bgcolor:'rgba(0,0,0,0)' },
+        xaxis:     { ...XAXIS_STYLE, type: 'category' },
         yaxis:     { ...YAXIS_STYLE },
         hovermode: 'x unified',
         shapes: [{
             type:'line', xref:'x', yref:'paper',
-            x0: fore[0]?.ds, x1: fore[0]?.ds, y0:0, y1:1,
+            x0: formatShortDate(fore[0]?.ds), x1: formatShortDate(fore[0]?.ds), y0:0, y1:1,
             line:{ color:'rgba(217,119,6,.3)', width:1.5, dash:'dot' }
         }]
-    }, CONFIG);
+    }), CONFIG);
     hideLoader('loadingForecast');
 }
 
@@ -1656,36 +1769,40 @@ function applyFVAFilter() {
 }
 
 function renderFVAChart(data) {
+    const isMobile = window.innerWidth < 768;
+    const fvaX = data.map(r => formatShortDate(r.ds));
     Plotly.newPlot('fvaChart', [
         {
-            x:data.map(r=>r.ds), y:data.map(r=>r.predicted),
+            x: fvaX, y:data.map(r=>r.predicted),
             name:'Model Prediction', type:'scatter', mode:'lines+markers',
             line:{ color:'#D97706', width:2, dash:'dash', shape:'spline' },
             marker:{ size:6, color:'#D97706', symbol:'diamond', line:{ color:'#fff', width:1 } },
             hovertemplate:'Predicted: RM %{y:,.2f}<extra></extra>'
         },
         {
-            x:data.map(r=>r.ds), y:data.map(r=>r.actual),
+            x: fvaX, y:data.map(r=>r.actual),
             name:'Actual Sales', type:'scatter', mode:'lines+markers',
             line:{ color:'#0D9488', width:2, shape:'spline' },
             marker:{ size:6, color:'#0D9488', line:{ color:'#fff', width:1 } },
             fill:'tozeroy', fillcolor:'rgba(13,148,136,.04)',
             hovertemplate:'Actual: RM %{y:,.2f}<extra></extra>'
         }
-    ], {
-        ...LAYOUT_BASE,
-        margin:    { t:10, r:20, b:55, l:75 },
+    ], getPlotlyLayout(300, {
+        margin:    isMobile ? { t:10, r:10, b:50, l:45 } : { t:10, r:20, b:55, l:75 },
         hovermode: 'x unified',
-        xaxis:     { ...XAXIS_STYLE, type:'category', tickangle:-30 },
+        xaxis:     { ...XAXIS_STYLE, type:'category' },
         yaxis:     { ...YAXIS_STYLE },
-        legend:    { orientation:'h', y:-0.28, bgcolor:'rgba(0,0,0,0)' }
-    }, CONFIG);
+        legend:    isMobile
+            ? { orientation:'h', x:0, y:1.15, xanchor:'left', font:{ size:9 } }
+            : { orientation:'h', y:-0.28, bgcolor:'rgba(0,0,0,0)' }
+    }), CONFIG);
     hideLoader('loadingFVA');
 }
 
 function renderHourlyChart(hourly) {
     if (!hourly.length) { hideLoader('loadingHourly'); return; }
     const maxRev = Math.max(...hourly.map(r => r.revenue));
+    const isMobile = window.innerWidth < 768;
     Plotly.newPlot('hourlyChart', [{
         x: hourly.map(r => `${String(r.hour).padStart(2,'0')}:00`),
         y: hourly.map(r => r.revenue),
@@ -1696,10 +1813,9 @@ function renderHourlyChart(hourly) {
             line:{ width: 0 }
         },
         hovertemplate: '<b>%{x}</b><br>Revenue: RM %{y:,.2f}<extra></extra>'
-    }], {
-        ...LAYOUT_BASE,
+    }], getPlotlyLayout(260, {
         bargap: 0.35,
-        margin: { t:10, r:16, b:48, l:72 },
+        margin: isMobile ? { t:10, r:10, b:35, l:45 } : { t:10, r:16, b:48, l:72 },
         xaxis:  { gridcolor:'rgba(0,0,0,0)', tickangle:-45, type:'category', tickfont:{ size:11 } },
         yaxis:  { tickprefix:'RM ', gridcolor:'rgba(0,0,0,.05)', rangemode:'tozero', zeroline:false, tickformat:',.2f', tickfont:{ size:11 } },
         shapes: [{
@@ -1707,7 +1823,7 @@ function renderHourlyChart(hourly) {
             x0:0, x1:1, y0:maxRev * 0.9, y1:maxRev * 0.9,
             line:{ color:'rgba(13,148,136,.3)', width:1, dash:'dot' }
         }]
-    }, CONFIG);
+    }), CONFIG);
     hideLoader('loadingHourly');
 }
 
@@ -1716,6 +1832,7 @@ function renderWeatherByTime(wbt) {
     const shifts     = ['Morning','Afternoon','Evening'];
     const conditions = ['Sunny','Cloudy','Raining'];
     const colors     = { 'Sunny':'#D97706', 'Cloudy':'#2563EB', 'Raining':'#DC2626' };
+    const isMobile = window.innerWidth < 768;
 
     Plotly.newPlot('wbtChart',
         conditions.map(cond => ({
@@ -1726,16 +1843,17 @@ function renderWeatherByTime(wbt) {
             marker:{ color: colors[cond], opacity: 0.8, line:{ width:0 } },
             hovertemplate: `<b>${cond}</b><br>%{x}: %{y} days<extra></extra>`
         })),
-        {
-            ...LAYOUT_BASE,
+        getPlotlyLayout(260, {
             barmode: 'group',
             bargap:  0.25,
             bargroupgap: 0.1,
-            margin:  { t:10, r:16, b:44, l:50 },
-            legend:  { orientation:'h', y:-0.25, font:{ size:11 }, bgcolor:'rgba(0,0,0,0)' },
+            margin:  isMobile ? { t:10, r:10, b:35, l:45 } : { t:10, r:16, b:44, l:50 },
+            legend:  isMobile
+                ? { orientation:'h', x:0, y:1.15, xanchor:'left', font:{ size:9 } }
+                : { orientation:'h', y:-0.25, font:{ size:11 }, bgcolor:'rgba(0,0,0,0)' },
             xaxis:   { gridcolor:'rgba(0,0,0,0)', tickfont:{ size:12 } },
             yaxis:   { gridcolor:'rgba(0,0,0,.05)', zeroline:false, rangemode:'tozero', title:{ text:'Days', font:{ size:11 } }, tickfont:{ size:11 } }
-        }, CONFIG
+        }), CONFIG
     );
     hideLoader('loadingWBT');
 }
@@ -1855,6 +1973,20 @@ function downloadForecastPDF() {
         btn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> Download PDF';
     });
 }
+
+// Window resize handler with debounce for re-rendering Plotly charts
+let resizeTimer;
+window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+        if (lastForecastData) {
+            renderForecastChart(lastForecastData);
+            applyFVAFilter();
+            renderHourlyChart(lastForecastData.hourly || []);
+            renderWeatherByTime(lastForecastData.weather_by_time || []);
+        }
+    }, 200);
+});
 
 // Initial check on load
 document.addEventListener('DOMContentLoaded', () => {

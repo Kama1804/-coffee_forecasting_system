@@ -146,8 +146,19 @@
         }
     }
     
-    /* Utility for tiny text on mobile */
     .x-small { font-size: 0.7rem; }
+
+    /* Mobile Modal Footer Enhancements */
+    @media (max-width: 576px) {
+        .modal-footer {
+            flex-direction: column-reverse;
+            gap: 8px;
+        }
+        .modal-footer button {
+            width: 100% !important;
+            margin: 0 !important;
+        }
+    }
 </style>
 {% endblock %}
 
@@ -354,11 +365,11 @@
                             
                             <!-- Custom Ingredient Adder UI -->
                             <div class="row g-2 mb-3 align-items-end p-3 rounded-3" style="background: #f8f9fc; border: 1px solid #e3e6f0;">
-                                <div class="col-md-5">
+                                <div class="col-12 col-md-5">
                                     <label class="form-label x-small text-muted mb-1">Ingredient Name</label>
                                     <input type="text" id="newIngName" class="form-control form-control-sm" placeholder="e.g. Vanilla Syrup">
                                 </div>
-                                <div class="col-md-3">
+                                <div class="col-6 col-md-3">
                                     <label class="form-label x-small text-muted mb-1">Unit</label>
                                     <select id="newIngUnit" class="form-select form-select-sm">
                                         <option value="ml">ml (Milliliters)</option>
@@ -366,11 +377,11 @@
                                         <option value="pcs">pcs (Pieces)</option>
                                     </select>
                                 </div>
-                                <div class="col-md-2">
+                                <div class="col-6 col-md-2">
                                     <label class="form-label x-small text-muted mb-1">Amount</label>
                                     <input type="number" id="newIngValue" class="form-control form-control-sm" placeholder="10">
                                 </div>
-                                <div class="col-md-2">
+                                <div class="col-12 col-md-2">
                                     <button type="button" id="btnIngAction" class="btn btn-primary btn-sm w-100" onclick="addCustomIngredientRow()">
                                         <i class="fa-solid fa-plus"></i> Add
                                     </button>

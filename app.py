@@ -735,8 +735,15 @@ def api_charts():
 
         where, params = build_where(branch_filter, time_filter, max_date, temp_filter)
 
-        use_monthly = (time_filter == 'all' or time_filter.startswith('year_'))
-        date_col    = "strftime('%Y-%m', s.transaction_date)" if use_monthly else "s.transaction_date"
+        use_yearly  = (time_filter == 'all')
+        use_monthly = time_filter.startswith('year_')
+
+        if use_yearly:
+            date_col = "strftime('%Y', s.transaction_date)"
+        elif use_monthly:
+            date_col = "strftime('%Y-%m', s.transaction_date)"
+        else:
+            date_col = "s.transaction_date"
 
         cursor.execute(f"""
             SELECT {date_col} as period, 
@@ -757,7 +764,9 @@ def api_charts():
             trend_gross.append(round(r['gross'], 2))
             trend_disc.append(round(r['disc'], 2))
             trend_net.append(round(r['net'], 2))
-            if use_monthly and p:
+            if use_yearly:
+                trend_labels.append(p)
+            elif use_monthly and p:
                 try:
                     dt = datetime.strptime(p + '-01', '%Y-%m-%d')
                     trend_labels.append(dt.strftime('%b %Y'))
@@ -817,8 +826,10 @@ def api_charts():
         """)
         all_branches = [r['store_location'] for r in cursor.fetchall() if r['store_location']]
 
+        outlet_period_col = "strftime('%Y', s.transaction_date)" if use_yearly else "strftime('%Y-%m', s.transaction_date)"
+
         cursor.execute(f"""
-            SELECT DISTINCT strftime('%Y-%m', s.transaction_date) as period
+            SELECT DISTINCT {outlet_period_col} as period
             FROM sales_transaction s {where}
             ORDER BY period ASC
         """, params)
@@ -826,18 +837,21 @@ def api_charts():
 
         all_month_labels = []
         for p in all_month_periods:
-            try:
-                dt = datetime.strptime(p + '-01', '%Y-%m-%d')
-                all_month_labels.append(dt.strftime('%B %Y'))
-            except Exception:
+            if use_yearly:
                 all_month_labels.append(p)
+            else:
+                try:
+                    dt = datetime.strptime(p + '-01', '%Y-%m-%d')
+                    all_month_labels.append(dt.strftime('%B %Y'))
+                except Exception:
+                    all_month_labels.append(p)
 
         monthly_by_branch = {b: [0] * len(all_month_periods) for b in all_branches}
         aov_by_branch     = {b: [0] * len(all_month_periods) for b in all_branches}
         period_idx_map    = {p: i for i, p in enumerate(all_month_periods)}
 
         cursor.execute(f"""
-            SELECT strftime('%Y-%m', s.transaction_date) as period,
+            SELECT {outlet_period_col} as period,
                    s.store_location,
                    SUM(s.Total_Bill_MYR) as rev,
                    COUNT(s.transaction_id) as txns
@@ -855,7 +869,15 @@ def api_charts():
                 monthly_by_branch[b][idx] = round(rev, 2)
                 aov_by_branch[b][idx]     = round(rev / txns, 2) if txns > 0 else 0
 
-        conn.close()
+        
+
+        cursor.execute("""
+            SELECT DISTINCT strftime('%Y-%m', transaction_date) as period
+            FROM sales_transaction
+            WHERE transaction_date IS NOT NULL AND transaction_date != ''
+            ORDER BY period ASC
+        """)
+        available_months = [r['period'] for r in cursor.fetchall() if r['period']]
 
         branch_id = None
         if branch_filter != 'all':
@@ -863,15 +885,19 @@ def api_charts():
             br_row = cursor.fetchone()
             if br_row: branch_id = br_row[0]
 
+        conn.close()
+
         return jsonify({
             "status": "success",
+            "available_months": available_months,
             "trend": {
                 "labels":     trend_labels,
                 "raw":        [r['period'] for r in trend_rows],
                 "data":       trend_net,
                 "gross":      trend_gross,
                 "discount":   trend_disc,
-                "is_monthly": use_monthly
+                "is_monthly": use_monthly,
+                "is_yearly":  use_yearly
             },
             "monthly": {
                 "labels":    all_month_labels,
