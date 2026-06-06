@@ -1469,24 +1469,125 @@ body.login-bg::before {
 }
 
 /* ============================================================
-   25. RESPONSIVE
+   25. RESPONSIVE & MOBILE-FIRST OVERRIDES (PWA Focus)
    ============================================================ */
+
+/* ── Tablets & Below (1024px) ── */
 @media (max-width: 1024px) {
-    .main-canvas { padding: var(--space-lg); }
+    .main-canvas { margin-left: 0; }
+    .main-content-inner { padding: var(--space-lg); }
+    .topbar { padding: 0.6rem 1.25rem; }
 }
 
+/* ── Mobiles (768px) ── */
 @media (max-width: 768px) {
-    .sidebar { transform: translateX(-100%); transition: transform .3s var(--ease-out); }
-    .sidebar.open { transform: translateX(0); }
-    .main-canvas { margin-left: 0; padding: var(--space-md); }
-    .kpi-value   { font-size: 1.3rem; }
-    .page-title  { font-size: 1.3rem; }
-    .mobile-menu-toggle { display: flex; }
+    /* Layout */
+    .wrapper { flex-direction: column; }
+    
+/* ── Sidebar Drawer Logic ── */
+    .sidebar { 
+        transform: translateX(-100%); 
+        transition: transform .35s var(--ease-smooth);
+        width: 280px;
+        z-index: 1050;
+        visibility: hidden;
+    }
+    .sidebar.open { 
+        transform: translateX(0); 
+        visibility: visible;
+        box-shadow: 20px 0 50px rgba(0,0,0,0.3);
+    }
+    
+    /* Overlay for mobile drawer */
+    .sidebar-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(4px);
+        z-index: 1040;
+        opacity: 0;
+        visibility: hidden;
+        transition: all .3s ease;
+    }
+    .sidebar-overlay.active {
+        opacity: 1;
+        visibility: visible;
+    }
+    
+    /* Content Fluidity */
+    .main-canvas { 
+        padding: 0;
+        width: 100%;
+    }
+    .main-content-inner { 
+        padding: var(--space-md); 
+    }
+
+    /* Topbar Optimization */
+    .topbar {
+        position: sticky;
+        top: 0;
+        margin-top: 0;
+        padding-left: 3.8rem; /* Make room for the floating burger */
+        min-height: 60px;
+    }
+    .topbar-clock, .topbar-date, .topbar-vdivider { display: none !important; }
+    .topbar-greeting { font-size: 0.85rem; }
+
+    /* Mobile Burger Button */
+    .mobile-menu-toggle {
+        display: flex;
+        left: var(--space-sm);
+        top: 9px;
+        background: var(--navy-sidebar);
+        border: 1px solid var(--navy-border);
+        box-shadow: var(--shadow-md);
+    }
+
+    /* Global Stacking for Cards */
+    .kpi-card { 
+        margin-bottom: var(--space-md);
+    }
+    .dashboard-card {
+        padding: var(--space-md);
+        margin-bottom: var(--space-md);
+    }
+
+    /* Table Responsiveness */
+    .table-responsive {
+        border-radius: var(--radius-md);
+        border: 1px solid var(--grey-border);
+        background: white;
+    }
+
+    /* ── Mobile Chart Readability Fix ── */
+    .chart-scroll-wrapper {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        margin-bottom: var(--space-md);
+        border-radius: var(--radius-md);
+    }
+    .chart-scroll-inner {
+        min-width: 100%;
+        transition: width 0.3s ease;
+    }
+    /* Increase height on mobile for better vertical scale */
+    .chart-container {
+        height: 380px !important;
+        min-height: 380px !important;
+    }
+
+    /* Typography */
+    .page-title { font-size: 1.25rem; }
+    .page-header { margin-bottom: var(--space-lg); }
 }
 
+/* ── Tiny Phones (480px) ── */
 @media (max-width: 480px) {
-    .login-card { padding: var(--space-xl) var(--space-lg); border-radius: var(--radius-xl); }
-    .main-canvas { padding: var(--space-sm) var(--space-md); }
+    .main-content-inner { padding: var(--space-sm) var(--space-md); }
+    .topbar { padding-right: var(--space-md); }
+    .topbar-greeting { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
 }
 
 /* ============================================================

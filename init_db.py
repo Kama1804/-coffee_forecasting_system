@@ -13,7 +13,7 @@ def initialize_database():
 
     print("Connected to SQLite. Initializing tables...")
 
-    # 1. Create the Sales Transaction Table (Enterprise-Grade 23-Column Schema)
+    # 1. Sales Transaction Table (Main Data Warehouse)
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS sales_transaction (
         transaction_id TEXT PRIMARY KEY,
@@ -46,16 +46,14 @@ def initialize_database():
     )
     ''')
     
-    # Speed Optimization Indexes for Analytics Dashboard Filters
+    # Speed Optimization Indexes
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_sales_date ON sales_transaction(transaction_date)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_sales_branch ON sales_transaction(branch_id)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_sales_branch_date ON sales_transaction(branch_id, transaction_date)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_sales_category ON sales_transaction(product_category)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_sales_product ON sales_transaction(product_id)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_sales_hour ON sales_transaction(Hour)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_sales_location ON sales_transaction(store_location)')
 
-    # 2. Create the Sales Forecast Table (For Prophet outputs)
+    # 2. Sales Forecast Table (AI Output Cache)
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS sales_forecast (
         forecast_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -66,8 +64,27 @@ def initialize_database():
         upper_bound_revenue REAL NOT NULL
     )
     ''')
-    
-    # 3. Create the Product Recipes Table (Requirement 1: Recipe Registry)
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_forecast_date ON sales_forecast(forecast_date)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_forecast_branch_date ON sales_forecast(branch_id, forecast_date)')
+
+    # 3. Branch Registry (Dynamic Business Management)
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS branch (
+        branch_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        branch_code VARCHAR(10) UNIQUE,
+        branch_name VARCHAR(100) NOT NULL,
+        location_type VARCHAR(100),
+        latitude REAL DEFAULT 0.0,
+        longitude REAL DEFAULT 0.0,
+        district VARCHAR(100) DEFAULT 'Unknown',
+        state VARCHAR(100) DEFAULT 'Unknown',
+        description TEXT DEFAULT 'Standard coffee outlet profile',
+        holiday_effect REAL DEFAULT 0.0,
+        is_active INTEGER DEFAULT 1
+    )
+    ''')
+
+    # 4. Product Recipes Table (Dynamic Inventory Tracking)
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS product_recipes (
         item_name TEXT PRIMARY KEY,
@@ -77,19 +94,28 @@ def initialize_database():
         ice_g REAL DEFAULT 0,
         whip_g REAL DEFAULT 0,
         cup_type TEXT,
-        custom_ingredients TEXT  -- JSON string for extensibility
+        custom_ingredients TEXT,  -- JSON string for extensibility
+        is_active INTEGER DEFAULT 1
     )
     ''')
-    
-    # Speed Optimization Indexes for AI Chatbot Context Extraction
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_forecast_date ON sales_forecast(forecast_date)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_forecast_branch_date ON sales_forecast(branch_id, forecast_date)')
 
-    # Commit changes and close the connection
+    # Backfill default branches if table is empty
+    cursor.execute("SELECT COUNT(*) FROM branch")
+    if cursor.fetchone()[0] == 0:
+        print("Backfilling default branches...")
+        branches_data = [
+            ('STB-PJ1', 'Putrajaya', 'Stall Booth', 2.921218, 101.683220, 'Putrajaya', 'WP Putrajaya', 'Government & office workers (Peak demand during weekdays)', -0.35),
+            ('FT-PA1', 'Puncak Alam', 'Food Truck', 3.215075, 101.455976, 'Kuala Selangor', 'Selangor', 'University of UiTM students & residents (Peak demand during weekends/holidays)', 0.15)
+        ]
+        cursor.executemany("""
+            INSERT INTO branch (branch_code, branch_name, location_type, latitude, longitude, district, state, description, holiday_effect, is_active)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+        """, branches_data)
+
     conn.commit()
     conn.close()
     
-    print(f"Success! Database schema initialized successfully at {db_path}")
+    print(f"Success! Master database blueprint initialized at {db_path}")
 
 if __name__ == '__main__':
     initialize_database()

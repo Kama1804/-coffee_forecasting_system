@@ -180,22 +180,42 @@ def logout():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    return render_template('dashboard.html')
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT branch_name FROM branch WHERE is_active = 1 ORDER BY branch_name ASC")
+    branches = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    return render_template('dashboard.html', branches=branches)
 
 @app.route('/forecast')
 @login_required
 def forecast():
-    return render_template('forecast.html')
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT branch_code, branch_name, location_type, description, holiday_effect FROM branch WHERE is_active = 1 ORDER BY branch_name ASC")
+    branches = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return render_template('forecast.html', branches=branches)
+
+@app.route('/report')
+@login_required
+def report():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT branch_name FROM branch WHERE is_active = 1 ORDER BY branch_name ASC")
+    branches = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    return render_template('report.html', branches=branches)
 
 @app.route('/chatbot')
 @login_required
 def chatbot():
     return render_template('chatbot.html')
 
-@app.route('/report')
+@app.route('/manage-business')
 @login_required
-def report():
-    return render_template('report.html')
+def manage_business():
+    return render_template('manage_business.html')
 
 @app.route('/upload', methods=['GET', 'POST'])
 @login_required
@@ -215,11 +235,15 @@ def upload_file():
             pipeline = ETLPipeline(filepath)
             success, message = pipeline.process_data()
             if success:
-                # Store missing recipes in session for the UI alert 
-                session['missing_recipes'] = getattr(pipeline, 'missing_recipes', [])
-                
                 db_success, db_message = pipeline.save_to_database(DB_PATH)
                 if db_success:
+                    # Trigger Auto-Tune AI Intelligence (Self-Learning)
+                    from analytics import sync_business_intelligence
+                    sync_success, sync_logs = sync_business_intelligence(DB_PATH)
+                    print(f"[AI AUTO-TUNE] {sync_logs}")
+
+                    # Store missing recipes in session for the UI alert ONLY after DB success
+                    session['missing_recipes'] = getattr(pipeline, 'missing_recipes', [])
                     flash(f'Success! {filename} was cleaned and loaded. {db_message}', 'success')
                 else:
                     flash(f'Data cleaned but failed to save: {db_message}', 'error')
@@ -283,7 +307,17 @@ def upload_file():
                 })
         past_uploads.sort(key=lambda x: x['timestamp'], reverse=True)
 
-    return render_template('upload.html', profile=profile, past_uploads=past_uploads)
+    # Fetch active branch codes for the dynamic UI hint
+    active_codes = []
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT branch_code FROM branch WHERE is_active = 1")
+        active_codes = [row[0] for row in cursor.fetchall()]
+        conn.close()
+    except: pass
+
+    return render_template('upload.html', profile=profile, past_uploads=past_uploads, active_codes=active_codes)
 
 
 # ============================================================
@@ -338,6 +372,188 @@ def api_save_recipe():
             session.modified = True
             
         return jsonify({"status": "success", "message": f"Recipe for {item_name} saved successfully."})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# ============================================================
+#    BUSINESS MANAGEMENT API (Step 5)
+# ============================================================
+@app.route('/api/manage/branches')
+@login_required
+def api_manage_branches():
+    try:
+        from analytics import HOLIDAYS # We'll need this list
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # 1. Fetch base branch data
+        cursor.execute("SELECT * FROM branch ORDER BY branch_code ASC")
+        branches = [dict(row) for row in cursor.fetchall()]
+        
+        # 2. Enrich with Maturity Stats
+        enriched_branches = []
+        for b in branches:
+            # Count unique days
+            cursor.execute("SELECT COUNT(DISTINCT transaction_date) FROM sales_transaction WHERE branch_id = ?", (b['branch_code'],))
+            total_days = cursor.fetchone()[0] or 0
+            
+            # Count holidays seen
+            placeholders = ', '.join(['?'] * len(HOLIDAYS))
+            cursor.execute(f"""
+                SELECT COUNT(DISTINCT transaction_date) 
+                FROM sales_transaction 
+                WHERE branch_id = ? AND transaction_date IN ({placeholders})
+            """, [b['branch_code']] + HOLIDAYS)
+            holidays_seen = cursor.fetchone()[0] or 0
+            
+            b['maturity_days'] = total_days
+            b['maturity_holidays'] = holidays_seen
+            enriched_branches.append(b)
+
+        conn.close()
+        return jsonify({"status": "success", "branches": enriched_branches})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/manage/branch/<path:code>')
+@login_required
+def api_manage_get_branch(code):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM branch WHERE branch_code = ?", (code,))
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            return jsonify(dict(row))
+        return jsonify({"status": "error", "message": "Branch not found"}), 404
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/manage/branch/save', methods=['POST'])
+@login_required
+def api_manage_save_branch():
+    data = request.get_json()
+    action = data.get('action', 'add')
+    code = data.get('branch_code')
+    name = data.get('branch_name')
+    l_type = data.get('location_type')
+    desc = data.get('description', '')
+    h_effect = float(data.get('holiday_effect_pct') or 0) / 100.0
+    dist = data.get('district')
+    state = data.get('state')
+    lat = float(data.get('latitude') or 0)
+    lon = float(data.get('longitude') or 0)
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        if action == 'add':
+            cursor.execute("""
+                INSERT INTO branch (branch_code, branch_name, location_type, district, state, latitude, longitude, description, holiday_effect, is_active)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+            """, (code, name, l_type, dist, state, lat, lon, desc, h_effect))
+        else:
+            cursor.execute("""
+                UPDATE branch 
+                SET branch_name = ?, location_type = ?, district = ?, state = ?, latitude = ?, longitude = ?, description = ?, holiday_effect = ?
+                WHERE branch_code = ?
+            """, (name, l_type, dist, state, lat, lon, desc, h_effect, code))
+        conn.commit()
+        conn.close()
+        return jsonify({"status": "success", "message": f"Branch {code} saved successfully."})
+    except sqlite3.IntegrityError:
+        return jsonify({"status": "error", "message": f"Branch Code {code} already exists."}), 400
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/manage/branch/toggle', methods=['POST'])
+@login_required
+def api_manage_toggle_branch():
+    data = request.get_json()
+    code = data.get('branch_code')
+    active = data.get('is_active')
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE branch SET is_active = ? WHERE branch_code = ?", (active, code))
+        conn.commit()
+        conn.close()
+        status_txt = "activated" if active else "deactivated"
+        return jsonify({"status": "success", "message": f"Branch {code} {status_txt}."})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/manage/recipes')
+@login_required
+def api_manage_recipes():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM product_recipes ORDER BY item_name ASC")
+        recipes = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        return jsonify({"status": "success", "recipes": recipes})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/manage/recipe/<path:name>')
+@login_required
+def api_manage_get_recipe(name):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM product_recipes WHERE item_name = ?", (name,))
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            return jsonify(dict(row))
+        return jsonify({"status": "error", "message": "Recipe not found"}), 404
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/manage/recipe/save', methods=['POST'])
+@login_required
+def api_manage_save_recipe():
+    data = request.get_json()
+    name = data.get('item_name')
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE product_recipes 
+            SET beans_g = ?, milk_ml = ?, choco_g = ?, ice_g = ?, whip_g = ?, cup_type = ?, custom_ingredients = ?
+            WHERE item_name = ?
+        """, (
+            float(data.get('beans_g') or 0),
+            float(data.get('milk_ml') or 0),
+            float(data.get('choco_g') or 0),
+            float(data.get('ice_g') or 0),
+            float(data.get('whip_g') or 0),
+            data.get('cup_type'),
+            data.get('custom_ingredients', '{}'),
+            name
+        ))
+        conn.commit()
+        conn.close()
+        return jsonify({"status": "success", "message": f"Recipe for {name} updated successfully."})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/manage/recipe/toggle', methods=['POST'])
+@login_required
+def api_manage_toggle_recipe():
+    data = request.get_json()
+    name = data.get('item_name')
+    active = data.get('is_active')
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE product_recipes SET is_active = ? WHERE item_name = ?", (active, name))
+        conn.commit()
+        conn.close()
+        status_txt = "activated" if active else "deactivated"
+        return jsonify({"status": "success", "message": f"Recipe for {name} {status_txt}."})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -642,8 +858,10 @@ def api_charts():
         conn.close()
 
         branch_id = None
-        if branch_filter == 'Putrajaya':    branch_id = 'STB-PJ1'
-        elif branch_filter == 'Puncak Alam': branch_id = 'FT-PA1'
+        if branch_filter != 'all':
+            cursor.execute("SELECT branch_code FROM branch WHERE branch_name = ?", (branch_filter,))
+            br_row = cursor.fetchone()
+            if br_row: branch_id = br_row[0]
 
         return jsonify({
             "status": "success",
@@ -1019,8 +1237,25 @@ def api_restore_chat():
 @app.route('/api/forecast')
 @login_required
 def api_forecast():
-    branch_id   = request.args.get('branch_id',   'STB-PJ1',    type=str)
-    branch_name = request.args.get('branch_name', 'Putrajaya', type=str)
+    branch_id   = request.args.get('branch_id',   None)
+    branch_name = request.args.get('branch_name', None)
+    
+    # Fallback to first active branch if none provided
+    if not branch_id or not branch_name:
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT branch_code, branch_name FROM branch WHERE is_active = 1 LIMIT 1")
+            row = cursor.fetchone()
+            conn.close()
+            if row:
+                branch_id = row[0]
+                branch_name = row[1]
+        except: pass
+
+    if not branch_id:
+        return jsonify({"status": "error", "message": "No active branch found"}), 404
+
     try:
         cache_key = f"{branch_id}_{branch_name}"
         if cache_key in FORECAST_CACHE:
@@ -1376,7 +1611,9 @@ def _build_report_data(branch_filter, date_from, date_to):
     pva_act_params = [date_from, date_to]
 
     if branch_filter != 'all':
-        b_id = 'STB-PJ1' if branch_filter == 'Putrajaya' else 'FT-PA1'
+        cursor.execute("SELECT branch_code FROM branch WHERE branch_name = ?", (branch_filter,))
+        br_row = cursor.fetchone()
+        b_id = br_row[0] if br_row else None
         pva_fc_conds.append("f.branch_id = ?")
         pva_fc_params.append(b_id)
         pva_act_conds.append("s.store_location = ?")
@@ -1476,8 +1713,14 @@ def _build_report_data(branch_filter, date_from, date_to):
 
     try:
         branch_id = None
-        if branch_filter == 'Putrajaya': branch_id = 'STB-PJ1'
-        if branch_filter == 'Puncak Alam': branch_id = 'FT-PA1'
+        if branch_filter != 'all':
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT branch_code FROM branch WHERE branch_name = ?", (branch_filter,))
+            row = cursor.fetchone()
+            conn.close()
+            if row: branch_id = row[0]
+            
         diagnostics = revenue_decline_and_product_mix_profiler(branch_id, reference_date=date_to)
     except Exception:
         diagnostics = {}
@@ -1586,15 +1829,31 @@ def api_report_data():
 def api_export_forecast_pdf():
     if request.method == 'POST':
         body        = request.get_json() or {}
-        branch_id   = body.get('branch_id',   'STB-PJ1')
-        branch_name = body.get('branch_name', 'Putrajaya')
+        branch_id   = body.get('branch_id',   None)
+        branch_name = body.get('branch_name', None)
         month_filter = body.get('month_filter', None)
         result      = body.get('forecast_data', None)
     else:
-        branch_id    = request.args.get('branch_id',   'STB-PJ1', type=str)
-        branch_name  = request.args.get('branch_name', 'Putrajaya', type=str)
+        branch_id    = request.args.get('branch_id',   None)
+        branch_name  = request.args.get('branch_name', None)
         month_filter = request.args.get('month', None,  type=str)
         result       = None
+
+    # Dynamic Fallback
+    if not branch_id or not branch_name:
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT branch_code, branch_name FROM branch WHERE is_active = 1 LIMIT 1")
+            row = cursor.fetchone()
+            conn.close()
+            if row:
+                branch_id = row[0]
+                branch_name = row[1]
+        except: pass
+
+    if not branch_id:
+        return jsonify({"status": "error", "message": "No active branch found"}), 404
 
     if result is None:
         try:

@@ -1,6 +1,20 @@
 {% extends "base.html" %}
 {% block title %}Data Ingestion{% endblock %}
 {% block content %}
+<style>
+/* ── Mobile Overrides ── */
+@media (max-width: 768px) {
+    .page-header { margin-bottom: 20px; }
+    .page-title { font-size: 1.4rem; }
+    .dashboard-card { padding: 16px; margin-bottom: 16px; }
+    
+    /* Warehouse profile stacking */
+    .row.g-3 > .col-6 { width: 100%; margin-bottom: 8px; }
+    
+    /* Compact ETL steps */
+    .row.g-2 > .col-6 { width: 100%; }
+}
+</style>
 <div class="page-header" data-aos="fade-down">
     <div>
         <h1 class="page-title">Data Ingestion Engine</h1>
@@ -20,7 +34,7 @@
                         Transaction_ID, Timestamp, Register_ID, Cashier_Name, Store_ID, Item_Name, Item_Category, Quantity_Sold, Modifiers, Order_Type, Gross_Sales, Discount_Amount, Promo_Code, Discount_Reason, Tax_Amount, Net_Sales, Payment_Type
                     </code>
                     <div style="font-size:.72rem; margin-top:6px; color:var(--text-secondary);">
-                        * Ensure <strong>Store_ID</strong> contains valid branch mapping tokens (<code>STB-PJ1</code> or <code>FT-PA1</code>).
+                        * Ensure <strong>Store_ID</strong> contains valid branch mapping tokens (<code>{{ active_codes|join(', ') }}</code>).
                     </div>
                 </div>
             </div>

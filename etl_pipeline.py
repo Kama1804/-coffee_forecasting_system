@@ -20,14 +20,22 @@ class ETLPipeline:
         ]
 
     def _enrich_weather(self, df):
-        BRANCH_COORDS = {
-            'STB-PJ1': {'lat': 2.9264, 'lon': 101.6964},
-            'FT-PA1':  {'lat': 3.2353, 'lon': 101.4243}
-        }
-
         def fetch_weather_logic(date_str, branch_id):
-            coords = BRANCH_COORDS.get(branch_id)
-            if not coords:
+            # Dynamic coordinate lookup from database
+            try:
+                db_path = os.path.join('database', 'coffee_shop.db')
+                conn = sqlite3.connect(db_path)
+                cursor = conn.cursor()
+                cursor.execute("SELECT latitude, longitude FROM branch WHERE branch_code = ?", (branch_id,))
+                row = cursor.fetchone()
+                conn.close()
+                
+                if not row or (row[0] == 0 and row[1] == 0):
+                    return 'Cloudy'
+                
+                coords = {'lat': row[0], 'lon': row[1]}
+            except Exception as e:
+                print(f"[COORD ERROR] {branch_id}: {e}")
                 return 'Cloudy'
             
             try:
@@ -154,7 +162,11 @@ class ETLPipeline:
 
             # Drop missing values and duplicates based on unique Transaction_ID
             raw_df = raw_df.dropna(subset=['Transaction_ID', 'Timestamp', 'Store_ID', 'Item_Name'])
-            raw_df = raw_df.drop_duplicates(subset=['Transaction_ID'], keep='first')
+            
+            # --- STRICT DUPLICATE DETECTION (Internal) ---
+            if raw_df['Transaction_ID'].duplicated().any():
+                dup_ids = raw_df[raw_df['Transaction_ID'].duplicated()]['Transaction_ID'].unique()
+                return False, f"Upload Failed: Duplicate transaction IDs detected within the file: {', '.join(map(str, dup_ids[:3]))}..."
 
             if raw_df.empty:
                 return False, "Upload Failed: Cleaning steps removed all rows (invalid business metric profiles detected)."
@@ -170,10 +182,21 @@ class ETLPipeline:
             # Transformation using Analytics Engine (Returns 23-column schema layout)
             self.df = process_sales_dataframe(raw_df)
 
-            # Filtering for valid branches
-            self.df = self.df[self.df['branch_id'].isin(['FT-PA1', 'STB-PJ1'])]
+            # Filtering for valid branches (Database Driven)
+            try:
+                db_path = os.path.join('database', 'coffee_shop.db')
+                conn = sqlite3.connect(db_path)
+                cursor = conn.cursor()
+                cursor.execute("SELECT branch_code FROM branch WHERE is_active = 1")
+                valid_codes = [row[0] for row in cursor.fetchall()]
+                conn.close()
+            except Exception as e:
+                print(f"[BRANCH FETCH ERROR] {e}")
+                valid_codes = []
+
+            self.df = self.df[self.df['branch_id'].isin(valid_codes)]
             if self.df.empty:
-                return False, "Upload Failed: No transactions matched valid branch domains (FT-PA1, STB-PJ1)."
+                return False, f"Upload Failed: No transactions matched valid, active branch domains. Detected IDs: {', '.join(raw_df['Store_ID'].unique())}"
 
             # Enrichments (Guaranteed clean text dates are passed downstream here)
             self.df = self._enrich_weather(self.df)

@@ -40,6 +40,25 @@
     --font-mono: 'DM Mono', monospace;
 }
 
+/* ── Mobile Overrides ── */
+@media (max-width: 768px) {
+    .main-content-inner { padding: 16px !important; }
+    .page-header { flex-direction: column; align-items: flex-start !important; gap: 16px; margin-bottom: 24px; }
+    .page-title { font-size: 1.4rem; }
+    .page-header select, .page-header button { width: 100% !important; margin: 0 !important; }
+    
+    .kpi-card { margin-bottom: 12px; padding: 16px !important; }
+    .kpi-value { font-size: 1.4rem !important; }
+    
+    .dashboard-card { padding: 16px; margin-bottom: 16px; }
+    
+    /* Persona card stacking */
+    .persona-card { flex-direction: column; align-items: flex-start !important; gap: 12px; }
+    
+    /* Strategic factors stacking */
+    .row.g-4 > div { margin-bottom: 0; }
+}
+
 /* ── Base overrides ── */
 .page-header {
     display: flex;
@@ -575,8 +594,9 @@
     </div>
     <div class="d-flex gap-2 align-items-center flex-wrap">
         <select id="branchSelect" class="form-control-custom" style="width:auto;min-width:215px;" onchange="onBranchChange()">
-            <option value="STB-PJ1" data-name="Putrajaya">🏢 Putrajaya Stall Booth</option>
-            <option value="FT-PA1"  data-name="Puncak Alam">🎓 Puncak Alam Food Truck</option>
+            {% for branch in branches %}
+            <option value="{{ branch.branch_code }}" data-name="{{ branch.branch_name }}">{{ branch.branch_name }}</option>
+            {% endfor %}
         </select>
         <button class="btn-primary-custom" id="generateBtn" onclick="generateForecast()">
             <i class="fa-solid fa-wand-magic-sparkles"></i> Generate Forecast
@@ -643,7 +663,7 @@
 
     <!-- Branch summary bar -->
     <div class="persona-card" id="personaCard" data-aos="fade-down">
-        <div class="persona-icon" id="personaIcon">🏢</div>
+        <div class="persona-icon" id="personaIcon" style="display: none;">🏢</div>
         <div>
             <div style="font-size:.68rem;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--fc-faint);">Branch Profile</div>
             <div style="font-size:1rem;font-weight:700;color:#0F172A;margin-top:1px;" id="personaName">—</div>
@@ -761,9 +781,13 @@
                         </span>
                     </div>
                 </div>
-                <div class="chart-container" style="min-height:360px;">
-                    <div class="chart-loading" id="loadingForecast"><div class="spinner"></div></div>
-                    <div id="forecastChart" style="width:100%;height:360px;"></div>
+                <div class="chart-scroll-wrapper">
+                    <div class="chart-scroll-inner" id="forecastChartInner" style="min-width: 700px;">
+                        <div class="chart-container" style="min-height:360px;">
+                            <div class="chart-loading" id="loadingForecast"><div class="spinner"></div></div>
+                            <div id="forecastChart" style="width:100%;height:360px;"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -789,9 +813,13 @@
                         <select id="fvaMonthFilter" class="form-control-custom" style="padding:.25rem .65rem;font-size:.82rem;width:170px;display:none;" onchange="applyFVAFilter()"></select>
                     </div>
                 </div>
-                <div class="chart-container" style="min-height:300px;">
-                    <div class="chart-loading" id="loadingFVA"><div class="spinner"></div></div>
-                    <div id="fvaChart" style="width:100%;height:300px;"></div>
+                <div class="chart-scroll-wrapper">
+                    <div class="chart-scroll-inner" id="fvaChartInner" style="min-width: 600px;">
+                        <div class="chart-container" style="min-height:300px;">
+                            <div class="chart-loading" id="loadingFVA"><div class="spinner"></div></div>
+                            <div id="fvaChart" style="width:100%;height:300px;"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -802,18 +830,26 @@
         <div class="col-12 col-xl-6" data-aos="fade-up">
             <div class="dashboard-card h-100">
                 <p class="card-title">Best and Slowest Hours of the Day</p>
-                <div class="chart-container" style="min-height:260px;">
-                    <div class="chart-loading" id="loadingHourly"><div class="spinner"></div></div>
-                    <div id="hourlyChart" style="width:100%;height:260px;"></div>
+                <div class="chart-scroll-wrapper">
+                    <div class="chart-scroll-inner" id="hourlyChartInner" style="min-width: 400px;">
+                        <div class="chart-container" style="min-height:260px;">
+                            <div class="chart-loading" id="loadingHourly"><div class="spinner"></div></div>
+                            <div id="hourlyChart" style="width:100%;height:260px;"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
         <div class="col-12 col-xl-6" data-aos="fade-up" data-aos-delay="80">
             <div class="dashboard-card h-100">
                 <p class="card-title">How Weather Affects Sales — Morning, Afternoon & Evening</p>
-                <div class="chart-container" style="min-height:260px;">
-                    <div class="chart-loading" id="loadingWBT"><div class="spinner"></div></div>
-                    <div id="wbtChart" style="width:100%;height:260px;"></div>
+                <div class="chart-scroll-wrapper">
+                    <div class="chart-scroll-inner" id="wbtChartInner" style="min-width: 400px;">
+                        <div class="chart-container" style="min-height:260px;">
+                            <div class="chart-loading" id="loadingWBT"><div class="spinner"></div></div>
+                            <div id="wbtChart" style="width:100%;height:260px;"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -900,8 +936,9 @@
                 <div>
                     <div class="driver-section-title"><span style="font-size:1rem;">🏖️</span> Public holiday effect</div>
                     <div style="font-size:.8rem;line-height:2;color:#334155;">
-                        <div>🏢 <strong>Putrajaya Booth</strong> — Office workers at home → <span class="text-danger">−35% on public holidays</span></div>
-                        <div>🎓 <strong>Puncak Alam Food Truck</strong> — Residents gather → <span class="text-success">+15% on public holidays</span></div>
+                        {% for branch in branches %}
+                        <div><strong>{{ branch.branch_name }}</strong> — {{ branch.description }} → <span class="{{ 'text-success' if branch.holiday_effect > 0 else 'text-danger' if branch.holiday_effect < 0 else 'text-muted' }}">{{ '+' if branch.holiday_effect > 0 else '' }}{{ (branch.holiday_effect * 100) | int }}% on public holidays</span></div>
+                        {% endfor %}
                     </div>
                 </div>
             </div>
@@ -1057,18 +1094,18 @@ function openRecipeModal() {
     modal.show();
 }
 
-function addCustomIngredientRow(name = "", val = 0, unit = "g") {
+function addCustomIngredientRow(name = "", val = 0, unit = "ml") {
     const container = document.getElementById('customIngredientsList');
     const div = document.createElement('div');
     div.className = "d-flex gap-2 align-items-center mb-2";
     div.innerHTML = `
-        <input type="text" placeholder="Ingredient (e.g. Matcha)" class="form-control-custom flex-grow-1 custom-ing-name" value="${name}">
-        <input type="number" placeholder="Amt" class="form-control-custom custom-ing-val" style="width: 80px;" value="${val}">
+        <input type="text" placeholder="Ingredient (e.g. Vanilla Syrup)" class="form-control-custom flex-grow-1 custom-ing-name" value="${name}">
         <select class="form-control-custom custom-ing-unit" style="width: 70px;">
-            <option value="g" ${unit === 'g' ? 'selected' : ''}>g</option>
             <option value="ml" ${unit === 'ml' ? 'selected' : ''}>ml</option>
+            <option value="g" ${unit === 'g' ? 'selected' : ''}>g</option>
             <option value="pcs" ${unit === 'pcs' ? 'selected' : ''}>pcs</option>
         </select>
+        <input type="number" placeholder="Amt" class="form-control-custom custom-ing-val" style="width: 80px;" value="${val}">
         <button type="button" class="btn btn-link text-danger p-0" onclick="this.parentElement.remove()"><i class="fa-solid fa-trash"></i></button>
     `;
     container.appendChild(div);
@@ -1085,9 +1122,8 @@ async function saveRecipe() {
         const unit = row.querySelector('.custom-ing-unit').value;
         
         if (name) {
-            // Combine name and unit for clear aggregation (e.g., "Matcha (g)")
-            const key = `${name} (${unit})`;
-            customIngs[key] = val;
+            // New Structured Format
+            customIngs[name] = { val: val, unit: unit };
         }
     });
 
@@ -1207,10 +1243,7 @@ function getShiftsByDominantWeather(dominantWeather, isClosed) {
    BRANCH CHANGE
    ============================================================ */
 function onBranchChange() {
-    const sel  = document.getElementById('branchSelect');
-    const name = sel.options[sel.selectedIndex].dataset.name;
-    const icon = document.getElementById('personaIcon');
-    if (icon) icon.textContent = name === 'Putrajaya' ? '🏢' : '🎓';
+    // Branch icon removal requested by user
 }
 
 /* ============================================================
@@ -1370,14 +1403,30 @@ function renderAll(data, branchName) {
 
         // Add custom ingredients from the dynamic registry
         if (idm.custom) {
-            for (const [name, val] of Object.entries(idm.custom)) {
-                if (val <= 0) continue; // Skip zero-demand items
+            for (const [key, data] of Object.entries(idm.custom)) {
+                if (data <= 0) continue; // Skip zero-demand items
                 
-                // If name already contains unit in brackets, e.g. "Matcha (g)"
-                const hasUnit = name.includes('(');
-                const unit = hasUnit ? name.split('(')[1].replace(')','') : 'g';
-                const label = hasUnit ? name.split(' (')[0] : name;
-                
+                let label = key;
+                let val = 0;
+                let unit = 'ml';
+
+                if (typeof data === 'object' && data !== null) {
+                    // New Format: {val: 10, unit: "ml"}
+                    val = data.val;
+                    unit = data.unit;
+                } else {
+                    // Old Format: 10
+                    val = data;
+                    // Try to extract unit from key like "Syrup (ml)"
+                    const unitMatch = key.match(/\((ml|g|pcs)\)/i);
+                    if (unitMatch) {
+                        unit = unitMatch[1].toLowerCase();
+                        label = key.replace(unitMatch[0], '').trim();
+                    } else {
+                        unit = 'unit';
+                    }
+                }
+
                 // Smart rounding: use 2 decimal places for small amounts (like kg), 0 for pcs
                 let finalVal = val;
                 let finalUnit = unit;

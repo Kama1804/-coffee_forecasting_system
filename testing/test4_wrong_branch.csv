@@ -1,0 +1,3 @@
+Transaction_ID,Timestamp,Register_ID,Cashier_Name,Store_ID,Item_Name,Item_Category,Quantity_Sold,Modifiers,Order_Type,Gross_Sales,Discount_Amount,Promo_Code,Discount_Reason,Tax_Amount,Net_Sales,Payment_Type
+TXN-ERR-401,2026-06-02T11:00:00,REG-99,Stranger,UNKNOWN-BRANCH,Latte,Coffee,1,"[]",Dine-in,10.0,0.0,NONE,None,0.6,10.0,CASH
+TXN-ERR-402,2026-06-02T11:30:00,REG-99,Stranger,MCD-001,Latte,Coffee,1,"[]",Dine-in,10.0,0.0,NONE,None,0.6,10.0,CASH

@@ -282,8 +282,13 @@
   overflow: hidden;
 }
 </style>
+<div class="container-fluid py-4" data-aos="fade-up">
+  <!-- Mobile Rotation Hint -->
+  <div class="d-md-none mb-3 text-center p-2 rounded-3" style="background: rgba(245, 158, 11, 0.1); border: 1px dashed var(--amber-kpi); color: #92400E; font-size: 0.75rem; font-weight: 600;">
+    <i class="fa-solid fa-mobile-screen-button fa-rotate-90 me-2"></i> Swipe charts left/right to see details.
+  </div>
 
-<!-- ══════════════════════════════════════════════════════════
+  <!-- ══════════════════════════════════════════════════════════
      PAGE HEADER
 ══════════════════════════════════════════════════════════ -->
 <div class="page-header" data-aos="fade-down">
@@ -307,8 +312,9 @@
       <label><i class="fa-solid fa-store text-success"></i> Outlet</label>
       <select id="branchFilter" class="form-control-custom" style="width:auto;min-width:160px;border:none;background:transparent;padding:.1rem .2rem;font-size:0.85rem;font-weight:600;color:#1E293B;outline:none;" onchange="applyFilters()">
         <option value="all">All Outlets</option>
-        <option value="Putrajaya">Putrajaya Stall</option>
-        <option value="Puncak Alam">Puncak Alam Food Truck</option>
+        {% for branch in branches %}
+        <option value="{{ branch }}">{{ branch }}</option>
+        {% endfor %}
       </select>
     </div>
   </div>
@@ -322,7 +328,7 @@
     <div class="kpi-icon-wrap"><i class="fa-solid fa-wallet"></i></div>
     <div class="kpi-body">
       <div class="kpi-label">Total Sales (RM)</div>
-      <div class="kpi-value">RM&nbsp;<span id="kpiRevenue">—</span></div>
+      <div class="kpi-value" style="font-size:1.05rem;line-height:1.2;font-weight:700;">RM&nbsp;<span id="kpiRevenue">—</span></div>
       <span class="kpi-sub" id="kpiRevTrend">
         <i class="fa-solid fa-arrow-trend-up"></i> <span id="kpiRevTrendText">Loading…</span>
       </span>
@@ -332,7 +338,7 @@
     <div class="kpi-icon-wrap"><i class="fa-solid fa-mug-hot"></i></div>
     <div class="kpi-body">
       <div class="kpi-label">Cups Sold</div>
-      <div class="kpi-value"><span id="kpiVolume">—</span> <span style="font-size:.85rem;font-weight:500;opacity:0.8;">cups</span></div>
+      <div class="kpi-value" style="font-size:1.05rem;line-height:1.2;font-weight:700;"><span id="kpiVolume">—</span> <span style="font-size:.85rem;font-weight:500;opacity:0.8;">cups</span></div>
       <span class="kpi-sub">
         <i class="fa-solid fa-boxes-stacked"></i> Beverage volume metrics
       </span>
@@ -342,7 +348,7 @@
     <div class="kpi-icon-wrap"><i class="fa-solid fa-receipt"></i></div>
     <div class="kpi-body">
       <div class="kpi-label">Total Orders</div>
-      <div class="kpi-value"><span id="kpiTransactions">—</span></div>
+      <div class="kpi-value" style="font-size:1.05rem;line-height:1.2;font-weight:700;"><span id="kpiTransactions">—</span></div>
       <div class="sparkline-wrap" style="height:32px;margin-top:6px;">
         <canvas id="sparklineChart"></canvas>
       </div>
@@ -373,9 +379,13 @@
       </div>
       <span class="badge-custom badge-blue" id="trendAxisBadge">Monthly</span>
     </div>
-    <div class="chart-wrap" style="min-height:280px;">
-      <div class="chart-loading" id="loadingTrend"><div class="spinner"></div></div>
-      <div id="trendChart" class="ch-trend" style="width:100%;height:280px;"></div>
+    <div class="chart-scroll-wrapper">
+      <div class="chart-scroll-inner" id="trendChartInner" style="min-width: 700px;">
+        <div class="chart-wrap" style="min-height:280px;">
+          <div class="chart-loading" id="loadingTrend"><div class="spinner"></div></div>
+          <div id="trendChart" class="ch-trend" style="width:100%;height:280px;"></div>
+        </div>
+      </div>
     </div>
   </div>
   <div class="dashboard-card">
@@ -385,9 +395,13 @@
         <p class="card-subtitle">Coffee category earnings split</p>
       </div>
     </div>
-    <div class="chart-wrap" style="min-height:280px;">
-      <div class="chart-loading" id="loadingCategory"><div class="spinner"></div></div>
-      <div id="categoryChart" class="ch-donut" style="width:100%;height:280px;"></div>
+    <div class="chart-scroll-wrapper">
+      <div class="chart-scroll-inner" id="categoryChartInner" style="min-width: 400px;">
+        <div class="chart-wrap" style="min-height:280px;">
+          <div class="chart-loading" id="loadingCategory"><div class="spinner"></div></div>
+          <div id="categoryChart" class="ch-donut" style="width:100%;height:280px;"></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -401,7 +415,7 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
       <div>
         <p class="card-title">Best-Selling Drinks</p>
-        <p class="card-subtitle">Your top 5 highly demanded drinks (No cut-off names)</p>
+        <p class="card-subtitle">Your top 5 highly demanded drinks</p>
       </div>
       <span class="badge-custom badge-teal"><i class="fa-solid fa-star me-1"></i>Top Items</span>
     </div>
@@ -439,9 +453,13 @@
       <p class="card-title">How Customers Pay</p>
       <p class="card-subtitle">Share of transaction payment options</p>
     </div>
-    <div class="chart-wrap" style="min-height:220px;margin-top:1rem;">
-      <div class="chart-loading" id="loadingPayment"><div class="spinner"></div></div>
-      <div id="paymentChart" class="ch-pay" style="width:100%;height:220px;"></div>
+    <div class="chart-scroll-wrapper">
+      <div class="chart-scroll-inner" id="paymentChartInner" style="min-width: 400px;">
+        <div class="chart-wrap" style="min-height:220px;margin-top:1rem;">
+          <div class="chart-loading" id="loadingPayment"><div class="spinner"></div></div>
+          <div id="paymentChart" class="ch-pay" style="width:100%;height:220px;"></div>
+        </div>
+      </div>
     </div>
   </div>
   <div class="dashboard-card">
@@ -457,9 +475,13 @@
         <label class="btn btn-outline-danger btn-sm" for="peakRamadhan" style="font-size:0.75rem;">🌙 Ramadhan</label>
       </div>
     </div>
-    <div class="chart-wrap" style="min-height:220px;">
-      <div class="chart-loading" id="loadingHeatmap"><div class="spinner"></div></div>
-      <div id="heatmapChart" class="ch-heat" style="width:100%;height:220px;"></div>
+    <div class="chart-scroll-wrapper">
+      <div class="chart-scroll-inner" id="heatmapChartInner" style="min-width: 600px;">
+        <div class="chart-wrap" style="min-height:220px;">
+          <div class="chart-loading" id="loadingHeatmap"><div class="spinner"></div></div>
+          <div id="heatmapChart" class="ch-heat" style="width:100%;height:220px;"></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -478,9 +500,13 @@
         </div>
         <span class="badge-custom badge-green"><i class="fa-solid fa-percent me-1"></i>Revenue Retention</span>
       </div>
-      <div class="chart-wrap" style="min-height:280px;margin-top:1rem;">
-        <div class="chart-loading" id="loadingDiscount"><div class="spinner"></div></div>
-        <div id="discountChart" class="ch-disc" style="width:100%;height:280px;"></div>
+      <div class="chart-scroll-wrapper">
+        <div class="chart-scroll-inner" id="discountChartInner" style="min-width: 600px;">
+          <div class="chart-wrap" style="min-height:280px;margin-top:1rem;">
+            <div class="chart-loading" id="loadingDiscount"><div class="spinner"></div></div>
+            <div id="discountChart" class="ch-disc" style="width:100%;height:280px;"></div>
+          </div>
+        </div>
       </div>
       <p class="text-muted-sm mt-3 mb-0" style="font-size:.72rem;">
         <i class="fa-solid fa-circle-info text-primary me-1"></i>
@@ -504,10 +530,14 @@
         </div>
         <span class="badge-custom badge-blue">Sales Quality</span>
       </div>
-      <div class="chart-wrap" style="min-height:260px;margin-top:.85rem;">
-        <div class="chart-loading" id="loadingBranch"><div class="spinner"></div></div>
-        <div id="branchChart" class="ch-branch" style="width:100%;height:260px;"></div>
+    <div class="chart-scroll-wrapper">
+      <div class="chart-scroll-inner" id="branchChartInner" style="min-width: 400px;">
+        <div class="chart-wrap" style="min-height:260px;margin-top:.85rem;">
+          <div class="chart-loading" id="loadingBranch"><div class="spinner"></div></div>
+          <div id="branchChart" class="ch-branch" style="width:100%;height:260px;"></div>
+        </div>
       </div>
+    </div>
     </div>
   </div>
 </div>
@@ -1049,11 +1079,11 @@ function renderBranchChart(d) {
   const valLabel = isAOV ? 'AOV Per Bill' : 'Monthly Accumulations';
 
   const traces = monthly.branches.map((branch, i)=>{
-    const branchColor = branch === 'Putrajaya' ? '#4B2C20' : '#A85A32';
+    const branchColor = COLORS.slate[i % COLORS.slate.length];
     return {
       x: monthly.labels,
       y: dataSrc[branch] || [],
-      name: branch === 'Putrajaya' ? 'Putrajaya Stall' : 'Puncak Alam Truck',
+      name: branch,
       type: 'bar',
       marker: { color: branchColor, opacity: 0.9 },
       hovertemplate: `<b>${branch}</b><br>%{x}<br>${valLabel}: RM %{y:,.2f}<extra></extra>`,

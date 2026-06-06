@@ -45,6 +45,16 @@
     letter-spacing: 1.5px;
 }
 
+/* ── Mobile Overrides ── */
+@media (max-width: 768px) {
+    .page-header { flex-direction: column; align-items: flex-start !important; gap: 12px; }
+    .page-title { font-size: 1.4rem; }
+    .report-config-card { padding: 16px; }
+    .report-config-card .row > div { width: 100%; margin-bottom: 12px; }
+    .report-config-card .row > div:last-child { margin-bottom: 0; }
+    .report-config-card select, .report-config-card button { width: 100% !important; }
+}
+
 /* ============================================================
    REPORT CONTENT STYLES (Mirrored from report_pdf_export.html)
 ============================================================ */
@@ -469,8 +479,9 @@
             <label class="form-label-custom">Target Branch</label>
             <select id="reportBranch" class="form-control-custom">
                 <option value="all">All Operational Outlets</option>
-                <option value="Putrajaya">Putrajaya Stall Booth</option>
-                <option value="Puncak Alam">Puncak Alam Food Truck</option>
+                {% for branch in branches %}
+                <option value="{{ branch }}">{{ branch }}</option>
+                {% endfor %}
             </select>
         </div>
         <div class="col-12 col-md-4">

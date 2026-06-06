@@ -185,6 +185,17 @@ def build_dynamic_system_prompt(intent: dict) -> str:
     length_guide = RESPONSE_LENGTH_GUIDE.get(depth, RESPONSE_LENGTH_GUIDE["medium"])
     ramadhan_note = _get_ramadhan_note() or "Not currently Ramadhan. Use standard peak hour (~10:00 AM)."
 
+    # Dynamic branch context
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT branch_name, branch_code FROM branch WHERE is_active = 1")
+        active_branches = [f"{r[0]} ({r[1]})" for r in cursor.fetchall()]
+        conn.close()
+        branch_ctx = ", ".join(active_branches) if active_branches else "all active locations"
+    except Exception:
+        branch_ctx = "all active locations"
+
     rules = ABSOLUTE_RULES.format(ramadhan_note=ramadhan_note)
 
     # Multi-intent supplemental guidance
@@ -197,7 +208,7 @@ def build_dynamic_system_prompt(intent: dict) -> str:
     if "inventory" in multi:
         supplemental += "\nSECONDARY LENS — Inventory: connect any demand signal to ingredient stocking action."
 
-    return f"""You are the AI Business Advisor for 'Mini Coffee Shop' — Putrajaya (STB-PJ1) and Puncak Alam (FT-PA1), Malaysia.
+    return f"""You are the AI Business Advisor for 'Mini Coffee Shop' — operating in {branch_ctx}.
 
 {persona}
 
@@ -264,10 +275,10 @@ def fast_kpi_bypass(user_message: str, db_data: dict):
     peak = db_data.get('peak_hour', 'N/A')
 
     if re.search(r'\b(total revenue|how much did we make|all.?time revenue)\b', msg) and not has_temporal:
-        return f"Across both branches all-time, the network has brought in RM {rev:,.2f} in total revenue."
+        return f"Across all active branches all-time, the network has brought in RM {rev:,.2f} in total revenue."
 
     if re.search(r'\b(total transactions|how many (tickets|orders|receipts)|transaction count)\b', msg) and not has_temporal:
-        return f"All-time transaction count stands at {txns:,} — that's every order across Putrajaya and Puncak Alam."
+        return f"All-time transaction count stands at {txns:,} — that's every order recorded in the database."
 
     if re.search(r'\b(daily average|average daily revenue|average.?per day)\b', msg):
         return f"The historical daily revenue baseline is RM {daily:,.2f} per operating day."
@@ -544,45 +555,56 @@ def build_slim_context(db_data: dict, user_message: str) -> str:
     if intent["primary"] in ("forecast", "inventory", "operational") or any(k in msg for k in ["forecast", "predict", "week", "ramalan", "weather", "stok", "stock"]):
         try:
             engine = ForecastEngine()
-            success_pj, pj_fc = engine.generate_5_day_forecast("STB-PJ1", "Putrajaya")
-            success_pa, pa_fc = engine.generate_5_day_forecast("FT-PA1", "Puncak Alam")
+            
+            # Dynamic branch retrieval
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT branch_code, branch_name FROM branch WHERE is_active = 1")
+            active_branches = cursor.fetchall()
+            conn.close()
 
-            if success_pj and success_pa:
-                pj_list = pj_fc.get('forecast', [])
-                pa_list = pa_fc.get('forecast', [])
-                
-                # Filter by date if applicable
-                if target_date_str:
-                    pj_list = [d for d in pj_list if d['ds'] == target_date_str]
-                    pa_list = [d for d in pa_list if d['ds'] == target_date_str]
-                    sections.append(f"TARGET DATE DETECTED: {target_date_str}")
+            all_forecasts_text = []
+            combined_items = []
 
-                def _fmt_days(fc_list):
-                    lines = []
+            for b_code, b_name in active_branches:
+                success, fc_result = engine.generate_5_day_forecast(b_code, b_name)
+                if success:
+                    fc_list = fc_result.get('forecast', [])
+                    
+                    # Filter by date if applicable
+                    if target_date_str:
+                        fc_list = [d for d in fc_list if d['ds'] == target_date_str]
+
+                    def _fmt_days(inner_list):
+                        lines = []
+                        for d in inner_list:
+                            dt = datetime.strptime(d['ds'], '%Y-%m-%d')
+                            if d.get('is_closed'):
+                                lines.append(f"  {d['ds']} ({dt:%A}): CLOSED")
+                            else:
+                                w = d.get('weather') or {}
+                                promos = ", ".join(d.get('promotions', [])) or "none"
+                                lines.append(
+                                    f"  {d['ds']} ({dt:%A}): RM {d['yhat']:,.2f} | "
+                                    f"{w.get('temp', 28)}°C {w.get('label','Cloudy')} | Promos: {promos}"
+                                )
+                        return "\n".join(lines)
+
+                    all_forecasts_text.append(f"{b_name} ({b_code}):\n{_fmt_days(fc_list)}")
                     for d in fc_list:
-                        dt = datetime.strptime(d['ds'], '%Y-%m-%d')
-                        if d.get('is_closed'):
-                            lines.append(f"  {d['ds']} ({dt:%A}): CLOSED")
-                        else:
-                            w = d.get('weather') or {}
-                            promos = ", ".join(d.get('promotions', [])) or "none"
-                            lines.append(
-                                f"  {d['ds']} ({dt:%A}): RM {d['yhat']:,.2f} | "
-                                f"{w.get('temp', 28)}°C {w.get('label','Cloudy')} | Promos: {promos}"
-                            )
-                    return "\n".join(lines)
+                        combined_items.extend(d.get('predicted_items', []))
 
-                sections.append(f"=== FORECAST DATA ===\nPutrajaya:\n{_fmt_days(pj_list)}\n\nPuncak Alam:\n{_fmt_days(pa_list)}")
+            if target_date_str:
+                sections.append(f"TARGET DATE DETECTED: {target_date_str}")
+            
+            if all_forecasts_text:
+                sections.append(f"=== FORECAST DATA ===\n" + "\n\n".join(all_forecasts_text))
 
-                # ── INVENTORY TRUTH (Upgrade 2) ──
-                combined_items = []
-                for d in pj_list: combined_items.extend(d.get('predicted_items', []))
-                for d in pa_list: combined_items.extend(d.get('predicted_items', []))
-                
-                if combined_items:
-                    raw_demand = calculate_ingredient_demand(combined_items)
-                    ops_demand = format_to_ops_units(raw_demand)
-                    sections.append(f"=== [INVENTORY TRUTH] CALCULATED DEMAND ===\n{json.dumps(ops_demand, indent=2)}")
+            # ── INVENTORY TRUTH (Upgrade 2) ──
+            if combined_items:
+                raw_demand = calculate_ingredient_demand(combined_items)
+                ops_demand = format_to_ops_units(raw_demand)
+                sections.append(f"=== [INVENTORY TRUTH] CALCULATED DEMAND ===\n{json.dumps(ops_demand, indent=2)}")
 
         except Exception as e:
             sections.append(f"=== FORECAST ===\nError: {e}")
@@ -678,11 +700,10 @@ def build_slim_context(db_data: dict, user_message: str) -> str:
     # ── STAFFING PEAKS ──────────────────────────────────────
     if intent["primary"] == "staffing" or "staffing" in intent["multi"]:
         peaks = db_data.get('branch_peaks', {})
-        sections.append(
-            f"=== PEAK HOURS (top 3 per branch) ===\n"
-            f"  Puncak Alam (FT-PA1): {', '.join(peaks.get('FT-PA1', ['N/A']))}\n"
-            f"  Putrajaya (STB-PJ1): {', '.join(peaks.get('STB-PJ1', ['N/A']))}"
-        )
+        peak_lines = ["=== PEAK HOURS (top 3 per branch) ==="]
+        for b_name, b_peaks in peaks.items():
+            peak_lines.append(f"  {b_name}: {', '.join(b_peaks)}")
+        sections.append("\n".join(peak_lines))
 
     # ── INVENTORY DEMAND ────────────────────────────────────
     if intent["primary"] == "inventory" or "inventory" in intent["multi"]:
@@ -821,7 +842,7 @@ def stream_chat_message(user_message: str, db_data: dict):
 def build_chat_system_context(db_data: dict) -> str:
     """Legacy fallback for older app.py import chains."""
     return (
-        f"You are the AI Business Advisor for 'Mini Coffee Shop' — Putrajaya and Puncak Alam.\n"
+        f"You are the AI Business Advisor for 'Mini Coffee Shop'.\n"
         f"Period: {db_data.get('date_range', 'N/A')} | "
         f"Revenue: RM {db_data.get('total_rev', 0):,.2f} | "
         f"Transactions: {db_data.get('total_txns', 0):,} | "

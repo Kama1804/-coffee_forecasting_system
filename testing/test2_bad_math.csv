@@ -1,0 +1,4 @@
+Transaction_ID,Timestamp,Register_ID,Cashier_Name,Store_ID,Item_Name,Item_Category,Quantity_Sold,Modifiers,Order_Type,Gross_Sales,Discount_Amount,Promo_Code,Discount_Reason,Tax_Amount,Net_Sales,Payment_Type
+TXN-ERR-201,2026-06-02T09:00:00,REG-01,Abu,STB-PJ1,Latte,Coffee,0,"[]",Dine-in,10.0,0.0,NONE,None,0.6,10.0,CASH
+TXN-ERR-202,2026-06-02T09:15:00,REG-01,Abu,STB-PJ1,Mocha,Coffee,-2,"[]",Takeaway,12.0,0.0,NONE,None,0.72,12.0,E-WALLET
+TXN-ERR-203,2026-06-02T09:30:00,REG-01,Abu,STB-PJ1,Espresso,Coffee,1,"[]",Dine-in,0.0,0.0,NONE,None,0.0,0.0,CASH

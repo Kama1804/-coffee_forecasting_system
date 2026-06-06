@@ -85,19 +85,6 @@ MY_SEASONS = [
     ("2027-11-20", "2027-12-31", "Year-End School Holidays 2027"),
 ]
 
-BRANCH_PERSONAS = {
-    "Putrajaya": {
-        "description": "Government & office workers (Peak demand during weekdays)",
-        "holiday_effect": -0.35,
-        "coords": {"lat": 2.9264, "lon": 101.6964}
-    },
-    "Puncak Alam": {
-        "description": "University of UiTM students & residents (Peak demand during weekends/holidays)",
-        "holiday_effect": +0.15,
-        "coords": {"lat": 3.2353, "lon": 101.4243}
-    }
-}
-
 
 class ForecastEngine:
     def __init__(self):
@@ -327,7 +314,22 @@ class ForecastEngine:
     # ================================================================
     def generate_5_day_forecast(self, branch_id: str, branch_name: str) -> tuple:
         branch_id = str(branch_id).upper().strip()
-        persona   = BRANCH_PERSONAS.get(branch_name, BRANCH_PERSONAS["Putrajaya"])
+        
+        # Dynamic Persona Lookup from Database
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT description, holiday_effect FROM branch WHERE branch_code = ?", (branch_id,))
+            row = cursor.fetchone()
+            conn.close()
+            
+            if row:
+                persona = {"description": row[0], "holiday_effect": row[1]}
+            else:
+                persona = {"description": "Standard outlet profile", "holiday_effect": 0.0}
+        except Exception as e:
+            print(f"[PERSONA ERROR] {e}")
+            persona = {"description": "Standard outlet profile", "holiday_effect": 0.0}
 
         closed_set, resolved_promo_map = self._build_promo_and_closure_maps()
 
@@ -577,6 +579,7 @@ class ForecastEngine:
             'rmse':             rmse,
             'accuracy':         accuracy,
             'persona':          persona['description'],
+            'holiday_effect':   persona['holiday_effect'],
             'historical':       hist_payload,
             'forecast':         fore_payload,
             'hourly':           hourly,

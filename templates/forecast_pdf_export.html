@@ -322,7 +322,7 @@
 
     <div class="rpt-body">
         <div class="persona-card">
-            <div class="persona-icon">{{ '🏢' if branch_label == 'Putrajaya' else '🎓' }}</div>
+            <div class="persona-icon" style="display: none;">🏢</div>
             <div>
                 <div class="persona-name">{{ branch_label }} Profile</div>
                 <div class="persona-desc">{{ data.get('persona', 'Standard operational profile.') }}</div>
@@ -578,12 +578,13 @@
             <div style="font-size:9pt; line-height:1.7;">
                 <strong>Local Demand Profile:</strong> {{ data.get('persona', 'Standard operational profile.') }}<br>
                 <strong>Revenue Velocity:</strong> 
-                {% if branch_label == 'Putrajaya' %}
-                    Expected <span style="color:#DC2626; font-weight:700;">Office migration risk</span> during public holidays.
-                {% elif branch_label == 'Puncak Alam' %}
-                    Expected <span style="color:#059669; font-weight:700;">Residential lift</span> during festive periods.
+                {% set h_eff = data.get('holiday_effect', 0) %}
+                {% if h_eff < 0 %}
+                    Expected <span style="color:#DC2626; font-weight:700;">Negative shift</span> ({{ (h_eff * 100)|int }}%) during public holidays.
+                {% elif h_eff > 0 %}
+                    Expected <span style="color:#059669; font-weight:700;">Positive lift</span> (+{{ (h_eff * 100)|int }}%) during public holidays.
                 {% else %}
-                    Mixed demand drivers based on local events.
+                    Stable demand drivers based on local events.
                 {% endif %}
                 <br>
                 <strong>Procurement Alert:</strong> Predicted ingredient demand reflects theoretical usage. Adjust for safety stock based on actual delivery lead times.

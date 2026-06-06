@@ -1,5 +1,6 @@
 import requests
 import os
+import sqlite3
 from datetime import datetime
 from dotenv import load_dotenv
 import time
@@ -8,11 +9,19 @@ import time
 load_dotenv()
 OPENWEATHER_API_KEY = os.getenv('OPENWEATHER_API_KEY')
 
-# GPS Coordinates for your exact branch locations
-LOCATIONS = {
-    'Putrajaya': {'lat': 2.9264, 'lon': 101.6964},
-    'Puncak Alam': {'lat': 3.2353, 'lon': 101.4243}
-}
+def get_branch_coords():
+    """Fetches all active branch coordinates from the database."""
+    try:
+        db_path = os.path.join('database', 'coffee_shop.db')
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT branch_name, latitude, longitude FROM branch WHERE is_active = 1")
+        rows = cursor.fetchall()
+        conn.close()
+        return {row[0]: {'lat': row[1], 'lon': row[2]} for row in rows}
+    except Exception as e:
+        print(f"[WEATHER COORD ERROR] {e}")
+        return {}
 
 def map_weather_condition(owm_main):
     """
@@ -34,14 +43,22 @@ def map_weather_condition(owm_main):
 
 def fetch_future_weather():
     """
-    Fetches the 5-day forecast for both branches with a 3-attempt RETRY LOGIC.
+    Fetches the 5-day forecast for all registered active branches with a 3-attempt RETRY LOGIC.
     """
     if not OPENWEATHER_API_KEY:
         return False, "Error: OpenWeatherMap API Key is missing from .env!"
 
-    forecast_data = {'Putrajaya': {}, 'Puncak Alam': {}}
+    LOCATIONS = get_branch_coords()
+    if not LOCATIONS:
+        return False, "Error: No active branches found in database."
+
+    forecast_data = {name: {} for name in LOCATIONS.keys()}
 
     for branch, coords in LOCATIONS.items():
+        # Skip branches with zero coordinates
+        if coords['lat'] == 0 and coords['lon'] == 0:
+            continue
+
         url = f"https://api.openweathermap.org/data/2.5/forecast?lat={coords['lat']}&lon={coords['lon']}&appid={OPENWEATHER_API_KEY}&units=metric"
         
         # --- API RETRY LOGIC (Tries 3 times before failing) ---
@@ -102,12 +119,11 @@ def fetch_future_weather():
                 time.sleep(2) # Wait 2 seconds before trying again
                 
         if not api_success:
-            return False, f"Failed to fetch weather for {branch} after 3 attempts."
+            print(f"Warning: Failed to fetch weather for {branch} after {max_retries} attempts.")
 
     return True, forecast_data
 
 # --- TEST BLOCK ---
-# This block only runs if you execute this file directly.
 if __name__ == '__main__':
     print("Testing OpenWeatherMap API Integration...\n")
     success, result = fetch_future_weather()
@@ -121,4 +137,3 @@ if __name__ == '__main__':
             print("")
     else:
         print(f"API CONNECTION FAILED:\n{result}")
-        print("\nNote: If you see a '401 Unauthorized' error, OpenWeatherMap takes 1-2 hours to activate newly generated free API keys. Please wait and try again.")

@@ -49,6 +49,31 @@
   font-family: var(--font);
 }
 
+/* ── Mobile Overrides ── */
+@media (max-width: 1024px) {
+  .dss-wrap {
+    grid-template-columns: 1fr;
+    height: calc(100vh - 160px);
+    min-height: 500px;
+    gap: 0;
+  }
+  .hist-panel, .side-panel { display: none; } /* Hide side panels for focus on mobile */
+  .main-panel { height: 100%; border-radius: 0; border: none; }
+}
+
+@media (max-width: 768px) {
+  .dss-wrap { height: calc(100vh - 100px); }
+  .msg-content { max-width: 88%; }
+  .bubble { font-size: 0.82rem; padding: 10px 12px; }
+  .chat-hdr { padding: 10px 14px; }
+  .ai-av { width: 36px; height: 36px; }
+}
+
+@media (max-width: 480px) {
+  .chat-ftr { padding: 10px 12px 20px; } /* Extra padding for mobile bottom bar */
+  .ftr-meta { display: none; } /* Hide meta tokens to save space */
+}
+
 /* ── HISTORY PANEL ───────────────────────────────── */
 .hist-panel {
   display: flex; flex-direction: column;
@@ -556,7 +581,7 @@
       <button class="chip" onclick="send(this.dataset.q)" data-q="Analyze my revenue trend and best month"><i class="fa-solid fa-chart-line" style="color:var(--blue);"></i>Analyze my revenue trend and best month</button>
       <button class="chip" onclick="send(this.dataset.q)" data-q="What staffing do I need during peak hours?"><i class="fa-solid fa-users" style="color:var(--teal);"></i>What staffing do I need during peak hours?</button>
       <button class="chip" onclick="send(this.dataset.q)" data-q="Which products should I stock more of?"><i class="fa-solid fa-box-open" style="color:var(--amber);"></i>Which products should I stock more of?</button>
-      <button class="chip" onclick="send(this.dataset.q)" data-q="Compare Putrajaya vs Puncak Alam branches"><i class="fa-solid fa-store" style="color:var(--purple);"></i>Compare Putrajaya vs Puncak Alam branches</button>
+      <button class="chip" onclick="send(this.dataset.q)" data-q="Compare my active business branches"><i class="fa-solid fa-store" style="color:var(--purple);"></i>Compare my active business branches</button>
       <button class="chip" onclick="send(this.dataset.q)" data-q="How does weather affect my sales?"><i class="fa-solid fa-cloud-rain" style="color:var(--blue-bright);"></i>How does weather affect my sales?</button>
       <button class="chip" onclick="send(this.dataset.q)" data-q="Give me this week's executive business summary"><i class="fa-solid fa-file-lines" style="color:var(--green);"></i>Give me this week's executive business summary</button>
     </div>
@@ -812,7 +837,7 @@ function startNew(){
   const cv  = document.getElementById('canvas');
   cv.innerHTML = `<div class="date-sep">Today</div>`;
   appendBotDOM(
-    '👋 Hello! I\'m your **AI Operations Advisor** for Mini Coffee Shop.\n\nI have live access to your sales database. I can help with:\n- Revenue analysis & trend identification\n- Staffing recommendations based on peak hours\n- Inventory planning from product mix data\n- Branch comparison — Putrajaya vs Puncak Alam\n- Month-by-month performance breakdown\n\nTry a quick prompt on the right, click a month chip, or type your question below.',
+    '👋 Hello! I\'m your **AI Operations Advisor** for Mini Coffee Shop.\n\nI have live access to your sales database. I can help with:\n- Revenue analysis & trend identification\n- Staffing recommendations based on peak hours\n- Inventory planning from product mix data\n- Performance comparison across your business branches\n- Month-by-month performance breakdown\n\nTry a quick prompt on the right, click a month chip, or type your question below.',
     fmtTime(new Date()), false, false
   );
   document.getElementById('sMsgs').textContent='0 messages sent';

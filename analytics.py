@@ -9,6 +9,20 @@ from datetime import datetime, timedelta
 # ============================================================
 # SKU_MAPPING removed in favor of Database Recipe Registry
 
+# Malaysian Public Holiday List (Matches Forecast Engine)
+HOLIDAYS = [
+    "2024-01-01", "2024-02-10", "2024-02-11", "2024-04-10", "2024-04-11", 
+    "2024-05-01", "2024-05-22", "2024-06-03", "2024-06-17", "2024-08-31", 
+    "2024-09-16", "2024-10-31", "2024-12-25",
+    "2025-01-01", "2025-01-29", "2025-02-01", "2025-03-31", "2025-05-01", 
+    "2025-05-12", "2025-06-02", "2025-06-07", "2025-08-31", "2025-09-16", 
+    "2025-10-02", "2025-12-25",
+    "2026-01-01", "2026-02-01", "2026-02-17", "2026-03-21", "2026-05-01", 
+    "2026-05-27", "2026-08-31", "2026-09-16", "2026-10-21", "2026-12-25",
+    "2027-01-01", "2027-02-01", "2027-02-06", "2027-03-10", "2027-05-01", 
+    "2027-05-17", "2027-08-31", "2027-09-16"
+]
+
 def get_db_connection():
     db_path = os.path.join('database', 'coffee_shop.db')
     return sqlite3.connect(db_path)
@@ -65,21 +79,25 @@ def process_sales_dataframe(df):
     processed_df['Total_Bill_MYR'] = df['Net_Sales']
     processed_df['payment_method'] = df['Payment_Type']
 
-    # Layer 5: Location Context (System Generated)
-    location_map = {
-        'FT-PA1': {
-            'store_location': 'Puncak Alam',
-            'location_type': 'Food Truck',
-            'district': 'Kuala Selangor',
-            'state': 'Selangor'
-        },
-        'STB-PJ1': {
-            'store_location': 'Putrajaya',
-            'location_type': 'Stall Booth',
-            'district': 'Putrajaya',
-            'state': 'WP Putrajaya'
+    # Layer 5: Location Context (Database Driven)
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT branch_code, branch_name, location_type, district, state FROM branch WHERE is_active = 1")
+        branches = cursor.fetchall()
+        conn.close()
+        
+        location_map = {
+            row[0]: {
+                'store_location': row[1],
+                'location_type': row[2],
+                'district': row[3],
+                'state': row[4]
+            } for row in branches
         }
-    }
+    except Exception as e:
+        print(f"[METADATA ERROR] Falling back to defaults: {e}")
+        location_map = {}
     
     loc_data = df['Store_ID'].map(lambda x: location_map.get(x, {
         'store_location': 'Unknown', 'location_type': 'Unknown', 
@@ -220,30 +238,29 @@ def get_regular_peak_hours(branch_id=None):
 def bulk_insert_sales(df, db_path):
     """
     Inserts data into sales_transaction while strictly avoiding UNIQUE constraint failures.
+    Ensures atomicity: If any ID exists, the entire batch is rejected.
     """
     conn = sqlite3.connect(db_path, timeout=30.0)
     try:
-        # 1. Fetch existing IDs from DB to prevent collisions
+        # 1. Check for ANY existing IDs in DB to prevent collisions (Atomic Check)
         cursor = conn.cursor()
-        cursor.execute("SELECT transaction_id FROM sales_transaction")
-        existing_ids = set(row[0] for row in cursor.fetchall())
+        incoming_ids = df['transaction_id'].tolist()
         
-        # 2. Filter dataframe
-        initial_count = len(df)
-        df_clean = df[~df['transaction_id'].isin(existing_ids)]
-        duplicate_count = initial_count - len(df_clean)
+        # Using a parameterized IN clause for safety, but chunked if list is huge
+        # For simplicity and given typical CSV sizes, we'll check in one go or small batches
+        placeholders = ', '.join(['?'] * len(incoming_ids))
+        cursor.execute(f"SELECT transaction_id FROM sales_transaction WHERE transaction_id IN ({placeholders})", incoming_ids)
+        existing = cursor.fetchall()
         
-        if df_clean.empty:
-            return True, f"No new records to insert. ({duplicate_count} duplicates skipped)"
+        if existing:
+            duplicate_ids = [row[0] for row in existing]
+            return False, f"Database Rejection: Duplicate transactions detected. Example: {duplicate_ids[0]}. This file has already been ingested."
             
-        # 3. Perform insert
-        df_clean.to_sql('sales_transaction', conn, if_exists='append', index=False)
+        # 2. Perform insert
+        df.to_sql('sales_transaction', conn, if_exists='append', index=False)
         conn.commit()
         
-        msg = f"Successfully inserted {len(df_clean)} records."
-        if duplicate_count > 0:
-            msg += f" ({duplicate_count} existing IDs skipped)"
-        return True, msg
+        return True, f"Successfully inserted {len(df)} records."
         
     except Exception as e:
         return False, str(e)
@@ -338,10 +355,37 @@ def calculate_ingredient_demand(forecasted_sales_list):
             inventory_demand["cup_cold"] += 1 * qty
             
         # Handle custom ingredients
-        for ing_name, ing_val in recipe["custom_ingredients"].items():
-            if ing_name not in inventory_demand["custom"]:
-                inventory_demand["custom"][ing_name] = 0
-            inventory_demand["custom"][ing_name] += ing_val * qty
+        for key, data in recipe["custom_ingredients"].items():
+            # NORMALIZATION LOGIC: 
+            # Merge "Matcha (g)" (old) and "Matcha" with {unit: "g"} (new)
+            
+            raw_name = key
+            val = 0
+            unit = 'unit'
+
+            if isinstance(data, dict):
+                # New Format: {"val": 10, "unit": "ml"}
+                val = data.get('val', 0)
+                unit = data.get('unit', 'unit')
+                name = raw_name
+            else:
+                # Old Format: {"Syrup (ml)": 10}
+                val = data
+                # Extract unit from name if present
+                import re
+                unit_match = re.search(r'\((ml|g|pcs)\)', raw_name, re.IGNORECASE)
+                if unit_match:
+                    unit = unit_match.group(1).toLowerCase() if hasattr(unit_match.group(1), 'toLowerCase') else unit_match.group(1).lower()
+                    name = raw_name.replace(unit_match.group(0), '').strip()
+                else:
+                    name = raw_name
+
+            # Standardized key for aggregation
+            agg_key = f"{name} ({unit})"
+            
+            if agg_key not in inventory_demand["custom"]:
+                inventory_demand["custom"][agg_key] = 0
+            inventory_demand["custom"][agg_key] += val * qty
 
     return inventory_demand
 
@@ -497,9 +541,14 @@ def revenue_decline_and_product_mix_profiler(branch_id=None, reference_date=None
 def multi_month_chart_pre_packager(months=3):
     conn = get_db_connection()
     df = pd.read_sql_query("SELECT transaction_date, branch_id, Total_Bill_MYR FROM sales_transaction", conn)
-    branch_map = {'FT-PA1': 'Puncak Alam', 'STB-PJ1': 'Putrajaya'}
-    df['branch_name'] = df['branch_id'].map(branch_map)
+    
+    # Dynamic Branch Name Mapping
+    cursor = conn.cursor()
+    cursor.execute("SELECT branch_code, branch_name FROM branch")
+    branch_map = {row[0]: row[1] for row in cursor.fetchall()}
     conn.close()
+    
+    df['branch_name'] = df['branch_id'].map(branch_map).fillna(df['branch_id'])
     
     if df.empty:
         return "{}"
@@ -567,3 +616,84 @@ def weather_payday_cross_tabulation(where_clause="", params=None):
         'weather_temperature_impact': weather_tab,
         'payday_spend_analysis': payday_tab
     }
+
+# ============================================================
+#    AUTO-TUNE AI INTELLIGENCE (Self-Learning Logic)
+# ============================================================
+def sync_business_intelligence(db_path):
+    """
+    Analyzes historical sales to calculate exact holiday impacts for each branch.
+    Requires at least 14 days baseline and 2 holiday samples to 'Unlock' Auto-Tune.
+    """
+    from datetime import datetime
+    
+    # Malaysian Public Holiday List (Matches Forecast Engine)
+    HOLIDAYS = [
+        "2024-01-01", "2024-02-10", "2024-02-11", "2024-04-10", "2024-04-11", 
+        "2024-05-01", "2024-05-22", "2024-06-03", "2024-06-17", "2024-08-31", 
+        "2024-09-16", "2024-10-31", "2024-12-25",
+        "2025-01-01", "2025-01-29", "2025-02-01", "2025-03-31", "2025-05-01", 
+        "2025-05-12", "2025-06-02", "2025-06-07", "2025-08-31", "2025-09-16", 
+        "2025-10-02", "2025-12-25",
+        "2026-01-01", "2026-02-01", "2026-02-17", "2026-03-21", "2026-05-01", 
+        "2026-05-27", "2026-08-31", "2026-09-16", "2026-10-21", "2026-12-25",
+        "2027-01-01", "2027-02-01", "2027-02-06", "2027-03-10", "2027-05-01", 
+        "2027-05-17", "2027-08-31", "2027-09-16"
+    ]
+
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # 1. Fetch all active branches
+        cursor.execute("SELECT branch_code FROM branch")
+        branches = [r[0] for r in cursor.fetchall()]
+        
+        tuning_results = []
+
+        for b_code in branches:
+            # 2. Get daily revenue aggregates for this branch
+            query = """
+                SELECT transaction_date, SUM(Total_Bill_MYR) as daily_rev
+                FROM sales_transaction
+                WHERE branch_id = ?
+                GROUP BY transaction_date
+            """
+            df = pd.read_sql_query(query, conn, params=(b_code,))
+            
+            if df.empty: continue
+            
+            # Split into Holiday vs Normal
+            df['is_holiday'] = df['transaction_date'].isin(HOLIDAYS)
+            
+            holiday_df = df[df['is_holiday']]
+            normal_df  = df[~df['is_holiday']]
+            
+            total_days    = len(df)
+            holiday_count = len(holiday_df)
+            
+            # --- DOUBLE KEY LOCK: 14 Days + 2 Holidays ---
+            if total_days >= 14 and holiday_count >= 2:
+                avg_holiday = holiday_df['daily_rev'].mean()
+                avg_normal  = normal_df['daily_rev'].mean()
+                
+                if avg_normal > 0:
+                    variance = (avg_holiday - avg_normal) / avg_normal
+                    
+                    # 3. Update Database
+                    cursor.execute("""
+                        UPDATE branch 
+                        SET holiday_effect = ? 
+                        WHERE branch_code = ?
+                    """, (round(variance, 4), b_code))
+                    
+                    tuning_results.append(f"{b_code}: Auto-tuned to {variance*100:.1f}%")
+            else:
+                tuning_results.append(f"{b_code}: Learning in progress ({total_days}/14 days, {holiday_count}/2 holidays)")
+
+        conn.commit()
+        conn.close()
+        return True, tuning_results
+
+    except Exception as e:
+        return False, [str(e)]
