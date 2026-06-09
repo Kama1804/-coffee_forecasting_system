@@ -1,8 +1,22 @@
+# Environments
 venv/
 .env
+
+# Python Caches & Logs
 __pycache__/
 .pytest_cache/
 *.pyc
-uploads/*.csv
-database/*.db
+*.log
+
+# System/IDE Files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Project Uploads & Databases
+uploads/*
+!uploads/.gitkeep
+database/*
+!database/.gitkeep
 *.db
