@@ -40,8 +40,35 @@
     --font-mono: 'DM Mono', monospace;
 }
 
-/* ── Mobile Overrides ── */
+/* ── Mobile & Tablet Overrides ── */
+@media (max-width: 1024px) {
+    html {
+        font-size: 14px !important;
+    }
+    .dashboard-card {
+        padding: 18px !important;
+    }
+    .table-custom thead th {
+        padding: 8px 10px !important;
+    }
+    .table-custom tbody td {
+        padding: 8px 10px !important;
+    }
+    .chart-scroll-wrapper,
+    .table-responsive {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        -webkit-overflow-scrolling: touch;
+    }
+    .chart-min-width-700 { min-width: 700px; }
+    .chart-min-width-600 { min-width: 600px; }
+    .chart-min-width-400 { min-width: 450px; }
+}
+
 @media (max-width: 768px) {
+    html {
+        font-size: 13px !important;
+    }
     .main-content-inner { padding: 16px !important; }
     .page-header { flex-direction: column; align-items: flex-start !important; gap: 16px; margin-bottom: 24px; }
     .page-title { font-size: 1.4rem; }
@@ -49,7 +76,13 @@
     
     .kpi-card { margin-bottom: 12px; padding: 16px !important; }
     
-    .dashboard-card { padding: 16px; margin-bottom: 16px; }
+    .dashboard-card { padding: 14px !important; margin-bottom: 16px; }
+    .table-custom thead th {
+        padding: 6px 8px !important;
+    }
+    .table-custom tbody td {
+        padding: 6px 8px !important;
+    }
     
     /* Persona card stacking */
     .persona-card { flex-direction: column; align-items: flex-start !important; gap: 12px; }
@@ -96,19 +129,6 @@
     min-width: 100% !important;
     width: 100% !important;
   }
-}
-
-/* Mobile & Tablet view (<=1024px): scrollable to prevent crowding */
-@media (max-width: 1024px) {
-  .chart-scroll-wrapper,
-  .table-responsive {
-    overflow-x: auto !important;
-    overflow-y: hidden !important;
-    -webkit-overflow-scrolling: touch;
-  }
-  .chart-min-width-700 { min-width: 700px; }
-  .chart-min-width-600 { min-width: 600px; }
-  .chart-min-width-400 { min-width: 450px; }
 }
 
 /* ── Base overrides ── */
