@@ -1,3 +1,0 @@
-Transaction_ID,Timestamp,Register_ID,Cashier_Name,Store_ID,Item_Name,Item_Category,Quantity_Sold,Modifiers,Order_Type,Discount_Amount,Promo_Code,Discount_Reason,Tax_Amount,Net_Sales,Payment_Type
-TXN-ERR-001,2026-06-02T08:00:00,REG-01,Ali,STB-PJ1,Latte,Coffee,1,"[]",Dine-in,0.0,NONE,None,0.6,10.0,CASH
-TXN-ERR-002,2026-06-02T08:30:00,REG-01,Ali,STB-PJ1,Cappuccino,Coffee,1,"[]",Dine-in,0.0,NONE,None,0.6,10.0,CASH
