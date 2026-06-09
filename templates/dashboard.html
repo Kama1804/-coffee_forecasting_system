@@ -1292,7 +1292,7 @@ function renderBranchChart(d) {
       name: branch,
       type: 'bar',
       marker: { color: branchColor, opacity: 0.9 },
-      text: hideText ? undefined : yValues.map(v => 'RM ' + v.toFixed(0)),
+      text: hideText ? undefined : yValues.map(v => isAOV ? v.toFixed(2) : v.toFixed(0)),
       textposition: hideText ? undefined : 'outside',
       textfont: { size: 9 },
       hovertemplate: `<b>${branch}</b><br>%{x}<br>${valLabel}: RM %{y:,.2f}<extra></extra>`,

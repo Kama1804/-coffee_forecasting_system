@@ -852,7 +852,7 @@ def api_charts():
             else:
                 try:
                     dt = datetime.strptime(p + '-01', '%Y-%m-%d')
-                    all_month_labels.append(dt.strftime('%B %Y'))
+                    all_month_labels.append(dt.strftime('%b %Y'))
                 except Exception:
                     all_month_labels.append(p)
 
