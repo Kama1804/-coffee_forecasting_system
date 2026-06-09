@@ -21,6 +21,7 @@
    - [Page 5: Executive Report (PDF)](#page-5--executive-report-pdf)
    - [Page 6: DSS Chatbot (AI Advisor)](#page-6--dss-chatbot-ai-advisor)
    - [Page 7: Manage Business (Settings)](#page-7--manage-business-settings)
+   - [Page 8: User Manual (Interactive Documentation)](#page-8--user-manual-interactive-documentation)
 4. [All Calculations & Formulas Explained](#-all-calculations--formulas-explained)
 5. [The Forecasting Engine — Deep Dive](#-the-forecasting-engine--deep-dive)
 6. [The AI Brain — How the Chatbot Thinks](#-the-ai-brain--how-the-chatbot-thinks)
@@ -55,7 +56,7 @@ The **MCS Analytics AI Forecasting System** is a web-based business intelligence
 graph TD
     A["📂 Upload Sales CSV<br>(17-column POS data)"] --> B["⚙️ ETL Pipeline<br>(Validate → Clean → Enrich)"]
     B --> |"Weather API<br>(Open-Meteo Archive)"| B
-    B --> C["🗄️ SQLite Database<br>(23-column enterprise schema)"]
+    B --> C["🗄️ SQLite Database<br>(27-column enterprise schema)"]
     
     C --> D["📊 Analytics Engine<br>(KPIs, Promotions, Peak Hours)"]
     C --> E["🔮 Prophet Forecast Engine<br>(5-day predictions)"]
@@ -72,6 +73,7 @@ graph TD
     H --> K["📋 Executive Report<br>(5-page A4 PDF)"]
     H --> L["💬 DSS Chatbot<br>(Streaming AI)"]
     H --> M["⚙️ Settings<br>(Branches + Recipes)"]
+    H --> O["📖 User Manual<br>(Interactive guide)"]
     
     N["🔄 Auto-Tune AI<br>(Self-learning holiday effects)"] --> C
     B --> N
@@ -80,9 +82,9 @@ graph TD
 **In simple terms:**
 1. You **upload** your POS (Point of Sale) sales data as a CSV file
 2. The system **validates, cleans, and enriches** it (adds weather data and holiday markers)
-3. It stores everything in a **23-column enterprise database**
+3. It stores everything in a **27-column enterprise database**
 4. Three powerful engines work on your data: **Analytics** (what happened), **Prophet** (what will happen), and **Gemini AI** (what should you do)
-5. Results appear on **7 beautiful, interactive pages**
+5. Results appear on **8 beautiful, interactive pages**
 
 ---
 
@@ -223,7 +225,7 @@ graph LR
     A["📎 Upload CSV<br>(17 columns)"] --> B["✅ Step 1: Validate<br>Check all 17 columns exist"]
     B --> C["🧹 Step 2: Clean<br>Remove dupes, negatives, nulls"]
     C --> D["🌤️ Step 3: Enrich<br>Add weather + holiday data"]
-    D --> E["💾 Step 4: Load<br>Insert into 23-column DB"]
+    D --> E["💾 Step 4: Load<br>Insert into 27-column DB"]
 ```
 
 ##### Required CSV Format (17 Columns):
@@ -256,8 +258,8 @@ Your POS system must export these columns:
 - Removes rows where `Quantity_Sold ≤ 0` or `Gross_Sales ≤ 0` or `Net_Sales ≤ 0`
 - Catches duplicate `Transaction_ID` values (rejects entire batch if found!)
 
-**Step 2 — Clean & Transform (produces 23 columns):**
-The system expands your 17 columns into a richer 23-column enterprise schema:
+**Step 2 — Clean & Transform (produces 27 columns):**
+The system expands your 17 columns into a richer 27-column enterprise schema:
 
 | New Column | How It's Calculated |
 |---|---|
@@ -670,6 +672,42 @@ The system **recalculates this automatically** after every data upload — that'
 
 ---
 
+### Page 8: 📖 User Manual (Interactive Documentation)
+
+**URL:** `/user-manual`  
+**What you see:** A beautiful, responsive interactive version of the system user manual.
+
+#### Top Section — Blueprint SVG & Header
+| Element | Description |
+|---|---|
+| Header Banner | Linear gradient displaying system version, powered by, and compile date |
+| Interactive SVG Diagram | A clickable blueprint map of the system architecture. Clicking nodes highlights corresponding steps on the page. |
+| Mobile Blueprint Grid | On smaller screens, the complex SVG diagram dynamically switches to a clean, readable mobile grid. |
+
+#### Middle Section — The Data Pipeline Timeline
+Shows the step-by-step lifecycle of your coffee shop's data:
+1. **POS Sales Data Export** (17-column CSV file)
+2. **Ingestion & Validation** (checks columns, dupes, and data types)
+3. **Database Load** (stores in SQLite database)
+4. **Forecasting Engine** (applies Facebook Prophet model)
+5. **AI Insights Generation** (consults Gemini AI)
+6. **Executive PDF Export** (generates report)
+
+#### Bottom Section — Tabbed Walkthroughs
+Interactive tabs containing the detailed documentation and mathematical formulas for:
+- **Dashboard** (formulas and charts)
+- **Data Ingestion** (ETL pipeline rules)
+- **AI Forecast** (Prophet regressor signals)
+- **PDF Report** (PVA status calculations)
+- **DSS Chatbot** (Gemini AI agent intents)
+- **Settings** (AI maturity badges & recipe inputs)
+
+#### Behind the Scenes:
+- Dynamically queries active operational branches from the database.
+- Uses **MathJax CDN** to format mathematical formulas on-screen in real time.
+
+---
+
 ## 📐 All Calculations & Formulas Explained
 
 ### The Foundation: Every Calculation Starts Here
@@ -902,7 +940,7 @@ graph TD
     subgraph "Phase 2: ETL Pipeline"
         B --> C["🔍 Extract: Read 17-column CSV"]
         C --> D["✅ Validate: Check columns, types, no dupes"]
-        D --> E["🧹 Transform: Expand to 23-column schema"]
+        D --> E["🧹 Transform: Expand to 27-column schema"]
         E --> F["🌤️ Enrich: Add weather via Open-Meteo API"]
         F --> G["📅 Enrich: Add holiday flags"]
         G --> H["💾 Load: Bulk insert into SQLite"]
@@ -923,6 +961,7 @@ graph TD
         L --> Q["🔮 Forecast — Predictions + Shopping Guide"]
         M --> R["💬 Chatbot — Streaming AI conversations"]
         S["⚙️ Settings — Branch + Recipe management"]
+        X["📖 User Manual — Interactive walkthrough"]
     end
 
     subgraph "Phase 5: Outputs"
@@ -930,6 +969,7 @@ graph TD
         P --> U["📄 PDF Export"]
         Q --> V["📄 PDF Export + Ingredient Lists"]
         R --> W["💡 Actionable Business Advice"]
+        X --> Y["💡 Dynamic Documentation"]
         Q --> U
     end
 ```
@@ -942,33 +982,36 @@ graph TD
 
 | File | Lines | Role | Analogy |
 |---|---|---|---|
-| [app.py](file:///C:/Users/MSI%20PULSE%20GL66/coffee_forecasting_system/app.py) | 2,004 | Main Flask application — 34 routes, authentication, caching | The **manager** connecting everything |
+| [app.py](file:///C:/Users/MSI%20PULSE%20GL66/coffee_forecasting_system/app.py) | 2,014 | Main Flask application — 34 routes, authentication, caching | The **manager** connecting everything |
 | [analytics.py](file:///C:/Users/MSI%20PULSE%20GL66/coffee_forecasting_system/analytics.py) | 699 | Business analytics — KPIs, promo ROI, peak hours, ingredient demand, Auto-Tune AI | The **accountant** crunching numbers |
 | [forecast_engine.py](file:///C:/Users/MSI%20PULSE%20GL66/coffee_forecasting_system/forecast_engine.py) | 589 | Prophet forecasting — 5-day predictions with weather, holidays, promos | The **fortune teller** (with real math!) |
-| [gemini_agent.py](file:///C:/Users/MSI%20PULSE%20GL66/coffee_forecasting_system/gemini_agent.py) | 853 | AI chatbot — intent classification, 7 personas, context building, Gemini API | The **AI consultant** who speaks your language |
+| [gemini_agent.py](file:///C:/Users/MSI%20PULSE%20GL66/coffee_forecasting_system/gemini_agent.py) | 852 | AI chatbot — intent classification, 7 personas, context building, Gemini API | The **AI consultant** who speaks your language |
 | [etl_pipeline.py](file:///C:/Users/MSI%20PULSE%20GL66/coffee_forecasting_system/etl_pipeline.py) | 251 | Data ingestion — CSV validation, cleaning, weather enrichment | The **janitor** organizing raw data |
-| [weather_api.py](file:///C:/Users/MSI%20PULSE%20GL66/coffee_forecasting_system/weather_api.py) | 140 | Weather forecasting — OpenWeatherMap integration | The **weather reporter** |
-| [init_db.py](file:///C:/Users/MSI%20PULSE%20GL66/coffee_forecasting_system/init_db.py) | 122 | Database setup — creates all tables and seeds default data | The **architect** |
+| [weather_api.py](file:///C:/Users/MSI%20PULSE%20GL66/coffee_forecasting_system/weather_api.py) | 139 | Weather forecasting — OpenWeatherMap integration | The **weather reporter** |
+| [init_db.py](file:///C:/Users/MSI%20PULSE%20GL66/coffee_forecasting_system/init_db.py) | 121 | Database setup — creates all tables and seeds default data | The **architect** |
 
 ### HTML Templates
 
 | Template | Lines | Page | Key Feature |
 |---|---|---|---|
-| [base.html](file:///C:/Users/MSI%20PULSE%20GL66/coffee_forecasting_system/templates/base.html) | 304 | Shared layout | Sidebar nav, live clock, admin dropdown |
+| [base.html](file:///C:/Users/MSI%20PULSE%20GL66/coffee_forecasting_system/templates/base.html) | 310 | Shared layout | Sidebar nav, live clock, admin dropdown |
 | [login.html](file:///C:/Users/MSI%20PULSE%20GL66/coffee_forecasting_system/templates/login.html) | 808 | Login | Split-panel, animated orbs, standalone |
 | [dashboard.html](file:///C:/Users/MSI%20PULSE%20GL66/coffee_forecasting_system/templates/dashboard.html) | 1,334 | Dashboard | 6 chart sections, Plotly, Ramadhan toggle |
 | [upload.html](file:///C:/Users/MSI%20PULSE%20GL66/coffee_forecasting_system/templates/upload.html) | 305 | Data Ingestion | Drag-and-drop, ETL steps, warehouse profile |
 | [forecast.html](file:///C:/Users/MSI%20PULSE%20GL66/coffee_forecasting_system/templates/forecast.html) | 2,016 | AI Forecast | Most complex — Prophet results, ingredients, weather, FVA |
 | [report.html](file:///C:/Users/MSI%20PULSE%20GL66/coffee_forecasting_system/templates/report.html) | 1,306 | Executive Report | 5-page A4 preview, PDF export |
-| [chatbot.html](file:///C:/Users/MSI%20PULSE%20GL66/coffee_forecasting_system/templates/chatbot.html) | 1,768 | DSS Chatbot | 3-column, SSE streaming, chart support |
-| [manage_business.html](file:///C:/Users/MSI%20PULSE%20GL66/coffee_forecasting_system/templates/manage_business.html) | 821 | Settings | Tabs, AI maturity badges, recipe registry |
+| [chatbot.html](file:///C:/Users/MSI%20PULSE%20GL66/coffee_forecasting_system/templates/chatbot.html) | 1,786 | DSS Chatbot | 3-column, SSE streaming, chart support |
+| [manage_business.html](file:///C:/Users/MSI%20PULSE%20GL66/coffee_forecasting_system/templates/manage_business.html) | 820 | Settings | Tabs, AI maturity badges, recipe registry |
+| [manual_landing.html](file:///C:/Users/MSI%20PULSE%20GL66/coffee_forecasting_system/templates/manual_landing.html) | 1,769 | User Manual Landing | Interactive system guide & SVG diagram |
+| [forecast_pdf_export.html](file:///C:/Users/MSI%20PULSE%20GL66/coffee_forecasting_system/templates/forecast_pdf_export.html) | 603 | Forecast PDF Template | Formatting for PDF export of forecasts |
+| [report_pdf_export.html](file:///C:/Users/MSI%20PULSE%20GL66/coffee_forecasting_system/templates/report_pdf_export.html) | 917 | Report PDF Template | Formatting for PDF export of monthly reports |
 
 ### Database Structure
 
 | Table | Columns | Purpose |
 |---|---|---|
 | `sales_transaction` | 27 columns | Main data warehouse — every sale ever made |
-| `sales_forecast` | 5 columns | AI prediction cache — Prophet output |
+| `sales_forecast` | 6 columns | AI prediction cache — Prophet output |
 | `branch` | 11 columns | Branch registry with holiday effect and coordinates |
 | `product_recipes` | 9 columns | Ingredient recipes for demand forecasting |
 
