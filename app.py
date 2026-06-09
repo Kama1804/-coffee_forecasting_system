@@ -217,6 +217,16 @@ def chatbot():
 def manage_business():
     return render_template('manage_business.html')
 
+@app.route('/user-manual')
+@login_required
+def user_manual_page():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT branch_code, branch_name, location_type, description, holiday_effect FROM branch WHERE is_active = 1 ORDER BY branch_name ASC")
+    branches = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return render_template('manual_landing.html', branches=branches)
+
 @app.route('/upload', methods=['GET', 'POST'])
 @login_required
 def upload_file():

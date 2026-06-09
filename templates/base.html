@@ -110,6 +110,12 @@
                 <span class="nav-icon"><i class="fa-solid fa-gear"></i></span>
                 <span class="nav-label">Setting Management</span>
             </a>
+
+            <a href="{{ url_for('user_manual_page') }}"
+               class="nav-link text-decoration-none {{ 'active' if request.endpoint == 'user_manual_page' else '' }}">
+                <span class="nav-icon"><i class="fa-solid fa-book"></i></span>
+                <span class="nav-label">User Manual</span>
+            </a>
         </div>
 
         <!-- System Status pill -->

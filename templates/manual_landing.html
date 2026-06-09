@@ -1,0 +1,1769 @@
+{% extends "base.html" %}
+{% block title %}User Manual{% endblock %}
+
+{% block styles %}
+<!-- Load MathJax CDN for dynamic mathematical formula typesetting -->
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+<style>
+    :root {
+        --coffee-dark: #3E2723;
+        --coffee-medium: #5D4037;
+        --coffee-light: #8D6E63;
+        --coffee-cream: #EFEBE9;
+        --coffee-accent: #D7CCC8;
+        --bg-warm-light: #FDFBF7;
+        --card-white: #FFFFFF;
+        
+        --text-slate-dark: #1E293B;
+        --text-slate-muted: #64748B;
+        --text-green: #0F5132;
+        --bg-green-soft: #D1E7DD;
+        --border-color: #E2E8F0;
+        
+        --radius-std: 14px;
+        --shadow-soft: 0 4px 18px -4px rgba(93, 64, 55, 0.08);
+        --shadow-hover: 0 10px 25px -5px rgba(93, 64, 55, 0.15);
+    }
+
+    body {
+        background-color: var(--bg-warm-light);
+        color: var(--text-slate-dark);
+        font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    }
+
+    .manual-header {
+        background: linear-gradient(135deg, var(--coffee-dark) 0%, var(--coffee-medium) 100%);
+        border-radius: var(--radius-std);
+        padding: 2.5rem;
+        color: var(--card-white);
+        margin-bottom: 2.5rem;
+        box-shadow: var(--shadow-soft);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .manual-header::before {
+        content: '';
+        position: absolute;
+        top: -10%;
+        right: -5%;
+        width: 300px;
+        height: 300px;
+        background: radial-gradient(circle, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0) 70%);
+        border-radius: 50%;
+    }
+
+    .manual-title {
+        font-weight: 800;
+        letter-spacing: -0.025em;
+        font-size: 2.2rem;
+        color: #FFFFFF !important;
+    }
+
+    .manual-subtitle {
+        color: var(--coffee-accent);
+        font-size: 1.05rem;
+        max-width: 700px;
+        font-weight: 400;
+    }
+
+    /* ── QUICK METRICS BANNER ── */
+    .quick-banner {
+        background: #FFFBEB;
+        border: 1px solid #FCD34D;
+        border-radius: var(--radius-std);
+        padding: 1.25rem 1.5rem;
+        margin-bottom: 2.5rem;
+        display: flex;
+        gap: 1rem;
+        align-items: flex-start;
+    }
+
+    .quick-banner-icon {
+        color: #D97706;
+        font-size: 1.5rem;
+        margin-top: 2px;
+    }
+
+    /* ── INTERACTIVE SVG BLUEPRINT ── */
+    .arch-card {
+        background: var(--card-white);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-std);
+        padding: 2rem;
+        box-shadow: var(--shadow-soft);
+        margin-bottom: 3rem;
+    }
+
+    .arch-diagram-container {
+        background: #FAF8F5;
+        border-radius: 10px;
+        border: 1px dashed var(--coffee-light);
+        padding: 1.5rem;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        overflow-x: auto;
+    }
+
+    .interactive-svg-map {
+        width: 100%;
+        max-width: 960px;
+        height: auto;
+        min-width: 750px;
+    }
+
+    .svg-node {
+        cursor: pointer;
+    }
+
+    .svg-node rect {
+        transition: all 0.2s ease;
+    }
+
+    .svg-node:hover rect, .svg-node.active rect {
+        fill: var(--coffee-cream) !important;
+        stroke: var(--coffee-dark) !important;
+        stroke-width: 3px !important;
+        filter: drop-shadow(0px 6px 12px rgba(93, 64, 55, 0.3));
+    }
+
+    /* ── TIMELINE ── */
+    .timeline-container {
+        position: relative;
+        padding-left: 3rem;
+        margin-top: 2rem;
+        margin-bottom: 4rem;
+    }
+
+    .timeline-container::before {
+        content: '';
+        position: absolute;
+        left: 15px;
+        top: 0;
+        bottom: 0;
+        width: 4px;
+        background: linear-gradient(180deg, var(--coffee-light) 0%, var(--coffee-dark) 100%);
+        border-radius: 8px;
+    }
+
+    .timeline-step {
+        position: relative;
+        background: var(--card-white);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-std);
+        padding: 1.75rem;
+        margin-bottom: 2rem;
+        box-shadow: var(--shadow-soft);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .timeline-step:hover {
+        transform: translateX(5px);
+        box-shadow: var(--shadow-hover);
+        border-color: var(--coffee-light);
+    }
+
+    .step-badge {
+        position: absolute;
+        left: -48px;
+        top: 22px;
+        width: 34px;
+        height: 34px;
+        background: var(--card-white);
+        border: 4px solid var(--coffee-dark);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        color: var(--coffee-dark);
+        font-size: 0.9rem;
+        z-index: 10;
+        box-shadow: 0 2px 8px rgba(93, 64, 55, 0.15);
+    }
+
+    .step-icon-wrap {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 42px;
+        height: 42px;
+        border-radius: 10px;
+        background-color: var(--coffee-cream);
+        color: var(--coffee-dark);
+        font-size: 1.2rem;
+        margin-right: 1rem;
+    }
+
+    .step-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--coffee-dark);
+        display: flex;
+        align-items: center;
+        margin-bottom: 0.75rem;
+    }
+
+    .step-meta {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-weight: 600;
+        color: var(--coffee-light);
+        margin-bottom: 0.25rem;
+    }
+
+    .tech-pill-stack {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 1rem;
+    }
+
+    .tech-pill {
+        font-size: 0.72rem;
+        font-family: 'JetBrains Mono', monospace;
+        font-weight: 500;
+        background: #F1F5F9;
+        color: var(--text-slate-muted);
+        padding: 4px 10px;
+        border-radius: 6px;
+        border: 1px solid #E2E8F0;
+    }
+
+    /* ── TAB CARD ── */
+    .tech-tabs-card {
+        background: var(--card-white);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-std);
+        overflow: hidden;
+        box-shadow: var(--shadow-soft);
+        margin-bottom: 3rem;
+    }
+
+    .nav-tabs-custom {
+        background: #FAF8F5;
+        border-bottom: 1px solid var(--border-color);
+        padding: 0.5rem 1rem 0;
+        display: flex;
+        gap: 0.5rem;
+        overflow-x: auto;
+    }
+
+    .tab-btn-custom {
+        background: transparent;
+        border: none;
+        padding: 0.75rem 1.25rem;
+        font-size: 0.88rem;
+        font-weight: 600;
+        color: var(--text-slate-muted);
+        border-radius: 10px 10px 0 0;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        position: relative;
+        white-space: nowrap;
+        text-decoration: none !important;
+    }
+
+    .tab-btn-custom:hover {
+        color: var(--coffee-dark) !important;
+        background: rgba(93, 64, 55, 0.08);
+    }
+
+    .tab-btn-custom.active {
+        color: var(--coffee-dark) !important;
+        background: var(--card-white);
+        border: 1px solid var(--border-color);
+        border-bottom: 1px solid transparent;
+        margin-bottom: -1px;
+    }
+
+    .tab-pane-custom {
+        display: none;
+        padding: 2.25rem;
+    }
+
+    .tab-pane-custom.active {
+        display: block;
+    }
+
+    .spec-table {
+        width: 100%;
+        font-size: 0.88rem;
+        border-collapse: collapse;
+        margin-bottom: 1.5rem;
+    }
+
+    .spec-table th, .spec-table td {
+        padding: 12px 16px;
+        border-bottom: 1px solid #F1F5F9;
+        text-align: left;
+    }
+
+    .spec-table th {
+        font-weight: 600;
+        color: var(--coffee-dark);
+        background: #FDFBF7;
+    }
+
+    .spec-table td code {
+        font-family: 'JetBrains Mono', monospace;
+        color: #B45309;
+        background: #FFFBEB;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 0.82rem;
+    }
+
+    /* ── FORMULAS ── */
+    .formula-card {
+        background: #FAF8F5;
+        border-left: 4px solid var(--coffee-dark);
+        border-radius: 0 var(--radius-std) var(--radius-std) 0;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        box-shadow: inset 0 1px 3px rgba(0,0,0,0.02);
+    }
+
+    .formula-badge {
+        background-color: var(--coffee-cream);
+        color: var(--coffee-dark);
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        display: inline-block;
+        margin-bottom: 0.75rem;
+    }
+
+    .owner-desc {
+        background-color: #F8FAFC;
+        border: 1px solid #E2E8F0;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-top: 1rem;
+    }
+
+    .owner-desc h6 {
+        font-weight: 700;
+        color: var(--coffee-dark);
+        margin-bottom: 0.5rem;
+    }
+
+    /* ── SIMULATORS ── */
+    .sim-card-embedded {
+        background: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        border-radius: var(--radius-std);
+        padding: 1.5rem;
+        margin-top: 2rem;
+        box-shadow: var(--shadow-soft);
+    }
+
+    .sim-header {
+        font-weight: 700;
+        color: var(--coffee-dark);
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 0.75rem;
+        margin-bottom: 1.25rem;
+    }
+
+    .sim-input, .sim-select {
+        background: #FFFFFF;
+        border: 1px solid #CBD5E1;
+        color: var(--text-slate-dark);
+        border-radius: 8px;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.9rem;
+    }
+
+    .sim-input:focus, .sim-select:focus {
+        border-color: var(--coffee-light);
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(141, 110, 99, 0.15);
+    }
+
+    .sim-result-badge {
+        font-size: 1.25rem;
+        font-weight: 800;
+        padding: 0.5rem 1.25rem;
+        border-radius: 8px;
+        text-align: center;
+        background: var(--coffee-dark);
+        color: #FFFFFF;
+        box-shadow: 0 4px 10px rgba(62, 39, 35, 0.15);
+    }
+
+    /* ── OUTLET CARDS ── */
+    .outlet-spec-card {
+        border-radius: var(--radius-std);
+        background: #FFFFFF;
+        border: 1px solid var(--border-color);
+        padding: 1.5rem;
+        height: 100%;
+        box-shadow: var(--shadow-soft);
+    }
+
+    /* ── VIDEO CONTAINER ── */
+    .video-card {
+        background: var(--card-white);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-std);
+        padding: 2rem;
+        box-shadow: var(--shadow-soft);
+        margin-bottom: 3rem;
+    }
+
+    .video-placeholder {
+        background: #FAF8F5;
+        border-radius: 10px;
+        border: 1px dashed var(--coffee-light);
+        padding: 2rem;
+        text-align: center;
+        color: var(--text-slate-muted);
+    }
+
+    .chapter-btn-custom {
+        background: #FAF8F5;
+        color: var(--coffee-dark);
+        border: 1px solid var(--border-color);
+        border-radius: 20px;
+        padding: 0.35rem 0.85rem;
+        font-size: 0.82rem;
+        font-weight: 600;
+        transition: all 0.2s ease;
+        text-decoration: none;
+    }
+
+    .chapter-btn-custom:hover {
+        background: var(--coffee-dark);
+        color: #FFFFFF;
+        border-color: var(--coffee-dark);
+        transform: translateY(-1px);
+    }
+
+    /* ── MOBILE PIPELINE NAVIGATION ── */
+    .mobile-pipeline-grid {
+        display: none;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 6px;
+        background: #FAF8F5;
+        padding: 8px;
+        border-radius: var(--radius-std);
+        border: 1px solid var(--border-color);
+    }
+
+    .mobile-step-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        background: var(--card-white);
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        padding: 8px 4px;
+        font-size: 0.68rem;
+        font-weight: 700;
+        color: var(--text-slate-muted);
+        cursor: pointer;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        text-align: center;
+    }
+
+    .mobile-step-btn i {
+        font-size: 1.15rem;
+        color: var(--coffee-light);
+        transition: transform 0.2s ease;
+    }
+
+    .mobile-step-btn:hover {
+        background: rgba(93, 64, 55, 0.05);
+        color: var(--coffee-dark);
+    }
+
+    .mobile-step-btn.active {
+        background: var(--coffee-cream) !important;
+        border-color: var(--coffee-dark) !important;
+        color: var(--coffee-dark) !important;
+        box-shadow: 0 4px 10px rgba(93, 64, 55, 0.15);
+    }
+
+    .mobile-step-btn.active i {
+        color: var(--coffee-dark);
+        transform: scale(1.15);
+    }
+
+    /* ── RESPONSIVE MEDIA QUERIES ── */
+    @media (max-width: 991.98px) {
+        .manual-title {
+            font-size: 1.85rem;
+        }
+        .nav-tabs-custom {
+            padding: 0.5rem 0.5rem 0;
+        }
+    }
+
+    @media (max-width: 767.98px) {
+        .manual-header {
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .manual-title {
+            font-size: 1.5rem;
+            text-align: center;
+        }
+        .manual-subtitle {
+            font-size: 0.88rem;
+            text-align: center;
+            margin: 0 auto;
+        }
+        .manual-header::before {
+            display: none; /* Hide background circles to keep clean text */
+        }
+        
+        .quick-banner {
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+        .quick-banner-icon {
+            margin-top: 0;
+            font-size: 1.8rem;
+        }
+        
+        .arch-card {
+            padding: 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+        .arch-diagram-container {
+            display: none !important;
+        }
+        .mobile-pipeline-grid {
+            display: grid !important;
+        }
+
+        .timeline-container {
+            padding-left: 1.75rem;
+            margin-top: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .timeline-container::before {
+            left: 8px;
+        }
+        .timeline-step {
+            padding: 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+        .timeline-step:hover {
+            transform: none; /* Disable horizontal hover on mobile */
+        }
+        .step-badge {
+            left: -33px;
+            top: 15px;
+            width: 26px;
+            height: 26px;
+            font-size: 0.75rem;
+            border-width: 3px;
+        }
+        .step-meta {
+            font-size: 0.65rem;
+            margin-bottom: 4px;
+        }
+        .step-title {
+            font-size: 0.95rem;
+            gap: 8px;
+        }
+        .step-icon-wrap {
+            width: 28px;
+            height: 28px;
+            font-size: 0.85rem;
+        }
+        
+        .tab-btn-custom {
+            padding: 0.6rem 1rem;
+            font-size: 0.82rem;
+        }
+        .tab-pane-custom {
+            padding: 1.25rem;
+        }
+        
+        .formula-card {
+            padding: 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+        .formula-badge {
+            font-size: 0.65rem;
+            padding: 3px 8px;
+        }
+        
+        .sim-card-embedded {
+            padding: 1.25rem;
+        }
+        
+        /* Flex adjustments for calculation summaries */
+        .tab-pane-custom .d-flex.align-items-center.justify-content-between {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 10px !important;
+        }
+        
+        .sim-result-badge {
+            align-self: flex-end;
+            margin-top: 5px;
+        }
+        
+        .video-card {
+            padding: 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+        .video-placeholder {
+            padding: 1rem;
+        }
+        .chapter-btn-custom {
+            padding: 0.3rem 0.6rem;
+            font-size: 0.76rem;
+            margin-bottom: 6px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .mobile-pipeline-grid {
+            grid-template-columns: 1fr;
+            gap: 8px;
+        }
+        .mobile-step-btn {
+            flex-direction: row;
+            justify-content: flex-start;
+            padding: 10px 14px;
+            gap: 12px;
+            font-size: 0.78rem;
+        }
+        .mobile-step-btn i {
+            font-size: 1.1rem;
+            width: 20px;
+            text-align: center;
+        }
+        .tab-btn-custom {
+            padding: 0.5rem 0.8rem;
+            font-size: 0.78rem;
+        }
+    }
+
+    /* ── RESPONSIVE MATHJAX FORMULAS ── */
+    mjx-container[display="true"], .MathJax_Display {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        max-width: 100% !important;
+        padding: 0.5rem 0 !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+    
+    /* Clean scrollbar style for equations */
+    mjx-container[display="true"]::-webkit-scrollbar, 
+    .MathJax_Display::-webkit-scrollbar {
+        height: 4px;
+    }
+    mjx-container[display="true"]::-webkit-scrollbar-track, 
+    .MathJax_Display::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    mjx-container[display="true"]::-webkit-scrollbar-thumb, 
+    .MathJax_Display::-webkit-scrollbar-thumb {
+        background: var(--coffee-light);
+        border-radius: 99px;
+    }
+    
+    /* Dynamic scaling of formulas on smaller devices */
+    @media (max-width: 767.98px) {
+        mjx-container {
+            font-size: 88% !important;
+        }
+    }
+    
+    @media (max-width: 480px) {
+        mjx-container {
+            font-size: 80% !important;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="manual-header" data-aos="fade-down">
+    <div class="d-flex align-items-center gap-3 mb-2">
+        <div class="step-icon-wrap" style="background: var(--coffee-cream); width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 10px;">
+            <i class="fa-solid fa-book-open" style="font-size: 1.4rem; color: var(--coffee-dark);"></i>
+        </div>
+        <h1 class="manual-title mb-0">System User Manual & Guide</h1>
+    </div>
+    <p class="manual-subtitle mb-0">
+        A plain-English operational blueprint detailing how MCS Analytics calculates dashboard metrics, trains predictive models, and translates inventory needs into actionable steps.
+    </p>
+</div>
+
+<!-- ── GOLDEN RULE UPLOAD ALERT BANNER ── -->
+<div class="quick-banner" data-aos="fade-up">
+    <div class="quick-banner-icon"><i class="fa-solid fa-circle-exclamation"></i></div>
+    <div>
+        <h6 class="mb-1 text-warning-dark" style="font-weight:700; color: #92400E;">The Ingestion Golden Rule Milestone</h6>
+        <p class="small text-muted mb-0">
+            To unlock the <strong>AI SYNCED</strong> engine status and achieve prediction reliability, the system requires an upload history containing at least <strong>14 operational days + 2 distinct public holidays</strong> per outlet. This allows the machine learning models to map baseline trends and seasonal offsets accurately.
+        </p>
+    </div>
+</div>
+
+<!-- ====================================================
+     SECTION 1: THE END-TO-END INTERACTIVE BLUEPRINT
+==================================================== -->
+<div class="arch-card" data-aos="fade-up">
+    <h4 class="mb-2 d-flex align-items-center gap-2" style="font-weight: 700; color: var(--coffee-dark);">
+        <i class="fa-solid fa-network-wired text-primary"></i> 1. System Integration & Pipeline Map
+    </h4>
+    <p class="text-muted small mb-4">
+        Hover or click the core nodes below to trace how transaction records flow through the system. Each step helps turn raw operational data into finished business plans.
+    </p>
+
+    <div class="arch-diagram-container">
+        <!-- Interactive Vector SVG Diagram -->
+        <svg class="interactive-svg-map" viewBox="0 0 960 380" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 125,190 L 835,190" stroke="#D7CCC8" stroke-width="4" stroke-dasharray="8 8" fill="none" />
+            <path d="M 140,190 Q 285,190 285,190" stroke="#8D6E63" stroke-width="3" fill="none" />
+            <path d="M 285,190 Q 425,190 425,190" stroke="#8D6E63" stroke-width="3" fill="none" />
+            <path d="M 425,190 Q 565,190 565,190" stroke="#8D6E63" stroke-width="3" fill="none" />
+            <path d="M 565,190 Q 705,190 705,190" stroke="#8D6E63" stroke-width="3" fill="none" />
+            <path d="M 705,190 Q 825,190 825,190" stroke="#8D6E63" stroke-width="3" fill="none" />
+
+            <!-- STEP 1 -->
+            <g class="svg-node" transform="translate(40, 105)" onclick="showStepInfo('step-upload', this)">
+                <rect width="170" height="170" rx="14" fill="#FFFFFF" stroke="#8D6E63" stroke-width="1.5" />
+                <circle cx="85" cy="50" r="24" fill="#EFEBE9" />
+                <text x="85" y="56" font-family="'Font Awesome 6 Free'" font-weight="900" font-size="20" fill="#3E2723" text-anchor="middle">&#xf0ee;</text>
+                <text x="85" y="105" font-family="system-ui" font-weight="bold" font-size="12" fill="#3E2723" text-anchor="middle">1. Register Upload</text>
+                <text x="85" y="125" font-family="system-ui" font-size="10" fill="#64748B" text-anchor="middle">Input: 17-Column POS CSV</text>
+                <text x="85" y="140" font-family="system-ui" font-size="10" fill="#64748B" text-anchor="middle">Checks schema bounds</text>
+            </g>
+
+            <!-- STEP 2 -->
+            <g class="svg-node" transform="translate(230, 105)" onclick="showStepInfo('step-etl', this)">
+                <rect width="170" height="170" rx="14" fill="#FFFFFF" stroke="#8D6E63" stroke-width="1.5" />
+                <circle cx="85" cy="50" r="24" fill="#E8F0FE" />
+                <text x="85" y="56" font-family="'Font Awesome 6 Free'" font-weight="900" font-size="20" fill="#1A73E8" text-anchor="middle">&#xf013;</text>
+                <text x="85" y="105" font-family="system-ui" font-weight="bold" font-size="12" fill="#3E2723" text-anchor="middle">2. Data Ingestion</text>
+                <text x="85" y="125" font-family="system-ui" font-size="10" fill="#64748B" text-anchor="middle">Formats dates & times</text>
+                <text x="85" y="140" font-family="system-ui" font-size="10" fill="#64748B" text-anchor="middle">Attaches local weather</text>
+            </g>
+
+            <!-- STEP 3 -->
+            <g class="svg-node" transform="translate(420, 105)" onclick="showStepInfo('step-db', this)">
+                <rect width="170" height="170" rx="14" fill="#FFFFFF" stroke="#8D6E63" stroke-width="1.5" />
+                <circle cx="85" cy="50" r="24" fill="#E6F4EA" />
+                <text x="85" y="56" font-family="'Font Awesome 6 Free'" font-weight="900" font-size="20" fill="#137333" text-anchor="middle">&#xf1c0;</text>
+                <text x="85" y="105" font-family="system-ui" font-weight="bold" font-size="12" fill="#3E2723" text-anchor="middle">3. Data Warehouse</text>
+                <text x="85" y="125" font-family="system-ui" font-size="10" fill="#64748B" text-anchor="middle">Secure Storage Commit</text>
+                <text x="85" y="140" font-family="system-ui" font-size="10" fill="#64748B" text-anchor="middle">Central Business Database</text>
+            </g>
+
+            <!-- STEP 4 -->
+            <g class="svg-node" transform="translate(610, 105)" onclick="showStepInfo('step-forecast', this)">
+                <rect width="170" height="170" rx="14" fill="#FFFFFF" stroke="#8D6E63" stroke-width="1.5" />
+                <circle cx="85" cy="50" r="24" fill="#FCE8E6" />
+                <text x="85" y="56" font-family="'Font Awesome 6 Free'" font-weight="900" font-size="20" fill="#C5221F" text-anchor="middle">&#xf43e;</text>
+                <text x="85" y="105" font-family="system-ui" font-weight="bold" font-size="12" fill="#3E2723" text-anchor="middle">4. Prophet Forecast</text>
+                <text x="85" y="125" font-family="system-ui" font-size="10" fill="#64748B" text-anchor="middle">Runs 5-Day ML Projections</text>
+                <text x="85" y="140" font-family="system-ui" font-size="10" fill="#64748B" text-anchor="middle">Calculates Stock Levels</text>
+            </g>
+
+            <!-- STEP 5 -->
+            <g class="svg-node" transform="translate(800, 105)" onclick="showStepInfo('step-ai', this)">
+                <rect width="120" height="170" rx="14" fill="#FFFFFF" stroke="#8D6E63" stroke-width="1.5" />
+                <circle cx="60" cy="50" r="24" fill="#F3E5F5" />
+                <text x="60" y="56" font-family="'Font Awesome 6 Free'" font-weight="900" font-size="20" fill="#7B1FA2" text-anchor="middle">&#xf544;</text>
+                <text x="60" y="105" font-family="system-ui" font-weight="bold" font-size="12" fill="#3E2723" text-anchor="middle">5. AI Advisor</text>
+                <text x="60" y="125" font-family="system-ui" font-size="10" fill="#64748B" text-anchor="middle">Real-time chat answers</text>
+                <text x="60" y="140" font-family="system-ui" font-size="10" fill="#64748B" text-anchor="middle">A4 PDF Reports</text>
+            </g>
+        </svg>
+    </div>
+
+    <!-- Mobile-Optimized Grid for Pipeline steps (Visible only on mobile/tablet) -->
+    <div class="mobile-pipeline-grid d-md-none mb-3">
+        <button class="mobile-step-btn active" onclick="showStepInfo('step-upload', this)">
+            <i class="fa-solid fa-cloud-arrow-up"></i>
+            <span>1. Upload</span>
+        </button>
+        <button class="mobile-step-btn" onclick="showStepInfo('step-etl', this)">
+            <i class="fa-solid fa-gears"></i>
+            <span>2. Ingest</span>
+        </button>
+        <button class="mobile-step-btn" onclick="showStepInfo('step-db', this)">
+            <i class="fa-solid fa-database"></i>
+            <span>3. Warehouse</span>
+        </button>
+        <button class="mobile-step-btn" onclick="showStepInfo('step-forecast', this)">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+            <span>4. Forecast</span>
+        </button>
+        <button class="mobile-step-btn" onclick="showStepInfo('step-ai', this)">
+            <i class="fa-solid fa-robot"></i>
+            <span>5. Advisor</span>
+        </button>
+    </div>
+
+    <!-- Dynamic info card for the pipeline step -->
+    <div class="mt-3 p-3" style="background: #F8FAFC; border-left: 4px solid var(--coffee-dark); border-radius: 4px 8px 8px 4px;" id="stepInfoCard">
+        <span class="badge bg-secondary text-white mb-2"><i class="fa-solid fa-circle-info me-1"></i> Interactive Pipeline Node Info</span>
+        <p class="m-0 text-muted small" id="stepInfoText">Click any pipeline node in the blueprint diagram above to instantly display the detailed ingestion and logic processes happening behind the scenes.</p>
+    </div>
+</div>
+
+<!-- ====================================================
+     SECTION 2: CHRONOLOGICAL WORKFLOW IN DEPTH
+==================================================== -->
+<div class="row">
+    <div class="col-12">
+        <h4 class="mb-3 d-flex align-items-center gap-2" style="font-weight: 700; color: var(--coffee-dark);">
+            <i class="fa-solid fa-route text-success"></i> 2. Detailed End-to-End System Pipeline Flow
+        </h4>
+        <p class="text-muted small">
+            Follow this chronological flow to import raw cashier registers, verify ingredient parameters, and view decision-support charts.
+        </p>
+
+        <div class="timeline-container">
+
+            <!-- STEP 1 -->
+            <div class="timeline-step step-1" data-aos="fade-up">
+                <div class="step-badge">1</div>
+                <div class="step-meta">Phase 1: Input & Ingestion</div>
+                <h5 class="step-title">
+                    <div class="step-icon-wrap"><i class="fa-solid fa-cloud-arrow-up"></i></div>
+                    Exporting & Uploading Raw POS CSV Data
+                </h5>
+                <p class="small text-muted mb-2">
+                    Open your outlet's point-of-sale console and export the historical transactions as a CSV file. Go to the <strong>Data Ingestion</strong> page in your sidebar and drag the file into the secure drop zone.
+                </p>
+                <p class="small text-muted">
+                    The platform scans the file headers against the <strong>17-column raw layout schema</strong>. If any expected headers are missing, the interface flags an immediate error, preventing bad columns from reaching the warehouse database.
+                </p>
+                <div class="tech-pill-stack">
+                    <span class="tech-pill">Page: Data Ingestion</span>
+                    <span class="tech-pill">Validation: Strict 17-column layout check</span>
+                </div>
+            </div>
+
+            <!-- STEP 2 -->
+            <div class="timeline-step step-2" data-aos="fade-up">
+                <div class="step-badge">2</div>
+                <div class="step-meta">Phase 2: Automated ETL Cleansing & Enrichment</div>
+                <h5 class="step-title">
+                    <div class="step-icon-wrap"><i class="fa-solid fa-gears"></i></div>
+                    Formatting, Weather Integration, & Data Enrichment
+                </h5>
+                <p class="small text-muted mb-2">
+                    Once the CSV file is verified, the system processes it. The pipeline cleans transaction times into normalized attributes like hour, day, and month strings.
+                </p>
+                <p class="small text-muted">
+                    To account for weather-driven sales, the engine queries localized meteorological logs. Using coordinate bounding boxes, it maps transactions to historical weather states (Sunny, Cloudy, Raining, or Thunderstorm).
+                </p>
+                <div class="tech-pill-stack">
+                    <span class="tech-pill">Engine: Data Cleansing & Ingestion</span>
+                    <span class="tech-pill">Enrichment: Weather state & temperature tracking</span>
+                    <span class="tech-pill">Weather API: Open-Meteo & OpenWeatherMap</span>
+                </div>
+            </div>
+
+            <!-- STEP 3 -->
+            <div class="timeline-step step-3" data-aos="fade-up">
+                <div class="step-badge">3</div>
+                <div class="step-meta">Phase 3: Recipe Verification</div>
+                <h5 class="step-title">
+                    <div class="step-icon-wrap"><i class="fa-solid fa-mortar-pestle"></i></div>
+                    Recipe Integrity & Material Audits
+                </h5>
+                <p class="small text-muted mb-2">
+                    The system matches menu items with defined material weights (such as coffee beans, milk, chocolate, and cup sizes) in the recipe registry. If a new menu item has no recipe parameters, the system prompts the owner.
+                </p>
+                <p class="small text-muted">
+                    Maintaining recipes allows the system to convert daily beverage forecast volumes into exact purchase-order ingredient amounts.
+                </p>
+                <div class="tech-pill-stack">
+                    <span class="tech-pill">Registry: Recipe Database</span>
+                    <span class="tech-pill">Metrics: Coffee beans, milk, chocolate, and cup sizes</span>
+                </div>
+            </div>
+
+            <!-- STEP 4 -->
+            <div class="timeline-step step-4" data-aos="fade-up">
+                <div class="step-badge">4</div>
+                <div class="step-meta">Phase 4: Predictive Modeling</div>
+                <h5 class="step-title">
+                    <div class="step-icon-wrap"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+                    Meta Prophet Time-Series Predictions
+                </h5>
+                <p class="small text-muted mb-2">
+                    Now, navigate to the <strong>AI Forecast</strong> view. This triggers the machine learning engine to train a Facebook Prophet multiplicative regression model.
+                </p>
+                <p class="small text-muted">
+                    The engine combines historical sales, localized weather predictions (via a 3-attempt retry loop), and public holiday multipliers to generate a 5-day forecast. It also translates expected beverage sales into precise ingredient lists (e.g., total grams of coffee beans or milliliters of milk needed).
+                </p>
+                <div class="tech-pill-stack">
+                    <span class="tech-pill">Engine: AI Forecasting Module</span>
+                    <span class="tech-pill">Model: Prophet regression</span>
+                    <span class="tech-pill">Features: Malaysia public holidays & 5-day weather forecasts</span>
+                </div>
+            </div>
+
+            <!-- STEP 5 -->
+            <div class="timeline-step step-5" data-aos="fade-up">
+                <div class="step-badge">5</div>
+                <div class="step-meta">Phase 5: Decision Support</div>
+                <h5 class="step-title">
+                    <div class="step-icon-wrap"><i class="fa-solid fa-brain"></i></div>
+                    AI Guidance & Executive PDF Reports
+                </h5>
+                <p class="small text-muted mb-2">
+                    Finally, use your dashboard's intelligent tools. The <strong>DSS Chatbot</strong> answers operational questions, and the <strong>PDF Report</strong> engine generates polished business summaries.
+                </p>
+                <p class="small text-muted">
+                    The system uses Google Gemini to translate raw forecast metrics into clear, plain English summaries, complete with 3 actionable steps to help improve sales, adjust shifts, and manage stock.
+                </p>
+                <div class="tech-pill-stack">
+                    <span class="tech-pill">AI Core: Google Gemini (Gemini 3.1 Flash-Lite)</span>
+                    <span class="tech-pill">Layouts: CSS A4 Print Layout</span>
+                    <span class="tech-pill">Export: Print-Ready PDF Engine</span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- ====================================================
+     SECTION 3: TECHNICAL SPECIFICATIONS & SYSTEM PAGES
+==================================================== -->
+<div class="tech-tabs-card" data-aos="fade-up">
+    <div class="p-3" style="border-bottom: 1px solid var(--border-color); background: #FAF8F5;">
+        <h5 class="mb-0 fw-bold" style="color: var(--coffee-dark); font-size: 1.1rem; font-weight: 800 !important;">
+            <i class="fa-solid fa-folder-open"></i> 3. Page-by-Page Walkthrough & Mathematical Formulas
+        </h5>
+        <p class="text-muted small mb-0">Select a tab below to learn how each system page functions, its underlying data models, operational flows, and math calculations.</p>
+    </div>
+    
+    <div class="nav-tabs-custom">
+        <button class="tab-btn-custom active" onclick="switchTab(event, 'tab-dashboard')"><i class="fa-solid fa-chart-line me-1"></i> Dashboard</button>
+        <button class="tab-btn-custom" onclick="switchTab(event, 'tab-ingestion')"><i class="fa-solid fa-cloud-arrow-up me-1"></i> Data Ingestion</button>
+        <button class="tab-btn-custom" onclick="switchTab(event, 'tab-forecast')"><i class="fa-solid fa-wand-magic-sparkles me-1"></i> AI Forecast</button>
+        <button class="tab-btn-custom" onclick="switchTab(event, 'tab-report')"><i class="fa-solid fa-file-pdf me-1"></i> PDF Report</button>
+        <button class="tab-btn-custom" onclick="switchTab(event, 'tab-chatbot')"><i class="fa-solid fa-robot me-1"></i> DSS Chatbot</button>
+        <button class="tab-btn-custom" onclick="switchTab(event, 'tab-settings')"><i class="fa-solid fa-gears me-1"></i> Settings</button>
+    </div>
+
+    <!-- TAB 1: DASHBOARD -->
+    <div id="tab-dashboard" class="tab-pane-custom active">
+        <h5 class="font-weight-bold mb-3" style="color: var(--coffee-dark);">Sales Overview Dashboard</h5>
+        <p class="text-secondary small mb-4">
+            Provides the business owner with a live analytical overview of performance metrics. It charts daily net revenue, transaction count, average order value (AOV), sales by product categories, payment method distribution, hourly transaction velocity, and active promotions.
+        </p>
+
+        <div class="row mb-4">
+            <div class="col-md-6 mb-3 mb-md-0">
+                <h6 class="text-primary fw-bold" style="font-size:0.95rem;"><i class="fa-solid fa-play me-2"></i> How to Use This Page (User Flow)</h6>
+                <ol class="text-muted small ps-3">
+                    <li>Navigate to the <strong>Dashboard</strong> in the sidebar.</li>
+                    <li>Select a reporting window from the <strong>Period Filter</strong> (e.g. <i>Last 7 Days</i>, <i>Last 30 Days</i>, or specific years and months) to recalculate all statistics.</li>
+                    <li>Toggle the <strong>Outlet Filter</strong> to review data combined for <i>All Outlets</i> or isolated to a single branch.</li>
+                    <li>Scroll down to inspect the hourly transactions chart. Toggle the <strong>Ramadhan View</strong> switch to audit seasonal sales shifts.</li>
+                </ol>
+            </div>
+            <div class="col-md-6">
+                <h6 class="text-primary fw-bold" style="font-size:0.95rem;"><i class="fa-solid fa-database me-2"></i> How It Works (Under the Hood Flow)</h6>
+                <p class="text-muted small">
+                    The system aggregates transaction records, compiling total sales revenue (retained cash) and cup quantities. The data is filtered by selected date ranges and branch outlets, then displayed dynamically as visual charts on the dashboard.
+                </p>
+            </div>
+        </div>
+
+        <h6 class="text-primary fw-bold mb-3" style="font-size:0.95rem;"><i class="fa-solid fa-calculator me-2"></i> Dashboard Metrics & Calculations</h6>
+        
+        <!-- AOV Formula -->
+        <div class="formula-card">
+            <span class="formula-badge">Metric: Average Order Value (AOV)</span>
+            <p class="small text-muted mb-2">Measures the average ringgit amount spent by a customer during a single transaction.</p>
+            $$\text{Average Order Value (RM)} = \frac{\text{Total Net Sales (RM)}}{\text{Total Transactions}}$$
+            <div class="owner-desc">
+                <h6><i class="fa-solid fa-mug-hot text-primary"></i> Example:</h6>
+                <p class="small text-muted mb-0">
+                    If your store records a net revenue of <strong>RM 1,200</strong> across <strong>80 transactions</strong> in a day: <br>
+                    $$\text{Calculation: } RM 1,200 \div 80 = RM 15.00$$
+                    Your AOV is <strong>RM 15.00</strong>. This tells you how much the average customer buys. Try to upsell pastries to increase this value!
+                </p>
+            </div>
+        </div>
+
+        <!-- Daily Average Revenue Formula -->
+        <div class="formula-card">
+            <span class="formula-badge">Metric: Daily Average Revenue</span>
+            <p class="small text-muted mb-2">Calculates the mean daily revenue, counting only active days where transactions took place.</p>
+            $$\text{Daily Average Revenue (RM)} = \frac{\text{Total Net Sales (RM)}}{\text{Total Operating Days}}$$
+            <div class="owner-desc">
+                <h6><i class="fa-solid fa-mug-hot text-primary"></i> Example:</h6>
+                <p class="small text-muted mb-0">
+                    If your total revenue is <strong>RM 9,000</strong> over a month, and your store was open and running transactions for exactly <strong>25 days</strong> (closed on Mondays): <br>
+                    $$\text{Calculation: } RM 9,000 \div 25 = RM 360.00$$
+                    Your Daily Average is <strong>RM 360.00</strong>. This excludes closed days so you see a true operational daily target.
+                </p>
+            </div>
+        </div>
+
+        <!-- Payday Spend Drift Index Formula -->
+        <div class="formula-card">
+            <span class="formula-badge">Metric: Payday Spend Drift Index (%)</span>
+            <p class="small text-muted mb-2">Measures changes in customer spending during the Malaysian salary payout period (defined as the 25th to the 28th of each month).</p>
+            $$\text{Spend Drift } (\%) = \left( \frac{\text{Payday Avg Spend} - \text{Standard Avg Spend}}{\text{Standard Avg Spend}} \right) \times 100$$
+            <div class="owner-desc">
+                <h6><i class="fa-solid fa-mug-hot text-primary"></i> Example:</h6>
+                <p class="small text-muted mb-0">
+                    If customers spend an average of <strong>RM 18.00</strong> per visit during payday dates (25th-28th) and only <strong>RM 15.00</strong> on normal days: <br>
+                    $$\text{Calculation: } \left( \frac{RM 18.00 - RM 15.00}{RM 15.00} \right) \times 100 = +20.0\%$$
+                    A drift of <strong>+20.0%</strong> means customers buy premium add-ons during payday week. Target high-margin seasonal menu promos in this window!
+                </p>
+            </div>
+        </div>
+
+        <!-- Campaign & Promo ROI Formula -->
+        <div class="formula-card">
+            <span class="formula-badge">Metric: Promotion ROI Multiplier</span>
+            <p class="small text-muted mb-2">Analyzes if marketing discounts are generating healthy revenues relative to the discount amount given away.</p>
+            $$\text{ROI Multiplier} = \frac{\text{Gross Revenue} - \text{Total Discounts}}{\text{Total Discounts}} = \frac{\text{Net Revenue}}{\text{Total Discounts}}$$
+            <div class="owner-desc">
+                <h6><i class="fa-solid fa-mug-hot text-primary"></i> Example:</h6>
+                <p class="small text-muted mb-0">
+                    If a "Buy 1 Free 1" promo generates <strong>RM 1,200</strong> gross sales, but you gave away <strong>RM 200</strong> in discounts: <br>
+                    $$\text{Net Revenue: } RM 1,200 - RM 200 = RM 1,000.00$$
+                    $$\text{ROI Multiplier: } RM 1,000 \div RM 200 = 5.00x$$
+                    An ROI of <strong>5.0x</strong> is <strong>GOOD (Sustainable)</strong>. An ROI score of 8.0x or more (≥ 8.0x) is Excellent, while < 5.0x suggests you are giving away too much discount!
+                </p>
+            </div>
+        </div>
+
+        <!-- Embedded ROI Simulator -->
+        <div class="sim-card-embedded">
+            <h5 class="sim-header"><i class="fa-solid fa-calculator text-success me-2"></i> Interactive Promotion ROI Calculator</h5>
+            <p class="small text-muted">Test if your menu discounts are sustainable. Enter your promo gross sales and discounts below to calculate your ROI multiplier.</p>
+            <div class="row g-3">
+                <div class="col-6 col-sm-4">
+                    <label class="form-label text-secondary small fw-bold">Gross Sales (RM)</label>
+                    <input type="number" class="form-control sim-input w-100" id="roiGross" value="1200" oninput="runRoi()">
+                </div>
+                <div class="col-6 col-sm-4">
+                    <label class="form-label text-secondary small fw-bold">Total Discounts (RM)</label>
+                    <input type="number" class="form-control sim-input w-100" id="roiDiscount" value="200" oninput="runRoi()">
+                </div>
+                <div class="col-12 col-sm-4 d-flex flex-column justify-content-end">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <span class="small text-secondary fw-bold">ROI Multiplier:</span>
+                        <span class="sim-result-badge mb-0" id="roiResult">5.00x</span>
+                    </div>
+                </div>
+            </div>
+            <div class="p-3 bg-light rounded mt-3 d-flex align-items-center justify-content-between">
+                <span class="small text-muted" id="roiExplanation">Formula: RM 1,000 net revenue / RM 200 discount = 5.0x return.</span>
+                <span class="badge bg-success" id="roiRating">GOOD (Sustainable)</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 2: INGESTION -->
+    <div id="tab-ingestion" class="tab-pane-custom">
+        <h5 class="font-weight-bold mb-3" style="color: var(--coffee-dark);">Data Ingestion & ETL Cleanse</h5>
+        <p class="text-secondary small mb-4">
+            The gateway of the analytical database. The upload pipeline takes raw point-of-sale cashier spreadsheets, checks schema structures, flags missing recipes, and automatically fetches historical weather codes.
+        </p>
+
+        <div class="row mb-4">
+            <div class="col-md-6 mb-3 mb-md-0">
+                <h6 class="text-primary fw-bold" style="font-size:0.95rem;"><i class="fa-solid fa-play me-2"></i> How to Use This Page (User Flow)</h6>
+                <ol class="text-muted small ps-3">
+                    <li>Go to the <strong>Data Ingestion</strong> tab in the navigation menu.</li>
+                    <li>Ensure your POS system exports are saved in a standard <strong>17-column CSV format</strong>.</li>
+                    <li>Drag and drop the CSV file into the upload dropzone, or click <strong>Browse Files</strong> to select it.</li>
+                    <li>Click <strong>Upload File</strong>. The loading indicators will display each verification phase.</li>
+                    <li>Once completed, review the <strong>Warehouse Profile</strong> panel on the right to verify total recorded entries, active categories, and total branches.</li>
+                </ol>
+            </div>
+            <div class="col-md-6">
+                <h6 class="text-primary fw-bold" style="font-size:0.95rem;"><i class="fa-solid fa-database me-2"></i> How It Works (Under the Hood Flow)</h6>
+                <p class="text-muted small mb-2">
+                    Executed automatically during ingestion, the system validates the 17 standard point-of-sale columns. It rejects the upload if duplicate transaction invoice numbers exist to prevent duplicate counting.
+                </p>
+                <p class="text-muted small">
+                    For every transaction date, the server calls the <strong>Open-Meteo Archive API</strong> (<code>archive-api.open-meteo.com</code>) using the branch coordinates. It aggregates weather codes during <strong>daylight hours (7:00 AM - 7:00 PM)</strong> to vote for a dominant weather condition label (Sunny, Cloudy, Raining, or Thunderstorm).
+                </p>
+            </div>
+        </div>
+
+        <h6 class="text-primary fw-bold mb-3" style="font-size:0.95rem;"><i class="fa-solid fa-calculator me-2"></i> Calculations & Weather Logic</h6>
+
+        <!-- Unit Price Formula -->
+        <div class="formula-card">
+            <span class="formula-badge">Metric: Unit Menu Price Extraction</span>
+            <p class="small text-muted mb-2">Extracts the base menu cost per unit item, ignoring checkout promo modifiers.</p>
+            $$\text{Unit Price} = \frac{\text{Gross Sales}}{\text{Quantity Sold}}$$
+            <div class="owner-desc">
+                <h6><i class="fa-solid fa-mug-hot text-primary"></i> Example:</h6>
+                <p class="small text-muted mb-0">
+                    If an order lists <strong>2 Hazelnut Lattes</strong> with a <code>Gross_Sales</code> total of <strong>RM 24.00</strong>: <br>
+                    $$\text{Calculation: } RM 24.00 \div 2 = RM 12.00$$
+                    The system records the base menu price as <strong>RM 12.00 per unit</strong>. This allows the system to monitor price adjustments.
+                </p>
+            </div>
+        </div>
+
+        <!-- Weather Classification Rules -->
+        <div class="formula-card">
+            <span class="formula-badge">Rule Logic: Weather Ingestion Voting</span>
+            <p class="small text-muted mb-2">How weather data is mapped into the database when you upload a POS CSV:</p>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered bg-white small mb-3">
+                    <thead>
+                        <tr class="table-light">
+                            <th>Condition Label</th>
+                            <th>Meteorological API Metric Check</th>
+                            <th>Impact on Sales</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Sunny / Fair</strong></td>
+                            <td>Precipitation less than 2.5mm and clear sky codes are the majority from 07:00 to 19:00</td>
+                            <td>☀️ Baseline / Slight sales boost</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Cloudy</strong></td>
+                            <td>Precipitation less than 2.5mm and cloud cover codes are the majority from 07:00 to 19:00</td>
+                            <td>☁️ Baseline trend (Normal traffic)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Raining</strong></td>
+                            <td>Precipitation is 2.5mm or more (and no thunderstorm codes are registered)</td>
+                            <td>🌧️ 30% traffic drop on average</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Thunderstorm</strong></td>
+                            <td>Precipitation is 2.5mm or more and severe thunderstorm codes are registered</td>
+                            <td>⛈️ 60% traffic drop on average</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="owner-desc">
+                <h6><i class="fa-solid fa-mug-hot text-primary"></i> Example:</h6>
+                <p class="small text-muted mb-0">
+                    If you upload sales for July 12th, the system calls historical records. If total rain was 5mm during the day, it labels that day as <strong>Raining</strong>. The AI uses this label to learn how much rain reduces your revenue.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 3: AI FORECAST -->
+    <div id="tab-forecast" class="tab-pane-custom">
+        <h5 class="font-weight-bold mb-3" style="color: var(--coffee-dark);">AI Sales Forecast & Ingredient Planner</h5>
+        <p class="text-secondary small mb-4">
+            The predictive core of the platform. It generates a 5-day sales plan using Facebook Prophet, combines it with real-time weather forecasts, and translates revenue numbers into an exact ingredient shopping guide.
+        </p>
+
+        <div class="row mb-4">
+            <div class="col-md-6 mb-3 mb-md-0">
+                <h6 class="text-primary fw-bold" style="font-size:0.95rem;"><i class="fa-solid fa-play me-2"></i> How to Use This Page (User Flow)</h6>
+                <ol class="text-muted small ps-3">
+                    <li>Navigate to the <strong>AI Forecast</strong> in the sidebar.</li>
+                    <li>Choose your target outlet from the <strong>Select Branch</strong> dropdown.</li>
+                    <li>Click <strong>Generate Forecast</strong>. Watch the 5-step pipeline fetch live weather and run models.</li>
+                    <li>Inspect the <strong>Expected 5-Day Revenue</strong> and <strong>Forecast Accuracy</strong> dials.</li>
+                    <li>Review the <strong>Ingredient Shopping Guide</strong> to see exactly how much coffee beans, milk, chocolate, and ice to purchase.</li>
+                    <li>Download a print-ready shopping list by clicking <strong>Download PDF</strong> at the top right.</li>
+                </ol>
+            </div>
+            <div class="col-md-6">
+                <h6 class="text-primary fw-bold" style="font-size:0.95rem;"><i class="fa-solid fa-database me-2"></i> How It Works (Under the Hood Flow)</h6>
+                <p class="text-muted small mb-2">
+                    The forecasting engine pulls past sales data. It calls the <strong>OpenWeatherMap Forecast API</strong> (<code>api.openweathermap.org</code>) to retrieve future 5-day forecasts in 3-hour slots, filtering down to <strong>business hours (9:00 AM - 9:00 PM)</strong> to calculate daily weather conditions and average temperatures.
+                </p>
+                <p class="text-muted small">
+                    It trains a Facebook Prophet multiplicative regression model using five regressors: weather forecast labels, promotions, weekdays, weekends, and public holidays. Expected beverage units are calculated from historical sales ratios, which are then scaled by recipe ingredient weights.
+                </p>
+            </div>
+        </div>
+
+        <h6 class="text-primary fw-bold mb-3" style="font-size:0.95rem;"><i class="fa-solid fa-calculator me-2"></i> Forecasting Formulas & Calculations</h6>
+
+        <!-- Prophet Model -->
+        <div class="formula-card">
+            <span class="formula-badge">Formula: Prophet Multiplicative Regression Model</span>
+            <p class="small text-muted mb-2">Calculates predictions by scaling a baseline trend up or down based on real-world factors.</p>
+            $$y(t) = g(t) \times \Big(1 + s(t) + h(t) + w(t)\Big) + \epsilon_t$$
+            <p class="small text-muted">
+                Where $g(t)$ is the baseline growth trend, $s(t)$ represents weekly seasonality, $h(t)$ is the public holiday factor, $w(t)$ is the forecasted weather effect, and $\epsilon_t$ is the margin of error.
+            </p>
+            <div class="owner-desc">
+                <h6><i class="fa-solid fa-mug-hot text-primary"></i> Example:</h6>
+                <p class="small text-muted mb-0">
+                    If the baseline trend predicts <strong>RM 1,000</strong> for tomorrow, but a thunderstorm is forecasted (weather drag = -60%) and it's a weekday (no weekend boost): <br>
+                    $$\text{Calculation: } RM 1,000 \times \big(1 + 0 - 0.60 + 0\big) = RM 400.00$$
+                    The system adjusts the prediction to <strong>RM 400.00</strong> because heavy rain keeps coffee customers at home.
+                </p>
+            </div>
+        </div>
+
+        <!-- MAPE -->
+        <div class="formula-card">
+            <span class="formula-badge">Metric: Mean Absolute Percentage Error (MAPE)</span>
+            <p class="small text-muted mb-2">Measures model accuracy by comparing past predictions to what was actually earned.</p>
+            $$\text{Average Prediction Error (\%)} = \frac{100\%}{N} \sum_{i=1}^{N} \left| \frac{\text{Actual Sales}_i - \text{Predicted Sales}_i}{\text{Actual Sales}_i} \right|$$
+            <div class="owner-desc">
+                <h6><i class="fa-solid fa-mug-hot text-primary"></i> Example:</h6>
+                <p class="small text-muted mb-0">
+                    If you predicted RM 500 but made RM 450 (10% error) on Day 1, and predicted RM 300 but made RM 330 (10% error) on Day 2: <br>
+                    $$\text{Average Error: } (10\% + 10\%) \div 2 = 10\%$$
+                    Your MAPE is <strong>10%</strong>. This gives you a <strong>Forecast Accuracy of 90%</strong> (100% - 10%). A higher accuracy means more reliable purchasing schedules!
+                </p>
+            </div>
+        </div>
+
+        <!-- Stock Demand Conversion -->
+        <div class="formula-card">
+            <span class="formula-badge">Formula: Stock Demand Conversion</span>
+            <p class="small text-muted mb-2">Calculates the total weight of ingredients required to satisfy the forecasted cup sales.</p>
+            $$\text{Total Ingredient Required} = \sum \Big( \text{Predicted Sales (Cups)} \times \text{Ingredient Weight per Cup} \Big)$$
+            <div class="owner-desc">
+                <h6><i class="fa-solid fa-mug-hot text-primary"></i> Example:</h6>
+                <p class="small text-muted mb-2">
+                    If the system forecasts sales of <strong>150 Hot Lattes</strong> and <strong>80 Iced Lattes</strong> for the next 5 days, it looks up the latte recipe weights to calculate the shopping list:
+                </p>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered bg-white small mb-0">
+                        <thead>
+                            <tr class="table-light">
+                                <th>Ingredient</th>
+                                <th>Recipe Weight per Cup</th>
+                                <th>Calculation Process</th>
+                                <th>Total Order Volume</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Coffee Beans</strong></td>
+                                <td>18.0 g</td>
+                                <td>(150 cups × 18 g) + (80 cups × 18 g) = 4,140 g</td>
+                                <td><strong>4.14 kg of beans</strong></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Fresh Milk</strong></td>
+                                <td>200.0 ml</td>
+                                <td>(150 cups × 200 ml) + (80 cups × 200 ml) = 46,000 ml</td>
+                                <td><strong>46.0 Liters of milk</strong></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Embedded Weather & Holiday Simulator -->
+        <div class="sim-card-embedded">
+            <h5 class="sim-header"><i class="fa-solid fa-cloud-sun text-warning me-2"></i> Interactive Weather & Holiday Sales Predictor</h5>
+            <p class="small text-muted">Simulate how weather conditions and holiday settings adjust your revenue. Slide the base sales to test.</p>
+            <div class="row g-3">
+                <div class="col-6 col-sm-3">
+                    <label class="form-label text-secondary small fw-bold">Base Revenue: <span id="baseVal" class="text-primary fw-bold">RM 500</span></label>
+                    <input type="range" class="form-range" id="simBaseSales" min="100" max="2000" step="50" value="500" oninput="runPredictor()">
+                </div>
+                <div class="col-6 col-sm-3">
+                    <label class="form-label text-secondary small fw-bold">Weather Condition</label>
+                    <select class="form-select sim-select w-100" id="simWeather" onchange="runPredictor()">
+                        <option value="1.10">☀️ Fair / Sunny (+10%)</option>
+                        <option value="1.00" selected>☁️ Cloudy (Baseline)</option>
+                        <option value="0.70">🌧️ Raining (-30% drop)</option>
+                        <option value="0.40">⛈️ Thunderstorm (-60% drop)</option>
+                    </select>
+                </div>
+                <div class="col-6 col-sm-3">
+                    <label class="form-label text-secondary small fw-bold">Branch Profile</label>
+                    <select class="form-select sim-select w-100" id="simBranch" onchange="runPredictor()">
+                        {% for b in branches %}
+                            <option value="{{ b.holiday_effect }}" data-name="{{ b.branch_name }}">{{ b.branch_name }} ({{ 'Learning' if b.holiday_effect == 0.0 else 'Synced' }})</option>
+                        {% else %}
+                            <option value="-0.35" data-name="Putrajaya Stall (STB-PJ1)">Putrajaya Stall (STB-PJ1)</option>
+                            <option value="0.15" data-name="Puncak Alam Truck (FT-PA1)">Puncak Alam Truck (FT-PA1)</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-6 col-sm-3">
+                    <label class="form-label text-secondary small fw-bold">Is Public Holiday?</label>
+                    <div class="form-check form-switch mt-2">
+                        <input class="form-check-input" type="checkbox" id="simIsHoliday" onchange="runPredictor()">
+                        <label class="form-check-label text-muted small" for="simIsHoliday">Holiday Mode</label>
+                    </div>
+                </div>
+            </div>
+            <div class="p-3 bg-light rounded mt-3 d-flex align-items-center justify-content-between">
+                <span class="small text-muted" id="predExplanation">Formula: RM 500 × 1.00 (Cloudy) = RM 500.00</span>
+                <span class="sim-result-badge mb-0" id="predResult">RM 500.00</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 4: EXECUTIVE REPORT -->
+    <div id="tab-report" class="tab-pane-custom">
+        <h5 class="font-weight-bold mb-3" style="color: var(--coffee-dark);">Executive PDF Reports</h5>
+        <p class="text-secondary small mb-4">
+            Generates a polished 5-page A4 document detailing monthly sales trends, forecast diagnostics, product volume shares, and custom strategic business advice generated by the AI agent.
+        </p>
+
+        <div class="row mb-4">
+            <div class="col-md-6 mb-3 mb-md-0">
+                <h6 class="text-primary fw-bold" style="font-size:0.95rem;"><i class="fa-solid fa-play me-2"></i> How to Use This Page (User Flow)</h6>
+                <ol class="text-muted small ps-3">
+                    <li>Open <strong>PDF Report</strong> in the sidebar.</li>
+                    <li>Select the target outlet and select the target month from the selectors.</li>
+                    <li>Click <strong>Generate Preview</strong> to compile and preview the 5 A4 pages on screen.</li>
+                    <li>Verify predicted vs actual charts, menu diagnostics, and promotion net revenue margins.</li>
+                    <li>Click <strong>Export PDF</strong> to download the file directly to your device.</li>
+                </ol>
+            </div>
+            <div class="col-md-6">
+                <h6 class="text-primary fw-bold" style="font-size:0.95rem;"><i class="fa-solid fa-database me-2"></i> How It Works (Under the Hood Flow)</h6>
+                <p class="text-muted small">
+                    The backend queries actual transactional records and compares them to past forecast runs. It runs rolling 30-day diagnostics (calculating growth drift, average bill size changes, and underperforming menu items with negative variance). Structured stats are passed to the Gemini API to draft 3 strategic action steps, and the final preview is generated via HTML-to-PDF print styles.
+                </p>
+            </div>
+        </div>
+
+        <h6 class="text-primary fw-bold mb-3" style="font-size:0.95rem;"><i class="fa-solid fa-calculator me-2"></i> Report Audit Calculations</h6>
+
+        <!-- Forecast Diff -->
+        <div class="formula-card">
+            <span class="formula-badge">Calculation: Forecast Difference (%)</span>
+            <p class="small text-muted mb-2">Calculates the percentage variance between actual daily revenue and predicted values.</p>
+            $$\text{Forecast Variance (\%)} = \left( \frac{\text{Actual Sales (RM)} - \text{Predicted Sales (RM)}}{\text{Predicted Sales (RM)}} \right) \times 100$$
+            <div class="owner-desc">
+                <h6><i class="fa-solid fa-mug-hot text-primary"></i> Example:</h6>
+                <p class="small text-muted mb-0">
+                    If you predicted RM 500.00 but actually made RM 550.00: <br>
+                    $$\text{Calculation: } \left( \frac{RM 550 - RM 500}{RM 500} \right) \times 100 = +10.0\%$$
+                    A variance of <strong>+10.0%</strong> falls inside the <strong>Safe Range</strong> badge (between -15% and +15%). If the variance is within ±5%, the report highlights it as <strong>On Target</strong>!
+                </p>
+            </div>
+        </div>
+
+        <!-- Status badges table -->
+        <div class="formula-card">
+            <span class="formula-badge">Rule Logic: Diagnostic Badges</span>
+            <p class="small text-muted mb-2">The report evaluates daily accuracy using these rules:</p>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered bg-white small mb-0">
+                    <thead>
+                        <tr class="table-light">
+                            <th>Diagnostic Badge</th>
+                            <th>Variance Rule</th>
+                            <th>Meaning</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span class="badge bg-success text-white">On Target</span></td>
+                            <td>Within ±5% of prediction</td>
+                            <td>🟢 Highly accurate prediction</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge bg-info text-white">Safe Range</span></td>
+                            <td>Within ±15% of prediction</td>
+                            <td>🔵 Acceptable predicting variance</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge bg-danger text-white">Off Range</span></td>
+                            <td>Exceeds ±15% variance</td>
+                            <td>🔴 Prediction was significantly off</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge bg-warning text-dark">Exceeded</span></td>
+                            <td>Actual sales exceed predictions by more than 15%</td>
+                            <td>⚡ Sales surged beyond baseline expectations</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 5: CHATBOT -->
+    <div id="tab-chatbot" class="tab-pane-custom">
+        <h5 class="font-weight-bold mb-3" style="color: var(--coffee-dark);">DSS Chatbot (AI Business Advisor)</h5>
+        <p class="text-secondary small mb-4">
+            An intelligent chatbot powered by Google Gemini AI that knows your live database statistics, menu performance, and forecasts. It answers questions in English or Bahasa Malaysia, suggests staffing changes, and can even draw charts inside messages.
+        </p>
+
+        <div class="row mb-4">
+            <div class="col-md-6 mb-3 mb-md-0">
+                <h6 class="text-primary fw-bold" style="font-size:0.95rem;"><i class="fa-solid fa-play me-2"></i> How to Use This Page (User Flow)</h6>
+                <ol class="text-muted small ps-3">
+                    <li>Go to the <strong>DSS Chatbot</strong> in the sidebar.</li>
+                    <li>Type any business question (e.g. <i>Compare my Putrajaya and Puncak Alam sales</i>).</li>
+                    <li>Hit <strong>Send</strong> to watch the AI stream its response word-by-word.</li>
+                    <li>Use the <strong>Quick Prompt Cards</strong> in the right panel for instant monthly reports or inventory checks.</li>
+                    <li>Click <strong>New Conversation</strong> at the top left to clear history.</li>
+                    <li>Click <strong>Export Chat</strong> to download the advice as a text file.</li>
+                </ol>
+            </div>
+            <div class="col-md-6">
+                <h6 class="text-primary fw-bold" style="font-size:0.95rem;"><i class="fa-solid fa-database me-2"></i> How It Works (Under the Hood Flow)</h6>
+                <p class="text-muted small">
+                    The chatbot uses an intelligent keyword classifier to detect your intent. For simple questions, it queries database statistics directly in milliseconds (fast bypass). For complex queries, it gathers the relevant business context data, selects a tailored response persona (such as analytical or operational), and streams the advice back to you.
+                </p>
+            </div>
+        </div>
+
+        <h6 class="text-primary fw-bold mb-3" style="font-size:0.95rem;"><i class="fa-solid fa-calculator me-2"></i> Intent & Persona Logic</h6>
+
+        <!-- Persona Matrix -->
+        <div class="formula-card">
+            <span class="formula-badge">Intent Persona Budgeting Rules</span>
+            <p class="small text-muted mb-2">The agent structures replies and controls token usage depending on your question's category:</p>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered bg-white small mb-0">
+                    <thead>
+                        <tr class="table-light">
+                            <th>Detected Intent</th>
+                            <th>Persona Style</th>
+                            <th>Max Token Budget</th>
+                            <th>Typical Context Sent</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Trend Analysis</strong></td>
+                            <td>Analytical & Data-Heavy</td>
+                            <td>900 tokens</td>
+                            <td>6-Month MoM branch revenue growth</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Forecast</strong></td>
+                            <td>Forward-Looking</td>
+                            <td>500 tokens</td>
+                            <td>5-Day predicted daily revenue</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Inventory / Recipe</strong></td>
+                            <td>Operational & Structured</td>
+                            <td>500 tokens</td>
+                            <td>Shopping guide weights (kg, L, cups)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Quick KPI</strong></td>
+                            <td>Direct Factual Answer</td>
+                            <td>200 tokens (Fast Bypass)</td>
+                            <td>Immediate SQL aggregate numbers</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 6: SETTINGS -->
+    <div id="tab-settings" class="tab-pane-custom">
+        <h5 class="font-weight-bold mb-3" style="color: var(--coffee-dark);">Setting Management (Branches & Recipes)</h5>
+        <p class="text-secondary small mb-4">
+            Allows the business owner to add, edit, or deactivate branch accounts, lookup geographic coordinates, lock in public holiday multipliers, and modify beverage ingredient weights.
+        </p>
+
+        <div class="row mb-4">
+            <div class="col-md-6 mb-3 mb-md-0">
+                <h6 class="text-primary fw-bold" style="font-size:0.95rem;"><i class="fa-solid fa-play me-2"></i> Operational Workflows (User Guide)</h6>
+                <ul class="text-muted small ps-3 text-secondary">
+                    <li><strong>Add New Branch:</strong> Click the <strong>Add New Branch</strong> button. Input the unique Branch Code (must match your POS CSV code exactly), Name, location type, and description.</li>
+                    <li class="mt-2"><strong>Latitude & Longitude Guide:</strong> To locate coordinates for the weather API:
+                        <ol class="ps-3 mt-1 text-secondary">
+                            <li>Open <strong>Google Maps</strong> on your phone or computer.</li>
+                            <li>Search for and zoom into your coffee shop location on the map.</li>
+                            <li><strong>Right-click</strong> (on computer) or <strong>long-press</strong> (on phone screen) on the exact spot.</li>
+                            <li>A small window will appear showing numbers (e.g. <code>3.1390, 101.6869</code>).</li>
+                            <li>Click those numbers to copy them. Paste the first number into <strong>Latitude</strong> and the second into <strong>Longitude</strong>.</li>
+                        </ol>
+                    </li>
+                    <li class="mt-2"><strong>Edit/Delete (Toggle Status):</strong> Click <strong>Edit</strong> to modify details or coordinate pins. Toggling status changes the operational status of the branch. Inactive branches are hidden from dashboards and filters, but their historical transaction data is safely kept for reporting.</li>
+                    <li class="mt-2"><strong>Recipe Settings (Base & Custom):</strong> Switch to the <strong>Product Recipes</strong> tab. Click Edit on any drink to set base ingredients. Use the custom ingredient table to add, edit, or delete non-standard recipes (syrups, toppings, etc.) stored securely inside the system.</li>
+                </ul>
+            </div>
+            <div class="col-md-6">
+                <h6 class="text-primary fw-bold" style="font-size:0.95rem;"><i class="fa-solid fa-database me-2"></i> How It Works (Under the Hood Flow)</h6>
+                <p class="text-muted small">
+                    Operational settings are updated immediately. Drink recipes support standard coffee ingredients (beans, milk, chocolate, ice, whipped cream) and support adding custom toppings or syrups (like caramel or hazelnut syrup) with specified weights.
+                </p>
+                <p class="text-muted small">
+                    The system locks the editing of the holiday multiplier once a branch reaches <strong>AI SYNCED</strong> status (at least 14 transaction days and 2 holidays). The multiplier is calculated automatically on upload using historical holiday records.
+                </p>
+            </div>
+        </div>
+
+        <h6 class="text-primary fw-bold mb-3" style="font-size:0.95rem;"><i class="fa-solid fa-calculator me-2"></i> Holiday Auto-Tune Calculations</h6>
+
+        <!-- Holiday Multiplier -->
+        <div class="formula-card">
+            <span class="formula-badge">Formula: Holiday Multiplier / Holiday Effect</span>
+            <p class="small text-muted mb-2">Calculates the relative difference in sales during public holidays compared to normal operational days.</p>
+            $$\text{Holiday Sales Variance} = \frac{\text{Average Holiday Sales (RM)} - \text{Average Normal Sales (RM)}}{\text{Average Normal Sales (RM)}}$$
+            <div class="owner-desc">
+                <h6><i class="fa-solid fa-mug-hot text-primary"></i> Example:</h6>
+                <p class="small text-muted mb-0">
+                    If your Putrajaya office branch averages <strong>RM 300.00</strong> on normal weekdays, but drops to <strong>RM 195.00</strong> on public holidays when offices close: <br>
+                    $$\text{Calculation: } \frac{RM 195 - RM 300}{RM 300} = -0.35$$
+                    The learned holiday multiplier is <strong>-0.35</strong> (or a <strong>-35%</strong> drop). The AI automatically applies this drop to holiday forecasts for this branch!
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ====================================================
+     SECTION 4: MULTI-OUTLET DEMOGRAPHICS & RAMADHAN SHIFTS
+==================================================== -->
+<div class="row g-4 mb-4" data-aos="fade-up">
+    <div class="col-12">
+        <h4 class="mb-2 d-flex align-items-center gap-2" style="font-weight: 700; color: var(--coffee-dark);">
+            <i class="fa-solid fa-store text-success"></i> 4. Multi-Outlet Behavior & Ramadhan Core Profiles
+        </h4>
+        <p class="text-muted small">Our predictive analytics models adapt automatically to distinct outlet behaviors and localized demographic trends.</p>
+    </div>
+
+    <!-- PUTRAJAYA STALL -->
+    <div class="col-12 col-md-4">
+        <div class="outlet-spec-card">
+            <h5 class="font-weight-bold d-flex align-items-center gap-2" style="color: var(--coffee-dark); font-size: 1.05rem;">
+                <i class="fa-solid fa-building text-primary"></i> Putrajaya Stall (STB-PJ1)
+            </h5>
+            <p class="small text-muted mb-0">
+                <strong>Target Profile:</strong> Corporate Weekday Traffic.<br>
+                <strong>Operational Pattern:</strong> High volume from Monday to Friday, catering to office workers. Dips heavily during public holidays as commuters migrate away.
+            </p>
+        </div>
+    </div>
+
+    <!-- PUNCAK ALAM TRUCK -->
+    <div class="col-12 col-md-4">
+        <div class="outlet-spec-card">
+            <h5 class="font-weight-bold d-flex align-items-center gap-2" style="color: var(--coffee-dark); font-size: 1.05rem;">
+                <i class="fa-solid fa-truck text-warning"></i> Puncak Alam (FT-PA1)
+            </h5>
+            <p class="small text-muted mb-0">
+                <strong>Target Profile:</strong> Residential Weekend Leisure.<br>
+                <strong>Operational Pattern:</strong> Peak sales occur on Saturdays and Sundays. Experiences festive lifts during local school and national holidays.
+            </p>
+        </div>
+    </div>
+
+    <!-- RAMADHAN TIMINGS -->
+    <div class="col-12 col-md-4">
+        <div class="outlet-spec-card" style="background: #FFFDF5; border-color: #FEF08A;">
+            <h5 class="font-weight-bold d-flex align-items-center gap-2" style="color: #A16207; font-size: 1.05rem;">
+                <i class="fa-solid fa-moon"></i> Ramadhan Mode
+            </h5>
+            <p class="small text-muted mb-0">
+                <strong>Target Profile:</strong> Evening Break-Fast Surge.<br>
+                <strong>Behavior Rule:</strong> Normal afternoon coffee traffic drops close to zero. Peak demand shifts to evening break-fast hours (18:00 - 20:00).
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- ====================================================
+     SECTION 5: DEMONSTRATION WALKTHROUGH
+==================================================== -->
+<div class="video-card" data-aos="fade-up" id="video-section">
+    <h4 class="mb-2 d-flex align-items-center gap-2" style="font-weight: 700; color: var(--coffee-dark);">
+        <i class="fa-solid fa-video text-danger"></i> 5. Demonstration Walkthrough Video
+    </h4>
+    <p class="text-muted small mb-4">
+        Watch this walkthrough video to see a complete demonstration of the system in action, including data uploads, forecasting, and the AI advisor.
+    </p>
+    
+    <div class="video-placeholder">
+        <div class="ratio ratio-16x9 mx-auto mb-3" style="max-width: 820px; border-radius: 8px; overflow: hidden; box-shadow: var(--shadow-soft);">
+            <video id="tutorialVideo" controls poster="{{ url_for('static', filename='images/video_thumbnail.png') }}">
+                <source src="{{ url_for('static', filename='videos/mcs_system_walkthrough.mp4') }}" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+        </div>
+        <div class="mt-3">
+            <span class="d-block text-secondary small mb-2"><i class="fa-solid fa-bookmark me-1"></i> Jump to video chapter:</span>
+            <div class="d-flex flex-wrap gap-2 justify-content-center">
+                <button class="chapter-btn-custom" onclick="jumpVideo(0)"><i class="fa-solid fa-door-open me-1"></i> 0:00 Intro</button>
+                <button class="chapter-btn-custom" onclick="jumpVideo(20)"><i class="fa-solid fa-cloud-arrow-up me-1"></i> 0:20 Data Ingestion</button>
+                <button class="chapter-btn-custom" onclick="jumpVideo(50)"><i class="fa-solid fa-chart-simple me-1"></i> 0:50 Analytics</button>
+                <button class="chapter-btn-custom" onclick="jumpVideo(80)"><i class="fa-solid fa-wand-magic-sparkles me-1"></i> 1:20 Forecasts</button>
+                <button class="chapter-btn-custom" onclick="jumpVideo(110)"><i class="fa-solid fa-gears me-1"></i> 1:50 Settings</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Handles tab switching
+    function switchTab(event, tabId) {
+        const card = event.target.closest('.tech-tabs-card');
+        
+        // Remove active states from all tabs and buttons in this card
+        card.querySelectorAll('.tab-btn-custom').forEach(btn => btn.classList.remove('active'));
+        card.querySelectorAll('.tab-pane-custom').forEach(pane => pane.classList.remove('active'));
+        
+        // Add active state to selected tab and button
+        event.target.classList.add('active');
+        card.querySelector('#' + tabId).classList.add('active');
+        
+        // Retrigger MathJax typesetting on tab switch to ensure clean mathematical notation rendering
+        if (window.MathJax) {
+            MathJax.typesetPromise();
+        }
+    }
+
+    // Interactive Pipeline Map Info Box Handler
+    const stepMessages = {
+        'step-upload': "<strong>Step 1: Register Upload.</strong> Raw POS CSV files containing 17 standard columns (Transaction ID, Store ID, gross, discounts, modifier parameters) are verified. Rejects upload if duplicates exist.",
+        'step-etl': "<strong>Step 2: Data Ingestion & ETL.</strong> Transformed values (day names, hours, categories) are parsed. Queries the Open-Meteo API using coordinates to determine daylight dominant weather conditions.",
+        'step-db': "<strong>Step 3: Business Database.</strong> Cleaned data is saved securely in the central database, organized and ready for reports.",
+        'step-forecast': "<strong>Step 4: Prophet Forecast.</strong> Facebook Prophet uses historical seasonal cycles and future weather forecasts to output a 5-day sales prediction and ingredient shopping guides.",
+        'step-ai': "<strong>Step 5: AI Advisor & Reports.</strong> Google Gemini AI analyses performance statistics to output PDF Strategic summaries and stream chatbot answers."
+    };
+
+    function showStepInfo(stepKey, element) {
+        const infoText = document.getElementById('stepInfoText');
+        infoText.innerHTML = stepMessages[stepKey];
+        
+        // Remove active class from all SVG nodes and mobile buttons
+        document.querySelectorAll('.svg-node, .mobile-step-btn').forEach(node => {
+            node.classList.remove('active');
+        });
+        
+        // Add active class to the clicked node
+        if (element) {
+            element.classList.add('active');
+            
+            // Sync active state between layouts
+            const isMobile = element.classList.contains('mobile-step-btn');
+            if (isMobile) {
+                document.querySelectorAll('.svg-node').forEach(svgNode => {
+                    const onclickAttr = svgNode.getAttribute('onclick');
+                    if (onclickAttr && onclickAttr.includes(stepKey)) {
+                        svgNode.classList.add('active');
+                    }
+                });
+            } else {
+                document.querySelectorAll('.mobile-step-btn').forEach(btn => {
+                    const onclickAttr = btn.getAttribute('onclick');
+                    if (onclickAttr && onclickAttr.includes(stepKey)) {
+                        btn.classList.add('active');
+                    }
+                });
+            }
+        }
+    }
+
+    // Weather & Holiday Simulator Logic
+    function runPredictor() {
+        const baseSales = parseFloat(document.getElementById('simBaseSales').value);
+        document.getElementById('baseVal').textContent = 'RM ' + baseSales;
+
+        const weatherMultiplier = parseFloat(document.getElementById('simWeather').value);
+        const branchHolidayMultiplier = parseFloat(document.getElementById('simBranch').value);
+        const isHoliday = document.getElementById('simIsHoliday').checked;
+        
+        let holidayAdjustment = 0.0;
+        if (isHoliday) {
+            holidayAdjustment = branchHolidayMultiplier;
+        }
+
+        // Formula: Base * Weather * (1 + HolidayAdjustment)
+        let predictedRevenue = baseSales * weatherMultiplier * (1 + holidayAdjustment);
+        if (predictedRevenue < 0) predictedRevenue = 0;
+
+        document.getElementById('predResult').textContent = 'RM ' + predictedRevenue.toFixed(2);
+
+        // Build explanation string
+        const weatherText = document.getElementById('simWeather').options[document.getElementById('simWeather').selectedIndex].text.split('(')[0].trim();
+        const branchName = document.getElementById('simBranch').options[document.getElementById('simBranch').selectedIndex].getAttribute('data-name') || "Selected Branch";
+        
+        let calculationText = `Formula: RM ${baseSales} × ${weatherMultiplier} (${weatherText})`;
+        if (isHoliday) {
+            calculationText += ` × [1 + (${holidayAdjustment}) (Holiday effect for ${branchName})]`;
+        }
+        calculationText += ` = RM ${predictedRevenue.toFixed(2)}`;
+        
+        document.getElementById('predExplanation').textContent = calculationText;
+    }
+
+    // ROI Calculator Logic
+    function runRoi() {
+        const grossSales = parseFloat(document.getElementById('roiGross').value) || 0;
+        const totalDiscount = parseFloat(document.getElementById('roiDiscount').value) || 0;
+
+        const netRevenue = grossSales - totalDiscount;
+        let roiMultiplier = 0;
+        if (totalDiscount > 0) {
+            roiMultiplier = netRevenue / totalDiscount;
+        }
+
+        document.getElementById('roiResult').textContent = roiMultiplier.toFixed(2) + 'x';
+
+        const ratingBadge = document.getElementById('roiRating');
+        const resultBadge = document.getElementById('roiResult');
+        
+        ratingBadge.className = 'badge';
+        resultBadge.className = 'sim-result-badge';
+
+        if (totalDiscount <= 0) {
+            ratingBadge.textContent = 'NO DISCOUNTS GIVEN';
+            ratingBadge.classList.add('bg-secondary');
+            resultBadge.classList.add('bg-secondary');
+            document.getElementById('roiExplanation').textContent = 'Cannot calculate ROI without discount inputs.';
+            return;
+        }
+
+        if (roiMultiplier >= 8.0) {
+            ratingBadge.textContent = 'EXCELLENT (Highly Worth It)';
+            ratingBadge.classList.add('bg-success');
+            resultBadge.classList.add('bg-success');
+        } else if (roiMultiplier >= 5.0) {
+            ratingBadge.textContent = 'GOOD (Sustainable)';
+            ratingBadge.classList.add('bg-success');
+            resultBadge.classList.add('bg-success');
+        } else {
+            ratingBadge.textContent = 'LOW ROI (High Discount Burn)';
+            ratingBadge.classList.add('bg-danger');
+            resultBadge.classList.add('bg-danger');
+        }
+
+        document.getElementById('roiExplanation').textContent = `Formula: RM ${netRevenue.toFixed(2)} net / RM ${totalDiscount.toFixed(2)} discount = ${roiMultiplier.toFixed(1)}x return on discount spend.`;
+    }
+
+    // Chapter jump video logic
+    function jumpVideo(seconds) {
+        const video = document.getElementById('tutorialVideo');
+        if (video) {
+            video.currentTime = seconds;
+            video.play().catch(e => console.log("Video playback blocked or video missing."));
+        }
+    }
+
+    // Initialize simulators on page load
+    window.addEventListener('DOMContentLoaded', () => {
+        runPredictor();
+        runRoi();
+    });
+</script>
+{% endblock %}

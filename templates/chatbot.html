@@ -6,10 +6,22 @@
 @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 html, body {
-  overflow-x: hidden !important;
+  overflow: hidden !important;
+  height: 100vh !important;
 }
-.wrapper, .main-canvas, .dss-wrap {
-  overflow-x: hidden !important;
+.wrapper, .main-canvas {
+  overflow: hidden !important;
+  height: 100vh !important;
+}
+.main-canvas {
+  display: flex !important;
+  flex-direction: column !important;
+}
+.main-content-inner {
+  flex: 1 !important;
+  height: calc(100vh - 65px) !important;
+  overflow: hidden !important;
+  padding: 10px 14px 14px !important;
 }
 
 :root {
@@ -51,14 +63,14 @@ html, body {
   display: grid;
   grid-template-columns: 240px 1fr 264px;
   gap: 14px;
-  height: calc(100vh - 140px);
-  min-height: 600px;
+  height: 100% !important;
+  min-height: 0 !important;
   font-family: var(--font);
 }
 
 /* ── Mobile Overrides ── */
 @media (max-width: 768px) {
-  .dss-wrap { height: calc(100vh - 100px); }
+  .dss-wrap { height: 100% !important; }
   .msg-content { max-width: 92%; }
   .bubble { font-size: 0.78rem; padding: 10px 12px; line-height: 1.5; }
   .chat-hdr { padding: 10px 14px; }
@@ -588,7 +600,13 @@ html, body {
 }
 
 /* ── SIDE PANEL ──────────────────────────────────── */
-.side-panel { display: flex; flex-direction: column; gap: 12px; }
+.side-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  max-height: 100%;
+}
 .side-card {
   background: var(--surface); border: 1px solid var(--border2);
   border-radius: var(--radius); padding: 14px 15px;
@@ -800,8 +818,8 @@ html, body {
 @media (max-width: 860px) {
   .dss-wrap {
     grid-template-columns: 1fr;
-    height: calc(100vh - 160px);
-    min-height: 500px;
+    height: 100% !important;
+    min-height: 0 !important;
   }
   .hist-panel {
     position: fixed;
