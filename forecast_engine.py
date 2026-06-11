@@ -88,7 +88,7 @@ MY_SEASONS = [
 
 class ForecastEngine:
     def __init__(self):
-        self.db_path = os.path.join('database', 'coffee_shop.db')
+        self.db_path = os.environ.get('DB_PATH') or os.path.join('database', 'coffee_shop.db')
         self.weather_weights = {
             'Fair / Sunny': 1.1,  # Best for coffee sales
             'Sunny': 1.1,         # Compatibility

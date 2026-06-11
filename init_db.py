@@ -118,6 +118,32 @@ def initialize_database():
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
         """, branches_data)
 
+    # Backfill default recipes if table is empty
+    cursor.execute("SELECT COUNT(*) FROM product_recipes")
+    if cursor.fetchone()[0] == 0:
+        print("Backfilling default product recipes...")
+        recipes_data = [
+            ('HOT ESPRESSO', 18.0, 0.0, 0.0, 0.0, 0.0, 'Hot', '{}', 1),
+            ('HOT AMERICANO', 30.0, 0.0, 0.0, 0.0, 0.0, 'Hot', '{}', 1),
+            ('ICED AMERICANO', 30.0, 0.0, 0.0, 150.0, 0.0, 'Cold', '{}', 1),
+            ('HOT LATTE', 18.0, 200.0, 0.0, 0.0, 0.0, 'Hot', '{}', 1),
+            ('ICE LATTE', 18.0, 220.0, 0.0, 120.0, 0.0, 'Cold', '{}', 1),
+            ('HOT CAPPUCCINO', 18.0, 150.0, 0.0, 0.0, 0.0, 'Hot', '{}', 1),
+            ('ICE CAPPUCCINO', 18.0, 180.0, 0.0, 120.0, 0.0, 'Cold', '{}', 1),
+            ('HOT MOCHA', 18.0, 180.0, 20.0, 0.0, 0.0, 'Hot', '{}', 1),
+            ('ICE MOCHA', 18.0, 200.0, 25.0, 120.0, 0.0, 'Cold', '{}', 1),
+            ('ICE BLENDED MOCHA', 18.0, 120.0, 25.0, 200.0, 20.0, 'Cold', '{}', 1),
+            ('ICE BLENDED CHOCOLATE CHIP', 0.0, 150.0, 40.0, 200.0, 20.0, 'Cold', '{}', 1),
+            ('Ice Matcha Latte', 0.0, 200.0, 0.0, 120.0, 0.0, 'Cold', '{"Simple Syrup (ml)":5,"Matcha":{"val":4.5,"unit":"g"}}', 1),
+            ('Matcha Latte', 0.0, 200.0, 0.0, 0.0, 0.0, 'Hot', '{"Matcha":{"val":4.5,"unit":"g"},"Simple Syrup":{"val":5,"unit":"ml"}}', 1),
+            ('Ice Caramel Macchiato', 30.0, 220.0, 0.0, 60.0, 0.0, 'Cold', '{"Vanilla Syrup":{"val":12,"unit":"ml"},"Caramel Drizzle":{"val":12,"unit":"ml"}}', 1),
+            ('Hot Caramel Macchiato', 30.0, 113.0, 0.0, 0.0, 0.0, 'Hot', '{"Vanilla Syrup":{"val":10,"unit":"ml"},"Caramel Drizzle":{"val":10,"unit":"ml"}}', 1)
+        ]
+        cursor.executemany("""
+            INSERT INTO product_recipes (item_name, beans_g, milk_ml, choco_g, ice_g, whip_g, cup_type, custom_ingredients, is_active)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, recipes_data)
+
     conn.commit()
     conn.close()
     
