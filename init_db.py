@@ -5,9 +5,11 @@ def initialize_database():
     # Read DB_PATH from environment variable (Railway volume) with local fallback
     db_path = os.environ.get('DB_PATH', os.path.join('database', 'coffee_shop.db'))
 
-    # Extract the folder from the path and ensure it exists
+    # Extract the folder from the path
     db_folder = os.path.dirname(db_path)
-    if db_folder:
+
+    # Only create folder if it's NOT a protected root volume mount (Railway creates /data for us)
+    if db_folder and db_folder not in ('/', '/data'):
         os.makedirs(db_folder, exist_ok=True)
 
     # Connect to SQLite (this automatically creates the file if it doesn't exist)
