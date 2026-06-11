@@ -87,6 +87,35 @@ An AI-powered business intelligence and forecasting platform designed for Malays
 
 ---
 
+## ☁️ Production Deployment (Railway)
+
+This system is fully optimized for containerized cloud deployment on **Railway** using their native Nixpacks builder.
+
+### 1. Railway Environment Variables
+Set the following variables in the **Variables** tab of your Railway service:
+
+| Variable | Recommended Value | Description |
+|---|---|---|
+| `DB_PATH` | `/data/coffee_shop.db` | Path inside the persistent volume to store the SQLite database. |
+| `UPLOAD_FOLDER` | `/data/uploads` | Path inside the persistent volume to cache uploaded POS CSV files. |
+| `PORT` | `8080` | The network port the container binds to. |
+| `GEMINI_API_KEY` | *your_gemini_key* | Google AI Studio key for chatbot advisor. |
+| `OPENWEATHER_API_KEY` | *your_owm_key* | Weather forecasting API key. |
+| `FLASK_SECRET_KEY` | *secure_random_string* | Flask session signature key. |
+| `ADMIN_USERNAME` | *your_username* | Dashboard administrator login username. |
+| `ADMIN_PASSWORD` | *your_password* | Dashboard administrator login password. |
+
+### 2. Attaching Persistent Storage (Volume)
+SQLite requires a persistent storage drive to prevent your data from resetting on redeployments:
+1. Go to your service **Settings** in Railway.
+2. Scroll to **Volumes** and click **Add Volume**.
+3. Set the **Mount Path** to exactly `/data`.
+4. Choose a size (e.g., `500 MB` is more than enough for thousands of transactions).
+
+The system features an automated, self-healing startup script that auto-detects the volume, initializes the SQLite database schema if missing, and seeds your default branch personas and 15 product recipes!
+
+---
+
 ## 📂 Project Structure
 
 ```text
