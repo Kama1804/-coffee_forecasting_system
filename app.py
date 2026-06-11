@@ -77,7 +77,8 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 # ============================================================
 #    DATABASE INIT
 # ============================================================
-DB_PATH = os.environ.get('DB_PATH', os.path.join('database', 'coffee_shop.db'))
+DB_PATH = os.environ.get('DB_PATH') or os.path.join('database', 'coffee_shop.db')
+print(f"[STARTUP] DB_PATH resolved to: {DB_PATH}")
 
 def verify_and_init_db():
     try:
