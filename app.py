@@ -87,8 +87,6 @@ def get_robust_env(var_name, default=''):
 
 DB_PATH = get_robust_env('DB_PATH', os.path.join('database', 'coffee_shop.db'))
 print(f"[STARTUP] DB_PATH resolved to: {DB_PATH}")
-print(f"[DEBUG] Raw DB_PATH resolved value is: {repr(DB_PATH)}")
-print(f"[DEBUG] Env keys containing DB/PATH/PORT/FOLDER: {[k for k in os.environ.keys() if any(x in k for x in ('DB', 'PATH', 'PORT', 'FOLDER'))]}")
 
 def verify_and_init_db():
     try:
