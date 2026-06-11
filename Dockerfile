@@ -23,4 +23,4 @@ RUN mkdir -p /data
 EXPOSE 8080
 
 # Start Flask app with gunicorn
-CMD gunicorn app:app --workers 2 --threads 2 --bind "0.0.0.0:${PORT:-8080}"
+CMD ["/bin/sh", "-c", "gunicorn app:app --workers 2 --threads 2 --bind 0.0.0.0:$PORT"]
