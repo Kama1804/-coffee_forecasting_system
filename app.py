@@ -70,14 +70,14 @@ if OPENWEATHER_API_KEY and GEMINI_API_KEY:
 else:
     print("Warning: One or more API keys are missing!")
 
-app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['UPLOAD_FOLDER'] = os.environ.get('UPLOAD_FOLDER', 'uploads')
 ALLOWED_EXTENSIONS = {'csv'}
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # ============================================================
 #    DATABASE INIT
 # ============================================================
-DB_PATH = os.path.join('database', 'coffee_shop.db')
+DB_PATH = os.environ.get('DB_PATH', os.path.join('database', 'coffee_shop.db'))
 if not os.path.exists(DB_PATH):
     print("Database not found. Running initialization script...")
     initialize_database()
