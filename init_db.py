@@ -2,10 +2,13 @@ import sqlite3
 import os
 
 def initialize_database():
-    # Define the database file path inside a 'database' folder
-    db_folder = 'database'
-    os.makedirs(db_folder, exist_ok=True)
-    db_path = os.path.join(db_folder, 'coffee_shop.db')
+    # Read DB_PATH from environment variable (Railway volume) with local fallback
+    db_path = os.environ.get('DB_PATH', os.path.join('database', 'coffee_shop.db'))
+
+    # Extract the folder from the path and ensure it exists
+    db_folder = os.path.dirname(db_path)
+    if db_folder:
+        os.makedirs(db_folder, exist_ok=True)
 
     # Connect to SQLite (this automatically creates the file if it doesn't exist)
     conn = sqlite3.connect(db_path)
