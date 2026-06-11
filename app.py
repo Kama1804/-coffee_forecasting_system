@@ -78,11 +78,27 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 #    DATABASE INIT
 # ============================================================
 DB_PATH = os.environ.get('DB_PATH', os.path.join('database', 'coffee_shop.db'))
-if not os.path.exists(DB_PATH):
-    print("Database not found. Running initialization script...")
-    initialize_database()
-else:
-    print("Database found. System ready.")
+
+def verify_and_init_db():
+    try:
+        # Connect and check if the branch table actually exists inside the file
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='branch'")
+        table_exists = cursor.fetchone()
+        conn.close()
+
+        if not table_exists:
+            print("Database tables missing. Running initialization script...")
+            initialize_database()
+        else:
+            print("Database found and verified. System ready.")
+    except Exception as e:
+        print(f"Database verification failed: {e}. Running fallback initialization...")
+        initialize_database()
+
+# Trigger verified initialization on startup
+verify_and_init_db()
 
 
 # ============================================================
