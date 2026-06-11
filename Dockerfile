@@ -19,5 +19,9 @@ COPY . .
 # Create data directory for persistent volume mount
 RUN mkdir -p /data
 
-# Start Flask app with gunicorn (SHELL FORM - no brackets, so $PORT expands correctly)
-CMD gunicorn app:app --workers 2 --threads 2 --bind 0.0.0.0:$PORT
+# Copy startup script and make it executable
+COPY start.sh .
+RUN chmod +x start.sh
+
+# Start via bash script — guarantees $PORT is always set
+ENTRYPOINT ["/bin/bash", "start.sh"]
