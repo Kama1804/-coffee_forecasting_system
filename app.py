@@ -77,9 +77,17 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 # ============================================================
 #    DATABASE INIT
 # ============================================================
-DB_PATH = os.environ.get('DB_PATH') or os.path.join('database', 'coffee_shop.db')
+def get_robust_env(var_name, default=''):
+    for k, v in os.environ.items():
+        if k.strip() == var_name:
+            val = v.strip()
+            if val:
+                return val
+    return default
+
+DB_PATH = get_robust_env('DB_PATH', os.path.join('database', 'coffee_shop.db'))
 print(f"[STARTUP] DB_PATH resolved to: {DB_PATH}")
-print(f"[DEBUG] Raw os.environ.get('DB_PATH') is: {repr(os.environ.get('DB_PATH'))}")
+print(f"[DEBUG] Raw DB_PATH resolved value is: {repr(DB_PATH)}")
 print(f"[DEBUG] Env keys containing DB/PATH/PORT/FOLDER: {[k for k in os.environ.keys() if any(x in k for x in ('DB', 'PATH', 'PORT', 'FOLDER'))]}")
 
 def verify_and_init_db():

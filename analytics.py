@@ -24,7 +24,11 @@ HOLIDAYS = [
 ]
 
 def get_db_connection():
-    db_path = os.environ.get('DB_PATH') or os.path.join('database', 'coffee_shop.db')
+    db_path = os.path.join('database', 'coffee_shop.db')
+    for k, v in os.environ.items():
+        if k.strip() == 'DB_PATH' and v.strip():
+            db_path = v.strip()
+            break
     return sqlite3.connect(db_path)
 
 # ============================================================

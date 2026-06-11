@@ -242,7 +242,11 @@ _CHART_KEYWORDS = {"chart", "graph", "plot", "visual", "visualize", "draw"}
 
 
 def get_db_connection():
-    db_path = os.environ.get('DB_PATH') or os.path.join('database', 'coffee_shop.db')
+    db_path = os.path.join('database', 'coffee_shop.db')
+    for k, v in os.environ.items():
+        if k.strip() == 'DB_PATH' and v.strip():
+            db_path = v.strip()
+            break
     return sqlite3.connect(db_path)
 
 
@@ -403,8 +407,7 @@ def get_business_advice(branch_id: str, branch_name: str) -> tuple[bool, str]:
     if not metrics:
         return False, "Not enough historical data to generate advice for this branch."
 
-    db_path = os.environ.get('DB_PATH') or os.path.join('database', 'coffee_shop.db')
-    conn = sqlite3.connect(db_path)
+    conn = get_db_connection()
 
     forecast_df = pd.read_sql_query(
         """SELECT forecast_date, predicted_revenue FROM sales_forecast
@@ -636,8 +639,7 @@ def build_slim_context(db_data: dict, user_message: str) -> str:
             last_day = calendar.monthrange(y, m)[1]
             end_date = f"{target_month}-{last_day}"
 
-            db_path = os.environ.get('DB_PATH') or os.path.join('database', 'coffee_shop.db')
-            conn = sqlite3.connect(db_path)
+            conn = get_db_connection()
             cursor = conn.cursor()
 
             # 1. Total Metrics (Range Query)
@@ -721,8 +723,7 @@ def build_slim_context(db_data: dict, user_message: str) -> str:
         # Fetch data for the 2026 window specifically
         r_start, r_end = "2026-02-19", "2026-03-20"
         try:
-            db_path = os.environ.get('DB_PATH') or os.path.join('database', 'coffee_shop.db')
-            conn = sqlite3.connect(db_path)
+            conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT COALESCE(SUM(Total_Bill_MYR),0), COUNT(*), COUNT(DISTINCT transaction_date)

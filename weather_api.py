@@ -12,7 +12,11 @@ OPENWEATHER_API_KEY = os.getenv('OPENWEATHER_API_KEY')
 def get_branch_coords():
     """Fetches all active branch coordinates from the database."""
     try:
-        db_path = os.environ.get('DB_PATH') or os.path.join('database', 'coffee_shop.db')
+        db_path = os.path.join('database', 'coffee_shop.db')
+        for k, v in os.environ.items():
+            if k.strip() == 'DB_PATH' and v.strip():
+                db_path = v.strip()
+                break
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         cursor.execute("SELECT branch_name, latitude, longitude FROM branch WHERE is_active = 1")

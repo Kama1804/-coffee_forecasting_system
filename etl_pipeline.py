@@ -6,6 +6,14 @@ import json
 from datetime import datetime
 from analytics import process_sales_dataframe, bulk_insert_sales
 
+def get_robust_db_path():
+    db_path = os.path.join('database', 'coffee_shop.db')
+    for k, v in os.environ.items():
+        if k.strip() == 'DB_PATH' and v.strip():
+            db_path = v.strip()
+            break
+    return db_path
+
 class ETLPipeline:
     def __init__(self, filepath):
         self.filepath = filepath
@@ -23,7 +31,7 @@ class ETLPipeline:
         def fetch_weather_logic(date_str, branch_id):
             # Dynamic coordinate lookup from database
             try:
-                db_path = os.environ.get('DB_PATH') or os.path.join('database', 'coffee_shop.db')
+                db_path = get_robust_db_path()
                 conn = sqlite3.connect(db_path)
                 cursor = conn.cursor()
                 cursor.execute("SELECT latitude, longitude FROM branch WHERE branch_code = ?", (branch_id,))
@@ -184,7 +192,7 @@ class ETLPipeline:
 
             # Filtering for valid branches (Database Driven)
             try:
-                db_path = os.environ.get('DB_PATH') or os.path.join('database', 'coffee_shop.db')
+                db_path = get_robust_db_path()
                 conn = sqlite3.connect(db_path)
                 cursor = conn.cursor()
                 cursor.execute("SELECT branch_code FROM branch WHERE is_active = 1")
@@ -215,7 +223,7 @@ class ETLPipeline:
         Compare Item_Names from CSV against the product_recipes table.
         """
         try:
-            db_path = os.environ.get('DB_PATH') or os.path.join('database', 'coffee_shop.db')
+            db_path = get_robust_db_path()
             conn = sqlite3.connect(db_path)
             
             # Get unique items from the uploaded CSV

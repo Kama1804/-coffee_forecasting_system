@@ -3,7 +3,11 @@ import os
 
 def initialize_database():
     # Read DB_PATH from environment variable (Railway volume) with local fallback
-    db_path = os.environ.get('DB_PATH') or os.path.join('database', 'coffee_shop.db')
+    db_path = os.path.join('database', 'coffee_shop.db')
+    for k, v in os.environ.items():
+        if k.strip() == 'DB_PATH' and v.strip():
+            db_path = v.strip()
+            break
     print(f"[INIT_DB] Initializing database at: {db_path}")
 
     # Extract the folder from the path
