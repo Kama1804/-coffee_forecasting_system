@@ -19,8 +19,5 @@ COPY . .
 # Create data directory for persistent volume mount
 RUN mkdir -p /data
 
-# Expose port (Railway injects $PORT at runtime)
-EXPOSE 8080
-
-# Start Flask app with gunicorn
-CMD ["gunicorn", "app:app", "--workers", "2", "--threads", "2", "--bind", "0.0.0.0:8080"]
+# Start Flask app with gunicorn (SHELL FORM - no brackets, so $PORT expands correctly)
+CMD gunicorn app:app --workers 2 --threads 2 --bind 0.0.0.0:$PORT
