@@ -614,6 +614,19 @@
         });
     }
 
+    // Reset modal when clicking "Add New Branch"
+    document.getElementById('btnAddBranch').addEventListener('click', () => {
+        const form = document.getElementById('branchForm');
+        form.reset();
+        document.getElementById('branchModalTitle').textContent = 'Add New Branch';
+        document.getElementById('branchAction').value = 'add';
+        document.getElementById('branch_code').readOnly = false;
+        document.getElementById('maturityNotice').innerHTML = '';
+        const input = document.getElementById('holiday_effect_pct');
+        input.readOnly = false;
+        input.classList.remove('bg-light');
+    });
+
     // Branch CRUD logic
     document.getElementById('branchForm').addEventListener('submit', async (e) => {
         e.preventDefault();
