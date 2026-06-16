@@ -746,10 +746,18 @@ function togglePeakView() {
     const data = mode === 'peakRamadhan' ? globalPeakData.ramadhan : globalPeakData.regular;
     const subtitle = document.getElementById('peakSubtitle');
     
+    // Get currently selected Outlet and Period names
+    const outletSelect = document.getElementById('branchFilter');
+    const periodSelect = document.getElementById('timeFilter');
+    const selectedOutlet = outletSelect.options[outletSelect.selectedIndex].text;
+    const selectedPeriod = periodSelect.options[periodSelect.selectedIndex].text;
+    
+    const filterContext = ` – ${selectedOutlet} (${selectedPeriod})`;
+    
     if (mode === 'peakRamadhan') {
-        subtitle.innerHTML = '<span class="text-danger fw-700">🌙 Ramadhan Night Shift (4:30 PM - 12:00 AM)</span>';
+        subtitle.innerHTML = `<span class="text-danger fw-700">🌙 Ramadhan Night Shift (4:30 PM - 12:00 AM)</span><span class="text-muted-sm font-monospace text-primary ms-1">${filterContext}</span>`;
     } else {
-        subtitle.textContent = 'Darker/warmer cells indicate peak ordering activity';
+        subtitle.innerHTML = `<span>Darker/warmer cells indicate peak ordering activity</span><span class="text-muted-sm font-monospace text-primary ms-1">${filterContext}</span>`;
     }
     
     renderPeakChart(data);
@@ -761,20 +769,33 @@ function renderPeakChart(peakData) {
         return;
     }
     
-    const maxQty = Math.max(...peakData.map(p => p.quantity_sold));
+    // Y-axis order: Sunday to Monday (since Plotly renders from bottom to top, Monday will be on top)
+    const days = ['Sunday', 'Saturday', 'Friday', 'Thursday', 'Wednesday', 'Tuesday', 'Monday'];
+    const shortDays = ['Sun', 'Sat', 'Fri', 'Thu', 'Wed', 'Tue', 'Mon'];
+    
+    // Extract unique active hours and sort them chronologically
+    const uniqueHours = [...new Set(peakData.map(p => parseInt(p.Hour)))].sort((a, b) => a - b);
+    const hoursFormatted = uniqueHours.map(h => `${String(h).padStart(2,'0')}:00`);
+    
+    // Construct the 2D z matrix: y (days) by x (hours)
+    const z = days.map(day => {
+        return uniqueHours.map(hour => {
+            const match = peakData.find(p => p.day_name === day && parseInt(p.Hour) === hour);
+            return match ? match.quantity_sold : 0;
+        });
+    });
     
     Plotly.newPlot('heatmapChart', [{
-        x: peakData.map(p => `${String(p.Hour).padStart(2,'0')}:00`),
-        y: peakData.map(p => p.quantity_sold),
-        type: 'bar',
-        marker: {
-            color: peakData.map(p => getGradientColor(p.quantity_sold, maxQty)),
-            opacity: 0.85
-        },
-        hovertemplate: '<b>Hour: %{x}</b><br>Volume Sold: %{y}<extra></extra>'
+        z: z,
+        x: hoursFormatted,
+        y: shortDays,
+        type: 'heatmap',
+        colorscale: [[0, '#FFFDF9'], [0.5, '#D97706'], [1, '#78350F']],
+        showscale: true,
+        hovertemplate: '<b>Day: %{y}</b><br>Hour: %{x}<br>Volume Sold: %{z}<extra></extra>'
     }], getPlotlyLayout(230, {
-        xaxis: { type: 'category', gridcolor: 'transparent' },
-        yaxis: { gridcolor: '#F1F5F9', title: { text: 'Units Sold', font: { size: 10 } } }
+        xaxis: { type: 'category', gridcolor: 'transparent', tickangle: -45 },
+        yaxis: { automargin: true, gridcolor: 'transparent' }
     }), CONFIG);
 }
 
@@ -914,6 +935,9 @@ function loadFilterOptions() {
     .catch(e=>console.error('Filter configuration read failure:',e));
 }
 
+let chartQuerySeq = 0;
+let kpiQuerySeq = 0;
+
 /* ── MAIN FILTER APPLY ── */
 function applyFilters() {
   const branch = document.getElementById('branchFilter').value;
@@ -927,8 +951,8 @@ function applyFilters() {
   const isPromoEligible = (branch === 'all') && (time === 'all' || time.startsWith('year_'));
   if (promoSection) promoSection.style.display = isPromoEligible ? 'block' : 'none';
 
-  // Branch Comparison rendering criteria
-  const isOutletEligible = (branch === 'all') && (time !== 'current_week');
+  // Branch Comparison rendering criteria: only visible for All Time or Yearly comparisons
+  const isOutletEligible = (branch === 'all') && (time === 'all' || time.startsWith('year_'));
   if (outletSection) outletSection.style.display = isOutletEligible ? 'block' : 'none';
 
   // Discount Impact rendering criteria: All outlets, but only All Time or Yearly
@@ -945,9 +969,11 @@ function applyFilters() {
   }
 
   /* ── KPIs ── */
+  const myKpiSeq = ++kpiQuerySeq;
   fetch(`/api/kpis?${qp}`)
     .then(r=>r.json())
     .then(d=>{
+      if (myKpiSeq !== kpiQuerySeq) return; // Discard outdated response
       if(d.status!=='success') return;
       animateCount('kpiRevenue',      d.total_revenue,      true);
       animateCount('kpiVolume',       d.volume_sold,        false);
@@ -990,9 +1016,11 @@ function applyFilters() {
     });
 
   /* ── CHARTS ── */
+  const mySeq = ++chartQuerySeq;
   fetch(`/api/charts?${qp}`)
     .then(r=>r.json())
     .then(d=>{
+      if (mySeq !== chartQuerySeq) return; // Discard outdated response
       if(d.status!=='success') {
           console.error("Charts API issue:", d.message);
           ['loadingTrend','loadingCategory','loadingTop','loadingWeak',
@@ -1157,27 +1185,23 @@ function renderDashboardCharts(d) {
   // 4. Heatmap / Busiest Hours Chart
   try {
       globalPeakData = d.peak_data;
+      const ramadhanMonths = ['2024-03', '2024-04', '2025-03', '2026-02', '2026-03', '2027-02', '2027-03'];
+      const timeFilterVal = document.getElementById('timeFilter').value;
+      const showToggle = (timeFilterVal === 'all') || 
+                         timeFilterVal.startsWith('year_') || 
+                         (timeFilterVal.startsWith('month_') && ramadhanMonths.includes(timeFilterVal.replace('month_', '')));
+
       if (globalPeakData && (globalPeakData.regular.length > 0 || globalPeakData.ramadhan.length > 0)) {
-          document.getElementById('peakToggleGroup').style.display = 'flex';
+          if (showToggle) {
+              document.getElementById('peakToggleGroup').style.display = 'flex';
+          } else {
+              document.getElementById('peakToggleGroup').style.display = 'none';
+              document.getElementById('peakRegular').checked = true;
+          }
           togglePeakView();
       } else {
           document.getElementById('peakToggleGroup').style.display = 'none';
-          const days  = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-          const hours = Array.from({length:14},(_,i)=>`${String(i+8).padStart(2,'0')}:00`);
-          const z = days.map(day =>
-            hours.map((_,h)=>{
-              const match=d.heatmap.find(r=>r.day===day && r.hour===h+8);
-              return match ? match.value : 0;
-            })
-          );
-          Plotly.newPlot('heatmapChart',[{
-            z, x:hours, y:days, type:'heatmap',
-            colorscale:[[0,'#FFFDF9'], [0.5,'#D97706'], [1,'#78350F']],
-            showscale:true
-          }], getPlotlyLayout(230, {
-            xaxis: { tickangle: -45 },
-            yaxis: { automargin: true }
-          }), CONFIG);
+          renderPeakChart([]);
       }
   } catch(e) { console.error("Temporal Heatmap compilation error", e); }
   hideLoader('loadingHeatmap');

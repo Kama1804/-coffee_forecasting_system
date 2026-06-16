@@ -183,7 +183,7 @@ def promo_efficiency_analyzer(where_clause="", params=None):
 # ============================================================
 #    REQUIREMENT 3: RAMADHAN MODE FILTERS
 # ============================================================
-def get_ramadhan_peak_hours(branch_id=None):
+def get_ramadhan_peak_hours(branch_id=None, time_filter='all'):
     """
     Requirement 3: Analyzes peak hours strictly during the fasting month.
     Focuses on the 4:30 PM - 12:00 AM night shift.
@@ -198,20 +198,47 @@ def get_ramadhan_peak_hours(branch_id=None):
     date_conds = " OR ".join([f"transaction_date BETWEEN '{s}' AND '{e}'" for s, e in ramadhan_windows])
     
     conn = get_db_connection()
-    query = f"""
-        SELECT Hour, SUM(transaction_qty) as quantity_sold, SUM(Total_Bill_MYR) as revenue
-        FROM sales_transaction
-        WHERE ({date_conds})
-    """
+    conds = [f"({date_conds})"]
+    
     if branch_id:
-        query += f" AND branch_id = '{branch_id.upper().strip()}'"
-    query += " GROUP BY Hour ORDER BY quantity_sold DESC"
+        conds.append(f"branch_id = '{branch_id.upper().strip()}'")
+        
+    if time_filter == 'current_week':
+        max_date = pd.read_sql_query("SELECT MAX(transaction_date) FROM sales_transaction", conn).iloc[0, 0]
+        if not max_date:
+            max_date = datetime.today().strftime('%Y-%m-%d')
+        conds.append(f"transaction_date >= date('{max_date}', '-7 days')")
+    elif time_filter and time_filter.startswith('year_'):
+        year = time_filter.split('_')[1]
+        conds.append(f"strftime('%Y', transaction_date) = '{year}'")
+    elif time_filter and time_filter.startswith('month_'):
+        month = time_filter.split('_')[1]
+        conds.append(f"strftime('%Y-%m', transaction_date) = '{month}'")
+        
+    where_clause = "WHERE " + " AND ".join(conds)
+    
+    query = f"""
+        SELECT 
+            Hour, 
+            "Day Name" as day_name,
+            SUM(transaction_qty) as quantity_sold, 
+            SUM(Total_Bill_MYR) as revenue
+        FROM sales_transaction
+        {where_clause}
+        GROUP BY Hour, "Day Name" 
+        ORDER BY 
+            CASE "Day Name"
+                WHEN 'Monday' THEN 1 WHEN 'Tuesday' THEN 2 WHEN 'Wednesday' THEN 3
+                WHEN 'Thursday' THEN 4 WHEN 'Friday' THEN 5 WHEN 'Saturday' THEN 6
+                WHEN 'Sunday' THEN 7
+            END ASC, CAST(Hour AS INTEGER) ASC
+    """
     
     df = pd.read_sql_query(query, conn)
     conn.close()
     return df.to_dict('records')
 
-def get_regular_peak_hours(branch_id=None):
+def get_regular_peak_hours(branch_id=None, time_filter='all'):
     """
     Requirement 3: Analyzes peak hours excluding the fasting month.
     Preserves the morning/afternoon operational baseline.
@@ -226,14 +253,41 @@ def get_regular_peak_hours(branch_id=None):
     date_conds = " AND ".join([f"transaction_date NOT BETWEEN '{s}' AND '{e}'" for s, e in ramadhan_windows])
     
     conn = get_db_connection()
-    query = f"""
-        SELECT Hour, SUM(transaction_qty) as quantity_sold, SUM(Total_Bill_MYR) as revenue
-        FROM sales_transaction
-        WHERE ({date_conds})
-    """
+    conds = [f"({date_conds})"]
+    
     if branch_id:
-        query += f" AND branch_id = '{branch_id.upper().strip()}'"
-    query += " GROUP BY Hour ORDER BY quantity_sold DESC"
+        conds.append(f"branch_id = '{branch_id.upper().strip()}'")
+        
+    if time_filter == 'current_week':
+        max_date = pd.read_sql_query("SELECT MAX(transaction_date) FROM sales_transaction", conn).iloc[0, 0]
+        if not max_date:
+            max_date = datetime.today().strftime('%Y-%m-%d')
+        conds.append(f"transaction_date >= date('{max_date}', '-7 days')")
+    elif time_filter and time_filter.startswith('year_'):
+        year = time_filter.split('_')[1]
+        conds.append(f"strftime('%Y', transaction_date) = '{year}'")
+    elif time_filter and time_filter.startswith('month_'):
+        month = time_filter.split('_')[1]
+        conds.append(f"strftime('%Y-%m', transaction_date) = '{month}'")
+        
+    where_clause = "WHERE " + " AND ".join(conds)
+    
+    query = f"""
+        SELECT 
+            Hour, 
+            "Day Name" as day_name,
+            SUM(transaction_qty) as quantity_sold, 
+            SUM(Total_Bill_MYR) as revenue
+        FROM sales_transaction
+        {where_clause}
+        GROUP BY Hour, "Day Name" 
+        ORDER BY 
+            CASE "Day Name"
+                WHEN 'Monday' THEN 1 WHEN 'Tuesday' THEN 2 WHEN 'Wednesday' THEN 3
+                WHEN 'Thursday' THEN 4 WHEN 'Friday' THEN 5 WHEN 'Saturday' THEN 6
+                WHEN 'Sunday' THEN 7
+            END ASC, CAST(Hour AS INTEGER) ASC
+    """
     
     df = pd.read_sql_query(query, conn)
     conn.close()

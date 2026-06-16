@@ -966,8 +966,8 @@ def api_charts():
                 for r in heat_rows
             ],
             "peak_data": {
-                "regular": _sanitize_for_json(get_regular_peak_hours(branch_id)),
-                "ramadhan": _sanitize_for_json(get_ramadhan_peak_hours(branch_id))
+                "regular": _sanitize_for_json(get_regular_peak_hours(branch_id, time_filter)),
+                "ramadhan": _sanitize_for_json(get_ramadhan_peak_hours(branch_id, time_filter))
             }
         })
     except Exception as e:
