@@ -1,9 +1,10 @@
-from forecast_engine import ForecastEngine
 import os
 import sys
 
-# Ensure current directory is in path
-sys.path.append(os.getcwd())
+# Ensure project root is in path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+from forecast_engine import ForecastEngine
 
 engine = ForecastEngine()
 

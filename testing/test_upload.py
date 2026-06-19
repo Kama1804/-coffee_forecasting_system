@@ -1,16 +1,27 @@
+import os
+import sys
 import pandas as pd
 import sqlite3
-import os
-from analytics import process_sales_dataframe, bulk_insert_sales
 
-db_path = os.path.join('database', 'coffee_shop.db')
+# Ensure project root is in path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-# Use one of the generated dummy files
-csv_path = 'MiniCoffee_Raw_POS_putrajaya_2026.csv'
+from init_db import initialize_database
+from analytics import process_sales_dataframe
+
+# Set temporary database path
+test_db = "test_upload.db"
+os.environ['DB_PATH'] = test_db
+
+# Initialize database schema and seeds
+initialize_database()
+
+# Use one of the generated raw files in uploads
+csv_path = os.path.join(os.path.dirname(__file__), '..', 'uploads', 'MiniCoffee_Raw_putrajaya_2026.csv')
 
 if not os.path.exists(csv_path):
     print(f"File not found: {csv_path}")
-    exit(1)
+    sys.exit(1)
 
 print(f"Testing upload of {csv_path}...")
 df = pd.read_csv(csv_path)
@@ -39,7 +50,7 @@ processed_df = process_sales_dataframe(df)
 
 print("Attempting bulk insert...")
 try:
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(test_db)
     processed_df.to_sql('sales_transaction', conn, if_exists='append', index=False)
     conn.commit()
     conn.close()
@@ -48,3 +59,7 @@ except Exception as e:
     print(f"FAILED with error: {e}")
     import traceback
     traceback.print_exc()
+finally:
+    if os.path.exists(test_db):
+        os.remove(test_db)
+        print("Cleaned up temporary database.")

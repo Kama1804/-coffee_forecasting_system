@@ -2,14 +2,26 @@ import pandas as pd
 from prophet import Prophet
 import sqlite3
 import os
+import sys
+
+# Ensure project root is in path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 def test_prophet_engine():
     print("--- Starting Prophet Validation Sandbox ---")
     
-    # 1. Load Data from SQLite (Testing Putrajaya - Branch 1)
-    db_path = os.path.join('database', 'coffee_shop.db')
+    # 1. Load Data from SQLite (Testing Putrajaya - STB-PJ1)
+    db_path = os.path.join(os.path.dirname(__file__), '..', 'database', 'coffee_shop.db')
     conn = sqlite3.connect(db_path)
-    df = pd.read_sql_query("SELECT sale_date, total_revenue, weather_condition FROM sales_transaction WHERE branch_id = 1", conn)
+    
+    # The database schema uses:
+    #   - transaction_date instead of sale_date
+    #   - Total_Bill_MYR instead of total_revenue
+    #   - branch_id is a string code like 'STB-PJ1'
+    df = pd.read_sql_query(
+        "SELECT transaction_date, Total_Bill_MYR, weather_condition FROM sales_transaction WHERE branch_id = 'STB-PJ1'", 
+        conn
+    )
     conn.close()
 
     if df.empty:
@@ -17,19 +29,25 @@ def test_prophet_engine():
         return
 
     # 2. Aggregate to Daily Revenue
-    daily_df = df.groupby(['sale_date', 'weather_condition'])['total_revenue'].sum().reset_index()
+    daily_df = df.groupby(['transaction_date', 'weather_condition'])['Total_Bill_MYR'].sum().reset_index()
     
     # Prophet strictly requires 'ds' (datestamp) and 'y' (target value)
-    daily_df = daily_df.rename(columns={'sale_date': 'ds', 'total_revenue': 'y'})
+    daily_df = daily_df.rename(columns={'transaction_date': 'ds', 'Total_Bill_MYR': 'y'})
 
     # 3. Encode Weather Regressor (Prophet requires numbers, not text)
-    weather_weights = {'Sunny': 1, 'Cloudy': 0, 'Raining': -1}
-    daily_df['weather_encoded'] = daily_df['weather_condition'].map(weather_weights)
+    weather_weights = {
+        'Fair / Sunny': 1.1,
+        'Sunny': 1.1,
+        'Cloudy': 1.0,
+        'Raining': 0.7,
+        'Thunderstorm': 0.4
+    }
+    daily_df['weather_encoded'] = daily_df['weather_condition'].map(weather_weights).fillna(1.0)
 
     # 4. Initialize and Train Prophet
     print(f"Training AI on {len(daily_df)} days of historical data...")
     
-    # Disable yearly seasonality since we only have 3 months of dummy data
+    # Disable yearly seasonality since we only have a few months of data
     m = Prophet(daily_seasonality=False, yearly_seasonality=False)
     m.add_regressor('weather_encoded')
     m.fit(daily_df)
@@ -38,7 +56,7 @@ def test_prophet_engine():
     future = m.make_future_dataframe(periods=5)
 
     # Mock future weather array for the next 5 days (e.g., 3 days cloudy, 2 days rain)
-    future_weather_mock = [0, 0, 0, -1, -1]
+    future_weather_mock = [1.0, 1.0, 1.0, 0.7, 0.7]
 
     # Map historical weather to the first part of future df, and append mock future
     historical_weather = daily_df['weather_encoded'].tolist()
