@@ -28,90 +28,113 @@ class ETLPipeline:
         ]
 
     def _enrich_weather(self, df):
-        def fetch_weather_logic(date_str, branch_id):
-            # Dynamic coordinate lookup from database
-            try:
-                db_path = get_robust_db_path()
-                conn = sqlite3.connect(db_path)
-                cursor = conn.cursor()
-                cursor.execute("SELECT latitude, longitude FROM branch WHERE branch_code = ?", (branch_id,))
-                row = cursor.fetchone()
-                conn.close()
+        # Cache to hold (transaction_date, branch_id) -> weather_condition
+        weather_cache = {}
+        
+        # Get coordinates for each branch
+        branch_coords = {}
+        try:
+            db_path = get_robust_db_path()
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT branch_code, latitude, longitude FROM branch")
+            rows = cursor.fetchall()
+            conn.close()
+            for row in rows:
+                branch_coords[row[0]] = {'lat': row[1], 'lon': row[2]}
+        except Exception as e:
+            print(f"[COORD ERROR] Failed to fetch branch coordinates: {e}")
+
+        # Group by branch to do range-based API calls
+        unique_pairs = df[['transaction_date', 'branch_id']].drop_duplicates()
+        print(f"[ETL LOG] Fetching weather for {len(unique_pairs)} discrete vectors (Daylight Aggregation)...")
+        
+        # Group unique dates by branch_id
+        branch_dates = {}
+        for _, row in unique_pairs.iterrows():
+            b_id = row['branch_id']
+            d_str = row['transaction_date']
+            if b_id not in branch_dates:
+                branch_dates[b_id] = []
+            branch_dates[b_id].append(d_str)
+
+        for branch_id, dates in branch_dates.items():
+            if not dates:
+                continue
+            
+            # Check coords
+            coords = branch_coords.get(branch_id)
+            if not coords or (coords['lat'] == 0 and coords['lon'] == 0):
+                # Fallback to Cloudy for all dates of this branch
+                for d_str in dates:
+                    weather_cache[(d_str, branch_id)] = 'Cloudy'
+                continue
                 
-                if not row or (row[0] == 0 and row[1] == 0):
-                    return 'Cloudy'
-                
-                coords = {'lat': row[0], 'lon': row[1]}
-            except Exception as e:
-                print(f"[COORD ERROR] {branch_id}: {e}")
-                return 'Cloudy'
+            # Determine date range
+            min_date = min(dates)
+            max_date = max(dates)
             
             try:
-                # 1. Isolate Daylight Blocks (07:00 - 19:00)
                 url = "https://archive-api.open-meteo.com/v1/archive"
                 params = {
                     "latitude":   coords['lat'],
                     "longitude":  coords['lon'],
-                    "start_date": date_str,
-                    "end_date":   date_str,
+                    "start_date": min_date,
+                    "end_date":   max_date,
                     "hourly":     ["weathercode", "precipitation"],
                     "timezone":   "Asia/Kuala_Lumpur"
                 }
-                resp = requests.get(url, params=params, timeout=10)
+                
+                # Make a single batch request for this branch
+                resp = requests.get(url, params=params, timeout=15)
                 resp.raise_for_status()
                 res_json = resp.json()
                 
-                if "hourly" not in res_json:
-                    return 'Cloudy'
-
-                hourly_data = res_json["hourly"]
-                times = hourly_data["time"]
-                codes = hourly_data["weathercode"]
-                precip = hourly_data["precipitation"]
-
-                daylight_codes = []
-                daylight_precip = 0.0
-
-                for t, c, p in zip(times, codes, precip):
-                    hour = int(t.split('T')[1].split(':')[0])
-                    if 7 <= hour <= 19:
-                        daylight_codes.append(c)
-                        daylight_precip += p
-
-                # 2. Check the Volume Threshold (2.5 mm)
-                if daylight_precip < 2.5:
-                    # Apply Weighted Majority Vote for dry days
-                    # Fair / Sunny: 0, 1, 2
-                    # Cloudy: 3, 45, 48, 51, 53, 55
-                    sunny_count = sum(1 for c in daylight_codes if c in [0, 1, 2])
-                    cloudy_count = sum(1 for c in daylight_codes if c in [3, 45, 48, 51, 53, 55])
+                if "hourly" in res_json:
+                    hourly_data = res_json["hourly"]
+                    times = hourly_data.get("time", [])
+                    codes = hourly_data.get("weathercode", [])
+                    precip = hourly_data.get("precipitation", [])
                     
-                    if cloudy_count > sunny_count:
-                        return 'Cloudy'
-                    else:
-                        return 'Fair / Sunny'
-
-                # 3. Identify Severe Lightning (Thunderstorm)
-                if any(c in [95, 96, 99] for c in daylight_codes):
-                    return 'Thunderstorm'
-                
-                # Default if rain is >= 2.5mm but no thunderstorm
-                return 'Raining'
+                    # Group by date
+                    daily_data = {}
+                    for t, c, p in zip(times, codes, precip):
+                        if 'T' not in t:
+                            continue
+                        date_part, time_part = t.split('T')
+                        hour = int(time_part.split(':')[0])
+                        
+                        if 7 <= hour <= 19:
+                            if date_part not in daily_data:
+                                daily_data[date_part] = {'codes': [], 'precip': 0.0}
+                            daily_data[date_part]['codes'].append(c)
+                            daily_data[date_part]['precip'] += p
+                            
+                    # Process each date's weather condition
+                    for date_part, data in daily_data.items():
+                        daylight_codes = data['codes']
+                        daylight_precip = data['precip']
+                        
+                        if daylight_precip < 2.5:
+                            sunny_count = sum(1 for c in daylight_codes if c in [0, 1, 2])
+                            cloudy_count = sum(1 for c in daylight_codes if c in [3, 45, 48, 51, 53, 55])
+                            condition = 'Cloudy' if cloudy_count > sunny_count else 'Fair / Sunny'
+                        else:
+                            if any(c in [95, 96, 99] for c in daylight_codes):
+                                condition = 'Thunderstorm'
+                            else:
+                                condition = 'Raining'
+                        weather_cache[(date_part, branch_id)] = condition
 
             except Exception as e:
-                print(f"[WEATHER ERROR] {date_str} {branch_id}: {e}")
-                return 'Cloudy'
+                print(f"[WEATHER ERROR] Failed batch weather fetch for {branch_id} ({min_date} to {max_date}): {e}")
+                
+            # Apply Cloudy fallback for any dates that failed or weren't in the response
+            for d_str in dates:
+                if (d_str, branch_id) not in weather_cache:
+                    weather_cache[(d_str, branch_id)] = 'Cloudy'
 
-        weather_cache = {}
-        unique_pairs  = df[['transaction_date', 'branch_id']].drop_duplicates()
-
-        print(f"[ETL LOG] Fetching weather for {len(unique_pairs)} discrete vectors (Daylight Aggregation)...")
-
-        for _, row in unique_pairs.iterrows():
-            key = (row['transaction_date'], row['branch_id'])
-            if key not in weather_cache:
-                weather_cache[key] = fetch_weather_logic(row['transaction_date'], row['branch_id'])
-
+        # Map to df
         df['weather_condition'] = df.apply(
             lambda r: weather_cache.get((r['transaction_date'], r['branch_id']), 'Cloudy'), axis=1
         )
