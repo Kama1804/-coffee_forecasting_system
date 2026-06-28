@@ -109,6 +109,17 @@ def initialize_database():
     )
     ''')
 
+    # 5. Upload History Table (Persistent Audit Log)
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS upload_history (
+        upload_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        filename TEXT NOT NULL,
+        file_size REAL NOT NULL,
+        upload_date TEXT NOT NULL,
+        status TEXT NOT NULL
+    )
+    ''')
+
     # Backfill default branches if table is empty
     cursor.execute("SELECT COUNT(*) FROM branch")
     if cursor.fetchone()[0] == 0:

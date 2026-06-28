@@ -90,21 +90,12 @@ print(f"[STARTUP] DB_PATH resolved to: {DB_PATH}")
 
 def verify_and_init_db():
     try:
-        # Connect and check if the branch table actually exists inside the file
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='branch'")
-        table_exists = cursor.fetchone()
-        conn.close()
-
-        if not table_exists:
-            print("Database tables missing. Running initialization script...")
-            initialize_database()
-        else:
-            print("Database found and verified. System ready.")
-    except Exception as e:
-        print(f"Database verification failed: {e}. Running fallback initialization...")
+        # Run initialization script to ensure all tables exist (safe and idempotent)
+        print("Running database verification and schema updates...")
         initialize_database()
+        print("Database verification completed. System ready.")
+    except Exception as e:
+        print(f"Database verification failed: {e}")
 
 # Trigger verified initialization on startup
 verify_and_init_db()
@@ -267,6 +258,11 @@ def upload_file():
             filename = secure_filename(file.filename)
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(filepath)
+            
+            # Retrieve size and mod_time for logging
+            size_mb = round(os.path.getsize(filepath) / (1024 * 1024), 2)
+            mod_time = datetime.now().strftime('%d %b %Y, %I:%M %p')
+            
             pipeline = ETLPipeline(filepath)
             success, message = pipeline.process_data()
             if success:
@@ -279,8 +275,36 @@ def upload_file():
 
                     # Store missing recipes in session for the UI alert ONLY after DB success
                     session['missing_recipes'] = getattr(pipeline, 'missing_recipes', [])
+                    
+                    # Log success to upload_history table
+                    try:
+                        conn = sqlite3.connect(DB_PATH)
+                        cursor = conn.cursor()
+                        cursor.execute(
+                            "INSERT INTO upload_history (filename, file_size, upload_date, status) VALUES (?, ?, ?, ?)",
+                            (filename, size_mb, mod_time, 'Loaded to Warehouse')
+                        )
+                        conn.commit()
+                        conn.close()
+                    except Exception as e:
+                        print(f"[UPLOAD LOG ERROR] {e}")
+                        
                     flash(f'Success! {filename} was cleaned and loaded. {db_message}', 'success')
                 else:
+                    # If duplicate detection triggered, we still log it since the data is present in the warehouse
+                    if "already registered" in db_message or "Double ingestion" in db_message:
+                        try:
+                            conn = sqlite3.connect(DB_PATH)
+                            cursor = conn.cursor()
+                            cursor.execute(
+                                "INSERT INTO upload_history (filename, file_size, upload_date, status) VALUES (?, ?, ?, ?)",
+                                (filename, size_mb, mod_time, 'Loaded to Warehouse')
+                            )
+                            conn.commit()
+                            conn.close()
+                        except Exception as e:
+                            print(f"[UPLOAD LOG ERROR] {e}")
+                            
                     flash(f'Data cleaned but failed to save: {db_message}', 'error')
                     if os.path.exists(filepath):
                         os.remove(filepath)
@@ -322,25 +346,23 @@ def upload_file():
         profile = None
 
     past_uploads = []
-    if os.path.exists(app.config['UPLOAD_FOLDER']):
-        for f in os.listdir(app.config['UPLOAD_FOLDER']):
-            if not f.endswith('.csv'):
-                try:
-                    os.remove(os.path.join(app.config['UPLOAD_FOLDER'], f))
-                except Exception:
-                    pass
-        for filename in os.listdir(app.config['UPLOAD_FOLDER']):
-            if filename.endswith('.csv'):
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                size_mb = os.path.getsize(filepath) / (1024 * 1024)
-                mod_time = datetime.fromtimestamp(os.path.getmtime(filepath)).strftime('%d %b %Y, %I:%M %p')
-                past_uploads.append({
-                    'filename': filename,
-                    'size': round(size_mb, 2),
-                    'date': mod_time,
-                    'timestamp': os.path.getmtime(filepath)
-                })
-        past_uploads.sort(key=lambda x: x['timestamp'], reverse=True)
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT filename, file_size, upload_date, status FROM upload_history ORDER BY upload_id DESC")
+        rows = cursor.fetchall()
+        conn.close()
+        for row in rows:
+            past_uploads.append({
+                'filename': row['filename'],
+                'size': row['file_size'],
+                'date': row['upload_date'],
+                'status': row['status']
+            })
+    except Exception as e:
+        print(f"[FETCH UPLOAD HISTORY ERROR] {e}")
+        past_uploads = []
 
     # Fetch active branch codes for the dynamic UI hint
     active_codes = []
