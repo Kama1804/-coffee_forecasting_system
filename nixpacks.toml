@@ -1,3 +1,3 @@
 [phases.setup]
 nixPkgs = ["...", "cairo", "pango", "glib", "gobject-introspection", "libffi", "fontconfig", "harfbuzz"]
-nixLibs = ["...", "glib", "pango", "cairo", "libffi"]
+nixLibs = ["...", "glib", "pango", "cairo", "libffi", "fontconfig", "harfbuzz"]
