@@ -159,20 +159,7 @@ def initialize_database():
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, recipes_data)
 
-    # Backfill past upload history logs if table is empty
-    cursor.execute("SELECT COUNT(*) FROM upload_history")
-    if cursor.fetchone()[0] == 0:
-        print("Backfilling past upload history logs...")
-        history_data = [
-            ('MiniCoffee_Raw_puncak_alam_2025.csv', 3.12, '28 Jun 2026, 04:30 PM', 'Loaded to Warehouse'),
-            ('MiniCoffee_Raw_putrajaya_2026.csv', 1.39, '28 Jun 2026, 03:42 PM', 'Loaded to Warehouse'),
-            ('MiniCoffee_Raw_puncak_alam_2026.csv', 1.38, '28 Jun 2026, 03:39 PM', 'Loaded to Warehouse'),
-            ('MiniCoffee_Raw_putrajaya_2025.csv', 3.14, '28 Jun 2026, 03:15 PM', 'Loaded to Warehouse')
-        ]
-        cursor.executemany("""
-            INSERT INTO upload_history (filename, file_size, upload_date, status)
-            VALUES (?, ?, ?, ?)
-        """, history_data)
+
 
     conn.commit()
     conn.close()
