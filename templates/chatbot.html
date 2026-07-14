@@ -5,24 +5,7 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
-html, body {
-  overflow: hidden !important;
-  height: 100vh !important;
-}
-.wrapper, .main-canvas {
-  overflow: hidden !important;
-  height: 100vh !important;
-}
-.main-canvas {
-  display: flex !important;
-  flex-direction: column !important;
-}
-.main-content-inner {
-  flex: 1 !important;
-  height: calc(100vh - 65px) !important;
-  overflow: hidden !important;
-  padding: 10px 14px 14px !important;
-}
+/* Standard scrollable layout is active */
 
 :root {
   --navy: #0F172A;
@@ -63,8 +46,7 @@ html, body {
   display: grid;
   grid-template-columns: 240px 1fr 264px;
   gap: 14px;
-  height: 100% !important;
-  min-height: 0 !important;
+  height: 720px !important; /* Pinned widget height for perfect console alignment */
   font-family: var(--font);
 }
 
@@ -205,7 +187,7 @@ html, body {
 .hist-act-btn.ren:hover { color: var(--blue-bright); background: var(--blue-dim); }
 .hist-act-btn.del:hover { color: var(--red); background: var(--red-dim); }
 .hist-empty {
-  text-align: center; padding: 2.5rem 1rem; color: var(--text3);
+  text-align: center; padding: 2.5rem 1rem; color: var(--text2);
   font-size: .75rem; line-height: 1.7;
 }
 .hist-empty .empty-ico {
@@ -274,9 +256,12 @@ html, body {
   100% { box-shadow: 0 0 0 0 rgba(20,184,166, 0); }
 }
 .sess-ttl {
-  font-size: .62rem; color: rgba(255,255,255,0.4); font-family: var(--mono);
+  font-size: .62rem; color: rgba(255,255,255,0.75); font-family: var(--mono);
   max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   margin-top: 2px;
+}
+.page-title {
+  font-family: var(--font) !important;
 }
 .hdr-actions { display: flex; gap: 6px; flex-shrink: 0; }
 .hdr-btn {
@@ -499,7 +484,7 @@ html, body {
   align-items: center;
   justify-content: center;
   flex: 1;
-  padding: 24px 20px;
+  padding: 24px 20px 48px;
   max-width: 680px;
   margin: auto auto;
   width: 100%;
@@ -567,6 +552,8 @@ html, body {
   font-size: .74rem;
   font-weight: 600;
   color: var(--navy);
+  text-transform: none !important;
+  letter-spacing: 0 !important;
 }
 .welcome-card .card-desc {
   font-size: .64rem;
@@ -595,8 +582,9 @@ html, body {
 }
 .ftr-badge {
   display: flex; align-items: center; gap: 4px;
-  padding: 3px 8px; border-radius: 20px;
-  background: rgba(255,255,255,.03); border: 1px solid var(--border);
+  padding: 4px 10px; border-radius: 12px;
+  background: var(--surface3); border: 1px solid var(--border2);
+  color: var(--text2); font-weight: 500;
 }
 
 /* ── SIDE PANEL ──────────────────────────────────── */
@@ -604,8 +592,8 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  overflow-y: auto;
-  max-height: 100%;
+  overflow: visible; /* Prevents scrollbars in right panel */
+  height: 100%;
 }
 .side-card {
   background: var(--surface); border: 1px solid var(--border2);
@@ -917,7 +905,6 @@ html, body {
         <div class="inp-wrap">
           <textarea id="inp" class="chat-inp" rows="1"
             placeholder="Ask about revenue, forecasts, staffing, inventory…"></textarea>
-          <span class="inp-hint">↵ send</span>
           <button id="sendBtn" class="btn-send" title="Send">
             <i class="fa-solid fa-paper-plane"></i>
           </button>
@@ -936,17 +923,16 @@ html, body {
     <div class="side-panel-header">
       <button class="drawer-close-btn" onclick="toggleSidebar()" title="Close Context"><i class="fa-solid fa-xmark"></i></button>
     </div>
+
     <div class="side-card">
       <div class="side-ttl"><i class="fa-solid fa-bolt" style="color:var(--amber);"></i>Quick Prompts</div>
-      <div class="prompts-slider">
-        <button class="chip" onclick="send(this.dataset.q)" data-q="Analyze my revenue trend and best month"><i class="fa-solid fa-chart-line" style="color:var(--blue);"></i>Analyze my revenue trend and best month</button>
-        <button class="chip" onclick="send(this.dataset.q)" data-q="What staffing do I need during peak hours?"><i class="fa-solid fa-users" style="color:var(--teal);"></i>What staffing do I need during peak hours?</button>
-        <button class="chip" onclick="send(this.dataset.q)" data-q="Which products should I stock more of?"><i class="fa-solid fa-box-open" style="color:var(--amber);"></i>Which products should I stock more of?</button>
-        <button class="chip" onclick="send(this.dataset.q)" data-q="Compare my active business branches"><i class="fa-solid fa-store" style="color:var(--purple);"></i>Compare my active business branches</button>
-        <button class="chip" onclick="send(this.dataset.q)" data-q="How does weather affect my sales?"><i class="fa-solid fa-cloud-rain" style="color:var(--blue-bright);"></i>How does weather affect my sales?</button>
-        <button class="chip" onclick="send(this.dataset.q)" data-q="Give me this week's executive business summary"><i class="fa-solid fa-file-lines" style="color:var(--green);"></i>Give me this week's executive business summary</button>
+      <div class="prompts-slider" style="display:flex; flex-direction:column; gap:6px;">
+        <button class="chip" onclick="send(this.dataset.q)" data-q="Analyze my revenue trend and best month"><i class="fa-solid fa-chart-line" style="color:var(--blue); margin-right:6px;"></i>Analyze Trends</button>
+        <button class="chip" onclick="send(this.dataset.q)" data-q="What staffing do I need during peak hours?"><i class="fa-solid fa-users" style="color:var(--teal); margin-right:6px;"></i>Staffing Levels</button>
+        <button class="chip" onclick="send(this.dataset.q)" data-q="Compare weekend vs weekday sales volume and patterns"><i class="fa-solid fa-calendar-days" style="color:var(--purple); margin-right:6px;"></i>Weekend Trends</button>
       </div>
     </div>
+
     <div class="side-card">
       <div class="side-ttl"><i class="fa-solid fa-calendar" style="color:var(--blue);"></i>Browse by Month</div>
       <div class="month-chips" id="monthChips">
@@ -1222,16 +1208,6 @@ function getWelcomeHTML() {
     <p class="welcome-sub">Hello! I'm your AI Operations Advisor for Mini Coffee Shop. I have live access to your sales database. Click a quick prompt card below or type a custom question to get started.</p>
   </div>
   <div class="welcome-grid">
-    <div class="welcome-card" onclick="send(&quot;Analyze my revenue trend and best month&quot;)">
-      <div class="card-icon" style="color: var(--blue);"><i class="fa-solid fa-chart-line"></i></div>
-      <div class="card-title">Analyze Trend</div>
-      <div class="card-desc">Review revenue trends & identify best performing months</div>
-    </div>
-    <div class="welcome-card" onclick="send(&quot;What staffing do I need during peak hours?&quot;)">
-      <div class="card-icon" style="color: var(--teal);"><i class="fa-solid fa-users"></i></div>
-      <div class="card-title">Staffing Levels</div>
-      <div class="card-desc">Find optimal staffing recommendations for peak sales periods</div>
-    </div>
     <div class="welcome-card" onclick="send(&quot;Which products should I stock more of?&quot;)">
       <div class="card-icon" style="color: var(--amber);"><i class="fa-solid fa-box-open"></i></div>
       <div class="card-title">Inventory Advice</div>
