@@ -1154,7 +1154,7 @@ def api_chat():
             session.modified = True
             return jsonify({"status": "success", "response": bypass_response})
             
-        system_context = build_slim_context(db_data, user_message)
+        system_context = build_slim_context(db_data, user_message, session.get('chat_history', []))
     except Exception as e:
         print(f"[CHAT ERROR] Database context failure: {e}")
         system_context = "You are the AI Business Advisor for 'Mini Coffee Shop'. Database connection is temporarily unavailable."
@@ -1226,7 +1226,7 @@ def api_chat_stream():
                 }
             )
 
-        system_context = build_slim_context(db_data, user_message)
+        system_context = build_slim_context(db_data, user_message, session.get('chat_history', []))
     except Exception:
         system_context = "You are the AI Business Advisor for 'Mini Coffee Shop'. Database temporarily unavailable."
 

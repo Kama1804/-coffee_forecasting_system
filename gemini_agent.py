@@ -165,6 +165,14 @@ ABSOLUTE_RULES = """
 - If the user says "thank you", "terima kasih", or "bye", just say a polite, friendly closing in 1 sentence.
 - For ROI analysis: If multiplier > 8x, say "WORTH IT". If < 5x, say "NOT WORTH IT (High Burn)".
 - LANGUAGE MIRRORING: Always respond in the SAME language used by the user. If they ask in Malay, answer in Malay. If in English, answer in English. Maintain a professional Malaysian business tone.
+- MALAY VOCABULARY ACCURACY: When responding in Malay, you MUST use authentic Malaysian F&B business terms. Do NOT use Indonesian terms. Use exactly:
+  * "cawangan" (not "cabang" or "outlet")
+  * "ramalan jualan" (not "prakiraan penjualan" or "prediksi")
+  * "panduan beli barang dapur / ramuan" (for ingredient guide)
+  * "jualan sebenar vs ramalan" (for actual vs predicted)
+  * "keperluan pekerja / jadual syif" (for staffing levels)
+  * "tutup" (for closed days)
+- CLOSED DAYS: Note that Mini Coffee Shop (MCS) branches are closed on Sundays. In weekly summaries, comparisons, and predicted vs actual charts/tables, NEVER include Sunday data or list Sunday, since no operations occur.
 - Ramadhan context: {ramadhan_note}
 """
 
@@ -350,7 +358,12 @@ def get_ai_insight(prompt: str, max_tokens: int = None, intent: dict = None) -> 
             last_error = str(e)
             time.sleep(BASE_DELAY * (2 ** attempt))
 
-    return False, f"AI Insight Engine currently unavailable. Error: {last_error}"
+    # Failover model
+    try:
+        text = _call("gemini-2.5-flash")
+        return True, text
+    except Exception as e:
+        return False, f"API Error: {last_error or str(e)}"
 
 
 # ============================================================
@@ -492,7 +505,7 @@ FORMAT (use exactly):
 #   SLIM CONTEXT BUILDER — analytical router for chat queries
 # ============================================================
 
-def build_slim_context(db_data: dict, user_message: str) -> str:
+def build_slim_context(db_data: dict, user_message: str, chat_history: list = None) -> str:
     """
     Builds a data-rich context payload for the AI, shaped by detected intent.
     Only injects data sections that are relevant to the user's actual question.
@@ -504,8 +517,12 @@ def build_slim_context(db_data: dict, user_message: str) -> str:
     )
     from forecast_engine import ForecastEngine
 
-    intent = classify_intent(user_message)
-    msg = user_message.lower()
+    combined_msg = user_message.lower()
+    if chat_history and len(chat_history) > 0:
+        combined_msg += " " + chat_history[-1].get('user', '').lower()
+
+    intent = classify_intent(combined_msg)
+    msg = combined_msg
 
     # ── SEMANTIC DAY FILTERING (Upgrade 1) ──────────────────
     target_date_str = None
@@ -593,7 +610,23 @@ def build_slim_context(db_data: dict, user_message: str) -> str:
                                 )
                         return "\n".join(lines)
 
-                    all_forecasts_text.append(f"{b_name} ({b_code}):\n{_fmt_days(fc_list)}")
+                    fva_list = fc_result.get('forecast_vs_actual', [])
+                    last_7_fva = fva_list[-7:] if len(fva_list) >= 7 else fva_list
+                    
+                    def _fmt_fva(inner_list):
+                        fva_lines = []
+                        for d in inner_list:
+                            dt = datetime.strptime(d['ds'], '%Y-%m-%d')
+                            fva_lines.append(
+                                f"  {d['ds']} ({dt:%A}): Actual RM {d['actual']:,.2f} vs Predicted RM {d['predicted']:,.2f}"
+                            )
+                        return "\n".join(fva_lines)
+
+                    all_forecasts_text.append(
+                        f"{b_name} ({b_code}):\n"
+                        f"Future Forecast:\n{_fmt_days(fc_list)}\n\n"
+                        f"Last 7 Operating Days (Actual vs Predicted):\n{_fmt_fva(last_7_fva)}"
+                    )
                     for d in fc_list:
                         combined_items.extend(d.get('predicted_items', []))
 
@@ -762,16 +795,78 @@ def build_slim_context(db_data: dict, user_message: str) -> str:
 
     # ── CHART DATA ──────────────────────────────────────────
     if intent["primary"] == "chart_request" or any(k in msg for k in _CHART_KEYWORDS):
-        m_count = 3
-        m_match = re.search(r'last (\d+) month', msg)
-        if m_match:
-            m_count = int(m_match.group(1))
-        try:
-            from analytics import multi_month_chart_pre_packager
-            chart_data = multi_month_chart_pre_packager(months=m_count)
-            sections.append(f"=== CHART DATA ===\n[CHART_DATA={chart_data}]")
-        except Exception as e:
-            sections.append(f"=== CHART DATA ===\nError generating chart payload: {e}")
+        is_fva_chart = (
+            "actual vs" in msg or "predicted vs" in msg or "forecast vs" in msg or
+            "sebenar vs ramalan" in msg or "ramalan vs sebenar" in msg or
+            "graf jualan sebenar" in msg or "graf ramalan" in msg or
+            ("sebenar" in msg and "ramalan" in msg) or
+            ("last" in msg and ("forecast" in msg or "predicted" in msg)) or
+            ("lepas" in msg and ("ramalan" in msg or "jualan" in msg))
+        )
+        if is_fva_chart:
+            try:
+                from forecast_engine import ForecastEngine
+                engine = ForecastEngine()
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                
+                # Contextual branch detection from message history
+                if "puncak alam" in msg or "ft-pa1" in msg:
+                    cursor.execute("SELECT branch_code, branch_name FROM branch WHERE branch_code = 'FT-PA1'")
+                elif "putrajaya" in msg or "stb-pj1" in msg:
+                    cursor.execute("SELECT branch_code, branch_name FROM branch WHERE branch_code = 'STB-PJ1'")
+                else:
+                    cursor.execute("SELECT branch_code, branch_name FROM branch WHERE is_active = 1 LIMIT 1")
+                    
+                b_row = cursor.fetchone()
+                conn.close()
+                
+                if b_row:
+                    b_code, b_name = b_row[0], b_row[1]
+                    success, fc_result = engine.generate_5_day_forecast(b_code, b_name)
+                    if success:
+                        fva = fc_result.get('forecast_vs_actual', [])
+                        last_7 = fva[-7:] if len(fva) >= 7 else fva
+                        
+                        labels = []
+                        actual_data = []
+                        predicted_data = []
+                        
+                        for item in last_7:
+                            dt = datetime.strptime(item['ds'], '%Y-%m-%d')
+                            labels.append(dt.strftime('%a %d/%m'))
+                            actual_data.append(item['actual'])
+                            predicted_data.append(item['predicted'])
+                            
+                        chart_payload = {
+                            "type": "line",
+                            "title": f"Jualan Sebenar vs Ramalan ({b_name})",
+                            "labels": labels,
+                            "datasets": [
+                                {
+                                    "label": "Jualan Sebenar (Actual)",
+                                    "data": actual_data
+                                },
+                                {
+                                    "label": "Ramalan (Predicted)",
+                                    "data": predicted_data
+                                }
+                            ]
+                        }
+                        sections.append(f"=== CHART DATA ===\n[CHART_DATA={json.dumps(chart_payload)}]")
+            except Exception as e:
+                sections.append(f"=== CHART DATA ===\nError generating actual vs predicted chart payload: {e}")
+        else:
+            m_count = 3
+            m_match = re.search(r'last (\d+) month', msg)
+            if m_match:
+                m_count = int(m_match.group(1))
+            try:
+                from analytics import multi_month_chart_pre_packager
+                chart_data = multi_month_chart_pre_packager(months=m_count)
+                sections.append(f"=== CHART DATA ===\n[CHART_DATA={chart_data}]")
+            except Exception as e:
+                sections.append(f"=== CHART DATA ===\nError generating chart payload: {e}")
 
     return "\n\n".join(sections)
 
