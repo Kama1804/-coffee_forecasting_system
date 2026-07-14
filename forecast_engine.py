@@ -446,9 +446,13 @@ class ForecastEngine:
                    SUM(transaction_qty) as total_qty,
                    SUM(Total_Bill_MYR) as total_rev
             FROM sales_transaction
-            WHERE branch_id = ? AND transaction_date >= date('now', '-30 day')
+            WHERE branch_id = ? AND transaction_date >= (
+                SELECT date(max(transaction_date), '-30 day')
+                FROM sales_transaction
+                WHERE branch_id = ?
+            )
             GROUP BY item_name, product_id, product_detail
-        """, conn, params=(branch_id,))
+        """, conn, params=(branch_id, branch_id))
 
         total_hist_rev = mix_df['total_rev'].sum() if not mix_df.empty else 1
         if total_hist_rev == 0:
