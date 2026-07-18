@@ -307,11 +307,17 @@ def upload_file():
                             
                     flash(f'Data cleaned but failed to save: {db_message}', 'error')
                     if os.path.exists(filepath):
-                        os.remove(filepath)
+                        try:
+                            os.remove(filepath)
+                        except OSError as e:
+                            print(f"[CLEANUP WARNING] Could not remove temporary upload file: {e}")
             else:
                 flash(f'ETL Error: {message}', 'error')
                 if os.path.exists(filepath):
-                    os.remove(filepath)
+                    try:
+                        os.remove(filepath)
+                    except OSError as e:
+                        print(f"[CLEANUP WARNING] Could not remove temporary upload file: {e}")
             return redirect(url_for('upload_file'))
         else:
             flash('Invalid file type. Please upload a .csv file only.', 'error')
