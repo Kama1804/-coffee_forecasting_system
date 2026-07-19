@@ -955,8 +955,8 @@ function applyFilters() {
   const isOutletEligible = (branch === 'all') && (time === 'all' || time.startsWith('year_'));
   if (outletSection) outletSection.style.display = isOutletEligible ? 'block' : 'none';
 
-  // Discount Impact rendering criteria: All outlets, but only All Time or Yearly
-  const isDiscountEligible = (time === 'all' || time.startsWith('year_'));
+  // Discount Impact rendering criteria: Always visible to show Gross vs Net sales comparison
+  const isDiscountEligible = true;
   if (discountSection) discountSection.style.display = isDiscountEligible ? 'block' : 'none';
 
   const qp = `branch=${encodeURIComponent(branch)}&time=${encodeURIComponent(time)}&temp=all`;
