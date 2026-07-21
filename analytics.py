@@ -295,31 +295,46 @@ def get_regular_peak_hours(branch_id=None, time_filter='all'):
 
 def bulk_insert_sales(df, db_path):
     """
-    Inserts data into sales_transaction while strictly avoiding UNIQUE constraint failures.
-    Ensures atomicity: If any ID exists, the entire batch is rejected.
+    Inserts data into sales_transaction with Smart Deduplication:
+    - If 100% of rows are duplicates, reject the file as already ingested.
+    - If mixed (duplicates + new), skip duplicates and insert ONLY new rows.
+    - If 100% new, insert all rows.
     """
     conn = sqlite3.connect(db_path, timeout=30.0)
     try:
-        # 1. Check for ANY existing IDs in DB to prevent collisions (Atomic Check)
         cursor = conn.cursor()
         incoming_ids = df['transaction_id'].tolist()
         
-        # Using a parameterized IN clause for safety, but chunked if list is huge
-        # For simplicity and given typical CSV sizes, we'll check in one go or small batches
-        placeholders = ', '.join(['?'] * len(incoming_ids))
-        cursor.execute(f"SELECT transaction_id FROM sales_transaction WHERE transaction_id IN ({placeholders})", incoming_ids)
-        existing = cursor.fetchall()
-        
-        if existing:
-            duplicate_ids = [row[0] for row in existing]
-            return False, f"Database Rejection: Duplicate transactions detected. Example: {duplicate_ids[0]}. This file has already been ingested."
+        # Check existing IDs in database using parameterized chunking
+        existing_ids_set = set()
+        chunk_size = 500
+        for i in range(0, len(incoming_ids), chunk_size):
+            chunk = incoming_ids[i:i+chunk_size]
+            placeholders = ', '.join(['?'] * len(chunk))
+            cursor.execute(f"SELECT transaction_id FROM sales_transaction WHERE transaction_id IN ({placeholders})", chunk)
+            for row in cursor.fetchall():
+                existing_ids_set.add(row[0])
+
+        total_rows = len(df)
+        dup_count = len(df[df['transaction_id'].isin(existing_ids_set)])
+
+        # Case A: 100% Duplicates -> Reject
+        if dup_count == total_rows:
+            return False, "Database Rejection: Double ingestion alert. These transaction IDs are already registered."
+
+        # Case B & C: Filter out duplicates and insert new rows only
+        df_new = df[~df['transaction_id'].isin(existing_ids_set)].copy()
+        new_count = len(df_new)
+
+        if new_count > 0:
+            df_new.to_sql('sales_transaction', conn, if_exists='append', index=False)
+            conn.commit()
+
+        if dup_count > 0:
+            return True, f"Smart Ingestion: Skipped {dup_count} duplicate records and successfully loaded {new_count} new records."
+        else:
+            return True, f"Successfully loaded {new_count} new records."
             
-        # 2. Perform insert
-        df.to_sql('sales_transaction', conn, if_exists='append', index=False)
-        conn.commit()
-        
-        return True, f"Successfully inserted {len(df)} records."
-        
     except Exception as e:
         return False, str(e)
     finally:
