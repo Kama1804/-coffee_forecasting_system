@@ -209,7 +209,12 @@ class ForecastEngine:
             promo_query = """
                 SELECT strftime('%w', transaction_date) as dow, promo_code, COUNT(*) as cnt
                 FROM sales_transaction
-                WHERE branch_id = ? AND promo_code != 'NONE'
+                WHERE branch_id = ? 
+                  AND promo_code != 'NONE'
+                  AND promo_code NOT LIKE '%CAMPAIGN%'
+                  AND promo_code NOT LIKE '%RAYA%'
+                  AND promo_code NOT LIKE '%CNY%'
+                  AND promo_code NOT LIKE '%DEEPAVALI%'
                 GROUP BY dow, promo_code
                 HAVING cnt > 2
             """
@@ -431,7 +436,12 @@ class ForecastEngine:
         cursor.execute("""
             SELECT strftime('%w', transaction_date) as dow, promo_code, COUNT(DISTINCT transaction_date) as days_active
             FROM sales_transaction
-            WHERE branch_id = ? AND promo_code != 'NONE'
+            WHERE branch_id = ? 
+              AND promo_code != 'NONE'
+              AND promo_code NOT LIKE '%CAMPAIGN%'
+              AND promo_code NOT LIKE '%RAYA%'
+              AND promo_code NOT LIKE '%CNY%'
+              AND promo_code NOT LIKE '%DEEPAVALI%'
             GROUP BY dow, promo_code
             HAVING days_active >= 4
             ORDER BY days_active DESC
