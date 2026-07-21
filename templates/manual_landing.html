@@ -3,6 +3,13 @@
 
 {% block styles %}
 <!-- Load MathJax CDN for dynamic mathematical formula typesetting -->
+<script>
+    window.MathJax = {
+        tex: {
+            inlineMath: [['$', '$'], ['\\(', '\\)']]
+        }
+    };
+</script>
 <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 
 <style>
@@ -989,6 +996,25 @@
 
         <h6 class="text-primary fw-bold mb-3" style="font-size:0.95rem;"><i class="fa-solid fa-calculator me-2"></i> Dashboard Metrics & Calculations</h6>
         
+        <!-- Gross Sales vs Retained Cash (Net Sales) Formula -->
+        <div class="formula-card">
+            <span class="formula-badge">Metric: Gross Sales vs. Retained Cash (Net Sales)</span>
+            <p class="small text-muted mb-2">Evaluates revenue retention by tracking total baseline menu earnings (Gross Sales), promotional losses, and actual net cash collected into your store account.</p>
+            
+            $$\text{Net Sales (Retained Cash)} = \text{Gross Sales} - \text{Total Promotional Discounts}$$
+            $$\text{Revenue Retention Rate (\%)} = \left( \frac{\text{Net Sales (Retained Cash)}}{\text{Gross Sales}} \right) \times 100$$
+            
+            <div class="owner-desc">
+                <h6><i class="fa-solid fa-mug-hot text-primary"></i> Example & Business Guidance:</h6>
+                <p class="small text-muted mb-0">
+                    If your store generates <strong>RM 5,000.00</strong> in Gross Sales (at standard menu prices), but gave away <strong>RM 750.00</strong> in promotional discounts: <br>
+                    $$\text{Net Sales (Retained Cash): } RM 5,000.00 - RM 750.00 = \mathbf{RM 4,250.00}$$
+                    $$\text{Revenue Retention Rate: } \left( \frac{RM 4,250.00}{RM 5,000.00} \right) \times 100 = \mathbf{85.0\%}$$
+                    Your store retained <strong>85.0%</strong> of potential revenue as cash (15.0% discount loss). A retention rate of <strong>85% - 95%</strong> is healthy. Below <strong>80%</strong> indicates your promotions are giving away too much profit margin!
+                </p>
+            </div>
+        </div>
+
         <!-- AOV Formula -->
         <div class="formula-card">
             <span class="formula-badge">Metric: Average Order Value (AOV)</span>
@@ -1123,6 +1149,28 @@
             </div>
         </div>
 
+        <!-- Automatic Data Cleaning & Layer Transformation -->
+        <div class="formula-card">
+            <span class="formula-badge">System Process: Automatic Data Cleaning & Layer Transformation</span>
+            <p class="small text-muted mb-2">When a POS CSV is uploaded, raw cashier rows are automatically processed into structured analytical layers:</p>
+            <ol class="small text-muted mb-0 ps-3">
+                <li><strong>Temporal Layer Breakdown:</strong> Converts raw <code>Timestamp</code> into <code>transaction_date</code>, <code>transaction_time</code>, <code>Hour</code>, <code>Day Name</code>, and <code>Month</code> for instant time-series analysis.</li>
+                <li><strong>Outlet Metadata Mapping:</strong> Matches <code>Store_ID</code> against the database branch registry to automatically attach store location names (e.g. Putrajaya, Puncak Alam), district, state, and geographic GPS coordinates.</li>
+                <li><strong>Automated Weather Enrichment:</strong> Queries historical Open-Meteo API for each branch location to tag hourly weather conditions (<i>Sunny</i>, <i>Cloudy</i>, <i>Raining</i>, <i>Thunderstorm</i>).</li>
+            </ol>
+        </div>
+
+        <!-- Duplicate Prevention & Quality Validation Rules -->
+        <div class="formula-card">
+            <span class="formula-badge">Rule Logic: Duplicate Prevention & Data Quality Safeguards</span>
+            <p class="small text-muted mb-2">Protects analytical integrity by enforcing strict database validation rules during file ingestion:</p>
+            <ul class="small text-muted mb-0 ps-3">
+                <li><strong>Duplicate Receipt Protection:</strong> Skips or rejects transactions with existing <code>Transaction_ID</code> primary keys to prevent double-counting revenue and beverage volumes if the same CSV is uploaded twice.</li>
+                <li><strong>Zero-Quantity & Void Filtering:</strong> Ignores test receipts, zero-quantity orders, or invalid cashier entries to ensure accurate Average Order Value (AOV) calculations.</li>
+                <li><strong>Dynamic Product ID Registry:</strong> Automatically assigns internal product identifiers (e.g., <code>SKU-1042</code>) to newly introduced menu items.</li>
+            </ul>
+        </div>
+
         <!-- Weather Classification Rules -->
         <div class="formula-card">
             <span class="formula-badge">Rule Logic: Weather Ingestion Voting</span>
@@ -1204,17 +1252,26 @@
         <!-- Prophet Model -->
         <div class="formula-card">
             <span class="formula-badge">Formula: Prophet Multiplicative Regression Model</span>
-            <p class="small text-muted mb-2">Calculates predictions by scaling a baseline trend up or down based on real-world factors.</p>
+            <p class="small text-muted mb-2">Calculates sales predictions by dynamically scaling a baseline revenue trend up or down based on real-world factors (weekly seasonality, public holidays, and live weather forecasts).</p>
+            
             $$y(t) = g(t) \times \Big(1 + s(t) + h(t) + w(t)\Big) + \epsilon_t$$
-            <p class="small text-muted">
-                Where $g(t)$ is the baseline growth trend, $s(t)$ represents weekly seasonality, $h(t)$ is the public holiday factor, $w(t)$ is the forecasted weather effect, and $\epsilon_t$ is the margin of error.
+            
+            <p class="small text-muted mb-2">
+                <strong>Parameter Definitions:</strong><br>
+                • <strong>\(y(t)\)</strong> = Final Projected Revenue (RM) for day \(t\)<br>
+                • <strong>\(g(t)\)</strong> = Baseline Growth Trend (core daily sales level without temporary factors)<br>
+                • <strong>\(s(t)\)</strong> = Weekly Seasonality factor (e.g. \(+0.15\) for Saturday weekend boost)<br>
+                • <strong>\(h(t)\)</strong> = Public Holiday & Campaign factor (e.g. \(+0.20\) for festive promos)<br>
+                • <strong>\(w(t)\)</strong> = Forecasted Weather Effect (e.g. \(-0.40\) for heavy rain drag)<br>
+                • <strong>\(\epsilon_t\)</strong> = Margin of Error (residual noise; assumed \(0\) for expected point prediction)
             </p>
             <div class="owner-desc">
-                <h6><i class="fa-solid fa-mug-hot text-primary"></i> Example:</h6>
+                <h6><i class="fa-solid fa-mug-hot text-primary"></i> Step-by-Step Calculation Example:</h6>
                 <p class="small text-muted mb-0">
-                    If the baseline trend predicts <strong>RM 1,000</strong> for tomorrow, but a thunderstorm is forecasted (weather drag = -60%) and it's a weekday (no weekend boost): <br>
-                    $$\text{Calculation: } RM 1,000 \times \big(1 + 0 - 0.60 + 0\big) = RM 400.00$$
-                    The system adjusts the prediction to <strong>RM 400.00</strong> because heavy rain keeps coffee customers at home.
+                    If Putrajaya outlet has a baseline revenue trend \(g(t) = \mathbf{\text{RM 1,000.00}}\), and tomorrow is a <strong>Saturday (+15%)</strong> during a <strong>Public Holiday Campaign (+20%)</strong>, but <strong>Heavy Rain / Thunderstorm (-40%)</strong> is forecasted: <br><br>
+                    <strong>1. Combined Multiplier:</strong> \(1 + s(t) + h(t) + w(t) = 1 + (+0.15) + (+0.20) + (-0.40) = 0.95\)<br>
+                    <strong>2. Final Forecasted Revenue:</strong> \(y(t) = \text{RM 1,000.00} \times 0.95 = \mathbf{\text{RM 950.00}}\)<br><br>
+                    The system adjusts the final prediction to <strong>RM 950.00</strong> because heavy rain reduces walk-in customers despite weekend and holiday demand.
                 </p>
             </div>
         </div>
@@ -1271,6 +1328,18 @@
                     </table>
                 </div>
             </div>
+        </div>
+
+        <!-- New Item & Missing Recipe Audit Rule -->
+        <div class="formula-card">
+            <span class="formula-badge">Rule Logic: New Item & Missing Recipe Audit</span>
+            <p class="small text-muted mb-2">How the system handles newly introduced menu items uploaded from POS transaction files:</p>
+            <ol class="small text-muted mb-2 ps-3">
+                <li><strong>Automatic Detection:</strong> When a POS CSV contains a new drink or food item not yet registered in the database, the system flags it with a <code>Missing Recipe</code> status.</li>
+                <li><strong>Pre-Forecast Alert:</strong> On the AI Forecast page, an alert banner (<i>⚠️ Missing Recipes Detected</i>) notifies the owner to define ingredient weights before generating inventory plans.</li>
+                <li><strong>Recipe Definition:</strong> The owner clicks <strong>Define Recipes Now</strong> to enter raw material weights per cup serving (e.g. 18g coffee beans, 200ml milk, 15ml syrup).</li>
+                <li><strong>Procurement Sync:</strong> Once saved, the forecast engine instantly incorporates the new item into the 5-day <strong>Ingredient Procurement & Shopping Guide</strong>.</li>
+            </ol>
         </div>
 
         <!-- Embedded Weather & Holiday Simulator -->
