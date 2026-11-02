@@ -215,9 +215,6 @@ coffee_forecasting_system/
 ├── generate_pdf_manual.py            # PDF documentation generator script
 ├── test_suite.py                     # Automated pytest test suite (UT-001 - UT-008 & integration)
 ├── coffee_forecasting_system_manual.md # Comprehensive Markdown stakeholder user manual
-├── chapter_6_system_implementation.md# System implementation documentation chapter
-├── chapter_7_system_testing.md       # System testing and verification documentation chapter
-├── chapter_8_conclusion.md           # Project conclusion chapter
 ├── requirements.txt                  # Python dependencies specification
 ├── nixpacks.toml                     # Nixpacks build configuration for Railway deployment
 ├── railway.json                      # Railway service deployment manifest
